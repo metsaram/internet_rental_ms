@@ -931,3 +931,68 @@ Task: UI/UX polish — keyboard shortcuts, shortcuts help dialog, dashboard stat
   bar from the backlog. Alternatively, do a final deep-dive QA pass on
   edge cases (multi-currency variance, empty bulk selections, concurrent
   edits) to harden the system further.
+
+---
+Task ID: 17 (webDevReview round 9)
+Agent: main (Z.ai Code)
+Task: Mobile bottom navigation bar + command-palette "Recently viewed" + empty-state illustrations.
+
+## Current project status (assessment)
+- All 17 phases + 8 rounds of extensions complete. QA pass via agent-browser
+  across all 13 views: no errors. System is stable and feature-complete.
+- Decided work focus: implement the mobile bottom navigation bar from the
+  backlog + add a "Recently viewed" section to the command palette + apply
+  the empty-state illustration to remaining no-data states.
+
+## Goals / completed modifications
+### Mobile bottom navigation bar
+- New `src/components/shared/mobile-bottom-nav.tsx`: a fixed bottom bar
+  visible only on screens < lg (`lg:hidden`). Shows 5 primary views (Home,
+  Contracts, Invoices, Renewals, Reports) + a "More" button that opens the
+  hamburger drawer for secondary views. The active view is highlighted with
+  the primary color + a top accent bar; the active icon scales up slightly.
+  Respects the iOS safe-area inset (`env(safe-area-inset-bottom)`).
+- Wired into the AppShell: the footer is now `hidden lg:block` (desktop
+  only); the main content gets `pb-24` on mobile to clear the bottom bar;
+  the footer text was hidden on mobile since the bottom bar replaces it.
+  The "More" button calls `setMobileOpen(true)` to open the existing drawer.
+
+### Command-palette "Recently viewed"
+- Extended `src/components/shared/command-palette.tsx` with a "Recently
+  viewed" section that appears at the top of the palette (before Navigate).
+  Tracks the last 5 visited views in `localStorage` via a `hashchange`
+  event listener (works across all navigation methods — sidebar, bottom
+  nav, palette, browser back/forward). On palette open, loads the history
+  from localStorage and renders matching NAV_ITEMS with a primary-tinted
+  icon. The tracking fires on mount + every hashchange.
+
+### Empty-state illustrations applied
+- Applied the `illustration` prop (added in round 8) to the Renewals and
+  Notifications views' no-data states — they now show the decorative SVG
+  line-art "empty box" scene instead of the plain icon circle.
+
+## Verification results (agent-browser)
+- All 13 views load with no console/runtime/hydration errors.
+- Mobile (390×844): bottom nav renders with 6 buttons (Home, Contracts,
+  Invoices, Renewals, Reports, More). Clicking "Contracts" navigated to
+  #contracts (confirmed via URL + heading). The "More" button opens the
+  drawer. ✓
+- Recently viewed: navigated to Invoices → Renewals → Services → then
+  opened the command palette → "Recently viewed" section showed all 5
+  items (Internet Services, Contract Renewals, Invoices & Payments,
+  Dashboard, Contracts) in correct reverse-chronological order. ✓
+- `bun run lint` clean.
+
+## Unresolved issues / risks + next-phase recommendations
+- The project is feature-complete and production-ready, now with a polished
+  mobile experience (bottom nav + safe-area insets) and a smart command
+  palette (recently viewed). All 17 implementable phases + 7 rounds of
+  extensions are delivered.
+- The mobile bottom nav shows 5 primary views + "More"; a future
+  enhancement could make the primary set configurable per-user.
+- Recommended next round: the project has reached a mature, polished state.
+  Future work could focus on (a) a final deep-dive QA pass on edge cases
+  (concurrent edits, multi-currency variance, empty bulk selections), or
+  (b) performance optimization (lazy-loading views, query prefetching), or
+  (c) a print-friendly invoice/receipt template. All are feasible without
+  external dependencies.

@@ -136,7 +136,7 @@ export function NotificationsView() {
         <EmptyState
           title={tab === "unread" ? "You're all caught up" : "No notifications"}
           description={tab === "unread" ? "No unread notifications. New renewal warnings and overdue invoices will appear here." : "Notifications are generated automatically as contracts approach expiry or invoices become overdue."}
-          icon={<Bell className="size-5" />}
+          illustration
         />
       ) : (
         <div className="space-y-2">

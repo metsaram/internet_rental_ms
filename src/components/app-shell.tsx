@@ -45,6 +45,7 @@ import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ShortcutsHelp, useShortcutsHelp } from "@/components/shared/shortcuts-help";
+import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
 
 export type ViewKey =
   | "dashboard"
@@ -388,11 +389,11 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
+        <main className="flex-1 px-4 py-6 pb-24 lg:px-8 lg:py-8 lg:pb-8">
           <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
         </main>
 
-        <footer className="mt-auto border-t bg-background/80 px-4 py-4 text-center text-xs text-muted-foreground lg:px-8">
+        <footer className="hidden lg:block mt-auto border-t bg-background/80 px-4 py-4 text-center text-xs text-muted-foreground lg:px-8">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-1 sm:flex-row">
             <span>
               © {new Date().getFullYear()} NetRent · Internet Rental Management
@@ -408,6 +409,13 @@ export function AppShell({
           </div>
         </footer>
       </div>
+
+      {/* Mobile bottom navigation */}
+      <MobileBottomNav
+        active={view}
+        onNavigate={(v) => navigate(v)}
+        onMore={() => setMobileOpen(true)}
+      />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <ShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>

@@ -63,19 +63,76 @@ export function CommandPalette({
   onOpenChange: (v: boolean) => void;
 }) {
   const { theme, setTheme } = useTheme();
+  const [recent, setRecent] = React.useState<string[]>([]);
+
+  // Load recently-viewed from localStorage on mount + when the palette opens.
+  React.useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem("netrent-recent-views") ?? "[]";
+      const arr = JSON.parse(raw) as string[];
+      setRecent(Array.isArray(arr) ? arr.slice(0, 5) : []);
+    } catch {
+      setRecent([]);
+    }
+  }, [open]);
+
+  // Track the current view whenever the hash changes (user navigated via any
+  // means — sidebar, bottom nav, command palette, or browser back/forward).
+  React.useEffect(() => {
+    const track = () => {
+      const h = window.location.hash.replace("#", "");
+      if (!h) return;
+      try {
+        const raw = localStorage.getItem("netrent-recent-views") ?? "[]";
+        const arr = JSON.parse(raw) as string[];
+        const next = [h, ...arr.filter((x) => x !== h)].slice(0, 5);
+        localStorage.setItem("netrent-recent-views", JSON.stringify(next));
+      } catch {
+        // localStorage may be unavailable
+      }
+    };
+    // Track the initial view on mount.
+    track();
+    window.addEventListener("hashchange", track);
+    return () => window.removeEventListener("hashchange", track);
+  }, []);
 
   const go = (hash: string) => {
-    // Use assign() rather than direct hash assignment (lint-friendly) and
-    // keep the existing view if we're already on `/`.
     window.location.assign(`#${hash}`);
     onOpenChange(false);
   };
+
+  const recentItems = recent
+    .map((key) => NAV_ITEMS.find((n) => n.key === key))
+    .filter(Boolean) as typeof NAV_ITEMS;
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput placeholder="Search views, jump to a section, or run an action..." />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>
+        {recentItems.length > 0 && (
+          <>
+            <CommandGroup heading="Recently viewed">
+              {recentItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <CommandItem
+                    key={item.key}
+                    value={`recent ${item.label} ${item.key}`}
+                    onSelect={() => go(item.key)}
+                    className="gap-2"
+                  >
+                    <Icon className="size-4 text-primary" />
+                    <span>{item.label}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
         <CommandGroup heading="Navigate">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;

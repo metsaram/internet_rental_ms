@@ -216,7 +216,7 @@ export function RenewalsView() {
                 ? "Contracts past their end date without a renewal decision will appear here."
                 : "Completed renewals (old → new contract links) will appear here."
           }
-          icon={<History className="size-5" />}
+          illustration
         />
       ) : (
         <div className="space-y-3">

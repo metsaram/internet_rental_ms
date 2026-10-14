@@ -24,9 +24,12 @@ import {
   Search,
   RefreshCw,
   Upload,
+  Bell,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -53,6 +56,7 @@ export type ViewKey =
   | "invoices"
   | "renewals"
   | "import"
+  | "notifications"
   | "reports"
   | "settings";
 
@@ -72,6 +76,7 @@ const NAV: Array<{
   { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Operations" },
   { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
   { key: "import", label: "Excel Import", icon: Upload, group: "Operations" },
+  { key: "notifications", label: "Notifications", icon: Bell, group: "Insights" },
   { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
   { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
 ];
@@ -119,6 +124,14 @@ export function AppShell({
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+
+  // Poll notifications unread count for the header bell badge.
+  const { data: notifData } = useQuery<{ unreadCount: number }>({
+    queryKey: ["notifications-unread-count"],
+    queryFn: () => api<{ unreadCount: number }>("/api/notifications?unreadOnly=true"),
+    refetchInterval: 30_000,
+  });
+  const unreadCount = notifData?.unreadCount ?? 0;
   React.useEffect(() => setMounted(true), []);
 
   // Global Cmd/Ctrl+K shortcut for the command palette.
@@ -275,6 +288,20 @@ export function AppShell({
               aria-label="Open command palette"
             >
               <Search className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative size-9"
+              onClick={() => navigate("notifications")}
+              aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+            >
+              <Bell className="size-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex min-w-[16px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white ring-2 ring-background">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
             </Button>
             <Button
               variant="ghost"

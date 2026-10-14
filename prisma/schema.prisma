@@ -40,6 +40,8 @@ model Company {
   renewals ContractRenewal[]
   invoices  Invoice[]
   payments  Payment[]
+  attachments Attachment[]
+  notifications Notification[]
   auditLogs AuditLog[]
   importJobs ImportJob[]
 
@@ -69,6 +71,8 @@ model User {
   payments     Payment[] @relation("PaymentAuthor")
   renewalsDecidedBy ContractRenewal[] @relation("RenewalDecidedBy")
   renewalsAuthored ContractRenewal[] @relation("RenewalAuthor")
+  attachments  Attachment[] @relation("AttachmentAuthor")
+  notifications Notification[]
   auditLogs    AuditLog[] @relation("AuditActor")
   importJobs   ImportJob[]
 
@@ -448,6 +452,78 @@ model PaymentAllocation {
   @@unique([paymentId, invoiceId])
   @@index([invoiceId])
   @@map("payment_allocations")
+}
+
+// ---------------------------------------------------------------------------
+// Attachments (Phase 11) — files stored in private object storage; metadata
+// in PostgreSQL. Polymorphic-ish: entityType + entityId point to a contract,
+// invoice, payment, provider, etc. The storageKey is opaque (never exposes
+// the real path to the client).
+// ---------------------------------------------------------------------------
+
+enum AttachmentCategory {
+  CONTRACT
+  QUOTATION
+  INVOICE
+  RECEIPT
+  PROVIDER_DOC
+  OTHER
+}
+
+model Attachment {
+  id          String             @id @default(cuid())
+  companyId   String
+  entityType  String             // contract | invoice | payment | provider | ...
+  entityId    String
+  category    AttachmentCategory @default(OTHER)
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  storageKey  String             // opaque key in private storage
+  uploadedById String
+  createdAt   DateTime           @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation("AttachmentAuthor", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, createdAt])
+  @@map("attachments")
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (Phase 16) — in-app notification center driven by renewal
+// thresholds, billing overdue events, and import completion. Each notification
+// targets a user (or the company for broadcast); read state tracked per-user.
+// ---------------------------------------------------------------------------
+
+enum NotificationType {
+  RENEWAL_UPCOMING
+  RENEWAL_OVERDUE
+  INVOICE_OVERDUE
+  INVOICE_DUE_SOON
+  IMPORT_COMPLETED
+  IMPORT_FAILED
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  companyId   String
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  entityType  String?
+  entityId    String?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, userId, readAt])
+  @@index([companyId, createdAt])
+  @@map("notifications")
 }
 
 // ---------------------------------------------------------------------------

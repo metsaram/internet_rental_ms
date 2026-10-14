@@ -27,6 +27,7 @@ import {
   Plus,
   RefreshCw,
   Upload,
+  Bell,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Navigate" },
   { key: "renewals", label: "Contract Renewals", icon: RefreshCw, group: "Navigate" },
   { key: "import", label: "Excel Import", icon: Upload, group: "Navigate" },
+  { key: "notifications", label: "Notifications", icon: Bell, group: "Navigate" },
   { key: "reports", label: "Reports", icon: BarChart3, group: "Navigate" },
   { key: "settings", label: "Settings", icon: Settings, group: "Navigate" },
 ];

@@ -14,11 +14,28 @@ import { ContractsView } from "@/components/views/contracts";
 import { InvoicesView } from "@/components/views/invoices";
 import { RenewalsView } from "@/components/views/renewals";
 import { ImportView } from "@/components/views/import";
+import { NotificationsView } from "@/components/views/notifications";
 import { ReportsView } from "@/components/views/reports";
 import { SettingsView } from "@/components/views/settings";
 import { ViewTransition } from "@/components/shared/view-transition";
 import type { ViewKey } from "@/components/app-shell";
 import { Loader2 } from "lucide-react";
+
+const VALID_VIEWS: ViewKey[] = [
+  "dashboard",
+  "branches",
+  "shops",
+  "providers",
+  "plans",
+  "services",
+  "contracts",
+  "invoices",
+  "renewals",
+  "import",
+  "notifications",
+  "reports",
+  "settings",
+];
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -28,21 +45,7 @@ export default function Home() {
   React.useEffect(() => {
     const apply = () => {
       const h = window.location.hash.replace("#", "") as ViewKey;
-      const valid: ViewKey[] = [
-        "dashboard",
-        "branches",
-        "shops",
-        "providers",
-        "plans",
-        "services",
-        "contracts",
-        "invoices",
-        "renewals",
-        "import",
-        "reports",
-        "settings",
-      ];
-      setView(valid.includes(h) ? h : "dashboard");
+      setView(VALID_VIEWS.includes(h) ? h : "dashboard");
     };
     apply();
     window.addEventListener("hashchange", apply);
@@ -74,6 +77,7 @@ export default function Home() {
         {view === "invoices" && <InvoicesView />}
         {view === "renewals" && <RenewalsView />}
         {view === "import" && <ImportView />}
+        {view === "notifications" && <NotificationsView />}
         {view === "reports" && <ReportsView />}
         {view === "settings" && <SettingsView />}
       </ViewTransition>

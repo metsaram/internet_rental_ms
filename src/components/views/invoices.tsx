@@ -38,6 +38,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DataTable, FilterSelect, type DataTableColumn } from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { AttachmentsPanel } from "@/components/shared/attachments-panel";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -695,6 +696,13 @@ function InvoiceDetailSheet({
                 </div>
               )}
             </div>
+
+            {/* Attachments (Phase 11) */}
+            {detail && (
+              <div className="border-t pt-4">
+                <AttachmentsPanel entityType="invoice" entityId={detail.id} />
+              </div>
+            )}
 
             <div className="flex flex-wrap gap-2">
               {Number(detail.outstanding) > 0 && detail.status !== "VOID" && (

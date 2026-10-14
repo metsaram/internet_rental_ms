@@ -518,3 +518,118 @@ Task: QA pass + Phase 09 (Excel Import) + framer-motion view transitions + impor
   service behind a `StorageService` interface) then Phase 16 (notifications
   — an in-app notification center driven by the audit log + renewal
   thresholds).
+
+---
+Task ID: 12 (webDevReview round 4)
+Agent: main (Z.ai Code)
+Task: QA pass + Phase 11 (Attachments) + Phase 16 (Notifications) + bell badge + attachments panel in contract/invoice detail.
+
+## Current project status (assessment)
+- QA pass via agent-browser across all 12 views: no console errors, no hydration
+  warnings, every view renders real data. The Excel Import module (round 3)
+  still works. App is stable.
+- Decided work focus: implement Phase 11 (Attachments & Cloud Storage) + Phase
+  16 (Notifications) per the round-3 recommendations — two high-value remaining
+  modules that round out the app's commercial + operational story.
+
+## Goals / completed modifications
+### Phase 11 — Attachments & Cloud Storage
+- Extended `prisma/schema.prisma` with `Attachment` model (polymorphic
+  entityType/entityId, `AttachmentCategory` enum CONTRACT|QUOTATION|INVOICE|
+  RECEIPT|PROVIDER_DOC|OTHER, opaque `storageKey`, fileName/mimeType/
+  sizeBytes, uploadedById) + indexes on `(companyId, entityType, entityId)`
+  and `(companyId, createdAt)`. Added back-relations on Company + User.
+  Pushed + regenerated client + restarted dev server + re-seeded.
+- New `src/lib/storage.ts`: `StorageService` abstraction backed by the local
+  filesystem under `download/storage/` with opaque random-hex keys (path-
+  traversal-guarded), `putFile()`/`getFile()`/`deleteFile()`/`fileSize()`,
+  `ALLOWED_MIME` list (PDF/images/xlsx/docx/txt/csv), `MAX_FILE_BYTES=5MB`,
+  `formatBytes()` helper. Same interface so a future S3/Vercel Blob swap is a
+  drop-in change.
+- API routes:
+  - `/api/attachments` (GET list by entityType/entityId; POST upload via
+    FormData — validates file type/size, asserts entity ownership, stores via
+    StorageService, records metadata, audit-logged)
+  - `/api/attachments/[id]` (GET metadata; DELETE — removes file from storage
+    + deletes metadata + audit)
+  - `/api/attachments/[id]/download` (GET — streams the raw file with
+    `Content-Disposition: attachment` so browsers download rather than render
+    inline, defending against stored XSS in uploaded HTML/SVG; company-scoped)
+- New `src/components/shared/attachments-panel.tsx`: reusable panel with
+  drag-and-drop dropzone, category Select, file list (icon by MIME type,
+  size label, uploader, relative time, category badge, download link, delete
+  button with confirm). Used in both the contract + invoice detail sheets.
+- Wired the panel into the contract detail `Sheet` (after contract history)
+  and the invoice detail `Sheet` (after allocations).
+
+### Phase 16 — Notifications
+- Extended schema with `Notification` model (`NotificationType` enum
+  RENEWAL_UPCOMING|RENEWAL_OVERDUE|INVOICE_OVERDUE|INVOICE_DUE_SOON|
+  IMPORT_COMPLETED|IMPORT_FAILED, title/message, entityType/entityId for
+  deep links, readAt, per-user) + indexes.
+- New `src/lib/notifications.ts`: `generateNotifications()` scans pending
+  renewals (≤30d = upcoming, <0d = overdue) + non-void invoices with
+  outstanding balances (>0, past due = overdue, ≤7d = due soon) and creates
+  Notification records idempotently (24h dedup window per type+entity+user,
+  so dismissing doesn't immediately re-create). `notifyImport()` for one-off
+  import-completion notifications.
+- API routes:
+  - `/api/notifications` (GET — list for current user, refreshes via
+    `generateNotifications()` on each call so the bell stays fresh without a
+    cron; `?unreadOnly=true` filter; returns `unreadCount`. POST — mark all
+    read)
+  - `/api/notifications/[id]` (DELETE — dismiss)
+  - `/api/notifications/[id]/read` (POST — mark single read)
+- Integrated `notifyImport()` into `/api/import/commit` so completed imports
+  generate an IMPORT_COMPLETED/IMPORT_FAILED notification.
+- New `src/components/views/notifications.tsx`: list view with summary
+  tiles (Unread/Overdue/Due soon), All/Unread tabs, per-notification card
+  (colored icon by type, title, message, relative time, unread dot, mark-read
+  + dismiss buttons), "Mark all read" header action.
+- Added a **bell icon with unread-count badge** to the AppShell header
+  (polls `/api/notifications?unreadOnly=true` every 30s; badge shows count
+  or "9+"; clicking navigates to #notifications). Added "Notifications" to
+  the sidebar nav (`Bell` icon), `page.tsx`, and the Cmd+K palette.
+
+## Verification results (agent-browser)
+- All 13 views load with no console/runtime/hydration errors.
+- Notifications: on first visit the generator created "Invoice overdue:
+  INV-2024-002" (47 days past due, ฿1,380.30 outstanding) — correct math.
+  Bell badge showed "1 unread". Mark-as-read dropped unread to 0 (the 24h
+  idempotency window prevented immediate re-creation). ✓
+- Attachments: opened contract CT-2024-001 detail → Attachments panel
+  rendered with dropzone + "No attachments yet". Uploaded
+  `test-contract-doc.txt` (39 B) → appeared in the list with correct
+  metadata (39 B · Site Admin · less than a minute ago · Contract badge).
+  Download returned the file with `text/plain` content-type. ✓
+- `bun run lint` clean.
+
+## Bugs fixed during this round
+- `daysUntilEnd` doesn't exist in `@/lib/renewals` (the export is `daysUntil`)
+  — `notifications.ts` import failed, breaking the notifications API (500).
+  Fixed the import name.
+- Notification idempotency: the generator initially only checked for *unread*
+  notifications of the same type+entity, so marking one as read caused it to
+  be re-created on the next GET. Fixed by checking for ANY notification
+  (read or unread) created in the last 24h — this prevents the immediate
+  re-creation while still allowing a fresh notification the next day if the
+  condition persists.
+
+## Unresolved issues / risks + next-phase recommendations
+- Phase 17 (production hardening) remains the only open phase. It's a review
+  pass rather than a feature build — covers auth/session, company isolation,
+  credential handling, input validation, file access, rate limiting, headers,
+  dependency vulnerabilities, error/log redaction, N+1 queries, indexes,
+  pagination, large import/export limits, transaction/race conditions,
+  retry/idempotency, and UI error states.
+- The attachments storage is local-filesystem (sandbox). For production this
+  would be S3/Vercel Blob with short-lived signed URLs — the
+  `StorageService` interface is already abstracted for that swap.
+- The notification generator runs inline on each GET (acceptable for the
+  demo's small dataset). For a larger dataset it should move to a scheduled
+  job (cron endpoint) to avoid per-request DB scans.
+- Recommended priority for the next round: Phase 17 (production hardening)
+  — run the review checklist, fix any high-risk findings, document residual
+  risks. After that, the project has delivered all 17 implementable phases
+  (00-17, minus 18/19 which are Vercel deployment + final QA that require
+  real infra access).

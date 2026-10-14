@@ -7,6 +7,7 @@ import {
   errorResponse,
 } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { notifyImport } from "@/lib/notifications";
 import { getFields, coerceValue, type ImportEntityType } from "@/lib/import-fields";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -306,6 +307,17 @@ export async function POST(req: Request) {
         importedRows: job.importedRows,
         errorRows: job.errorRows,
       },
+    });
+
+    // Phase 16: notify the importer of completion.
+    await notifyImport({
+      companyId: user.companyId,
+      userId: user.id,
+      jobId: job.id,
+      fileName: body.fileName,
+      imported: job.importedRows,
+      errors: job.errorRows,
+      total: job.totalRows,
     });
 
     return NextResponse.json({

@@ -2,6 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
+import { rateLimit } from "@/lib/rate-limit";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -19,6 +20,19 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        // Phase 17 — rate-limit credential attempts per email to mitigate
+        // brute-force / credential-stuffing attacks. 10 attempts per minute.
+        const emailKey = credentials?.email?.toLowerCase() ?? "anon";
+        const allowed = rateLimit(`auth:${emailKey}`, {
+          max: 10,
+          windowMs: 60_000,
+        });
+        if (!allowed) {
+          // Returning null shows the generic "Invalid email or password" —
+          // we don't reveal that the rate limit was hit.
+          return null;
+        }
+
         if (!credentials?.email || !credentials?.password) return null;
         const user = await db.user.findUnique({
           where: { email: credentials.email.toLowerCase() },

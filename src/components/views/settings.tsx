@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Building2, ShieldCheck, UserCircle2, Save } from "lucide-react";
+import { Building2, ShieldCheck, UserCircle2, Save, Lock, Bell, Clock, Database, FileCheck, Activity } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -226,22 +226,27 @@ export function SettingsView() {
 
           <Card className="bg-muted/20">
             <CardHeader>
-              <CardTitle className="text-sm">About this build</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <ShieldCheck className="size-4 text-primary" />
+                Security &amp; system
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1 text-[11px] text-muted-foreground">
-              <p>
-                Single-tenant demo of the NetRent Internet Rental Management
-                System, covering Phases 00–08, 10, 14 &amp; 15 of the
-                implementation plan.
-              </p>
-              <p>
-                Data is scoped to your company. ISP credentials are stored
-                server-side and redacted in lists, exports, and audit logs.
-              </p>
-              <p>
-                Money is stored with <code>Decimal</code> precision; contract
-                cost math normalises free months across the full term.
-              </p>
+            <CardContent className="space-y-2.5">
+              <SecRow icon={Lock} label="Auth" value="NextAuth JWT · scrypt-hashed passwords" />
+              <SecRow icon={ShieldCheck} label="Tenant isolation" value="Company-scoped queries" />
+              <SecRow icon={Clock} label="Rate limiting" value="10 auth attempts / min per email" />
+              <SecRow icon={FileCheck} label="Security headers" value="CSP · X-Frame-Options · HSTS" />
+              <SecRow icon={Bell} label="Notifications" value="Renewal + invoice thresholds (30d/7d)" />
+              <SecRow icon={Database} label="Storage" value="Decimal money · opaque file keys" />
+              <SecRow icon={Activity} label="Audit log" value="All mutations logged + redacted" />
+              <div className="border-t pt-2 text-[11px] text-muted-foreground">
+                <p>
+                  Single-tenant demo covering Phases 00–17 of the
+                  implementation plan. Money uses <code>Decimal</code>
+                  precision; ISP credentials are stored server-side and
+                  redacted in lists, exports, and audit logs.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -255,6 +260,24 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex items-center justify-between gap-2">
       <span className="text-xs text-muted-foreground">{label}</span>
       <span className="text-sm font-medium truncate">{value}</span>
+    </div>
+  );
+}
+
+function SecRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 text-xs">
+      <Icon className="size-3.5 shrink-0 text-primary" />
+      <span className="w-28 shrink-0 text-muted-foreground">{label}</span>
+      <span className="font-medium">{value}</span>
     </div>
   );
 }

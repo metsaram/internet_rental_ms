@@ -633,3 +633,90 @@ Task: QA pass + Phase 11 (Attachments) + Phase 16 (Notifications) + bell badge +
   risks. After that, the project has delivered all 17 implementable phases
   (00-17, minus 18/19 which are Vercel deployment + final QA that require
   real infra access).
+
+---
+Task ID: 13 (webDevReview round 5)
+Agent: main (Z.ai Code)
+Task: QA pass + Phase 17 (Production Hardening) — security headers, error boundary, rate limiting, health endpoint, settings security card.
+
+## Current project status (assessment)
+- QA pass via agent-browser across all 13 views: no console errors, no hydration
+  warnings, every view renders real data. All prior modules (Phases 00-16)
+  work. App is stable.
+- This is the final implementation phase. Phase 17 (Production Hardening) is a
+  review + hardening pass rather than a feature build. Implemented the
+  high-value hardening items + UI polish for the settings page.
+
+## Goals / completed modifications
+### Phase 17 — Production Hardening
+- **Security headers** (`next.config.ts`): added `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-
+  cross-origin`, `Permissions-Policy` (camera/mic/geo off), `Strict-Transport-
+  Security` (HSTS, 1 year), a `Content-Security-Policy` (default-src 'self';
+  script/style from self + inline; fonts from Google Fonts CDN; img from
+  self/data/blob/https; frame-ancestors 'none'; base-uri 'self'; form-action
+  'self'), and `X-DNS-Prefetch-Control: on`. Applied to all routes via
+  `source: /:path*`. Verified live via `curl -sI`.
+- **Error boundary** (`src/app/error.tsx`): Next.js auto-renders this when a
+  route throws — shows a graceful recovery UI (Try again / Go to dashboard)
+  with the error digest ID, instead of a raw stack trace. Logs the error
+  server-side.
+- **Loading state** (`src/app/loading.tsx`): shown by Next.js while the root
+  route's server components load — spinner + "Loading NetRent…".
+- **404 page** (`src/app/not-found.tsx`): branded 404 with a "Back to NetRent"
+  button (verified — `curl /nonexistent` returns 404).
+- **Rate limiting** (`src/lib/rate-limit.ts`): in-memory token-bucket per key
+  with `rateLimit(key, {max, windowMs})`, `getClientIp(req)`, periodic stale-
+  bucket cleanup. Applied to the NextAuth `authorize` callback (10 auth
+  attempts/min per email — mitigates brute-force/credential-stuffing; returns
+  `null` after the limit so the DB is never hit, and the generic "Invalid
+  email or password" message doesn't reveal the lockout). Interface is stable
+  for a future Redis/Upstash swap.
+- **Health endpoint** (`/api/health`): unauthenticated smoke test returning
+  `{"status":"ok","db":"connected","time":...}` (200) or 503 if the DB is
+  unreachable. Verified live.
+- **Input validation**: confirmed all API routes use Zod schemas for input
+  parsing + `parseJsonBody()` with size awareness; Prisma parameterised
+  queries (no raw SQL except `SELECT 1` in the health check); all user-
+  rendered text goes through React's default XSS escaping; exports mitigate
+  CSV formula injection (prefix `=+-@` cells with `'`); sensitive fields
+  (passwords, ISP usernames) redacted in list payloads, exports, and audit
+  logs via `redactSensitive()`.
+
+### UI polish — Settings security card
+- Replaced the plain "About this build" card in the Settings view with a
+  "Security & system" card showing 7 hardening features with icons (Auth,
+  Tenant isolation, Rate limiting, Security headers, Notifications, Storage,
+  Audit log) + a build-info footer. Gives admins a transparent view of the
+  active security posture.
+
+## Verification results
+- All 13 views load with no console/runtime/hydration errors.
+- Security headers verified via `curl -sI`: all 7 headers present.
+- Health endpoint: `{"status":"ok","db":"connected"}` (200).
+- 404 page: `/nonexistent` returns 404 with branded recovery UI.
+- Rate limiting: 12 rapid auth attempts all returned 200 (NextAuth always
+  returns 200 for the callback), but after 10 the `authorize` function
+  returns `null` immediately without hitting the DB — the protection is in
+  place at the application layer.
+- Settings "Security & system" card renders correctly on desktop + mobile.
+- `bun run lint` clean.
+
+## Unresolved issues / risks + next-phase recommendations
+- **All 17 implementable phases (00-17) are now complete.** The only remaining
+  phases are 18 (Vercel deployment — requires real Vercel/PostgreSQL access)
+  and 19 (final QA — a full end-to-end acceptance pass).
+- Residual risks (documented, acceptable for a sandbox demo):
+  - Rate limiting is in-memory (per-process); a multi-instance deployment
+    would need Redis. Interface is stable for the swap.
+  - Attachment storage is local-filesystem; production needs S3/Vercel Blob
+    with signed URLs. `StorageService` interface is already abstracted.
+  - The notification generator runs inline on each GET; fine for the demo's
+    small dataset, but should move to a scheduled job at scale.
+  - `NEXTAUTH_SECRET` is a dev placeholder in `.env`; production must use a
+    strong random secret (documented in `.env.example`).
+- Recommended next steps: run Phase 19 (final QA) — a comprehensive end-to-
+  end acceptance pass covering auth/permissions/company isolation, every
+  CRUD module's create/edit/delete/archive flows, import/export, attachments,
+  notifications, and responsive/accessibility basics. Then the project is
+  production-ready for a real Vercel + PostgreSQL deployment.

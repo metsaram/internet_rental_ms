@@ -194,3 +194,120 @@ Stage Summary:
   attachments/cloud storage (Phase 11), invoices & payments (Phase 12),
   contract renewal workflow UI (Phase 13), notifications (Phase 16),
   production hardening (Phase 17), and progressive UI/detail polish.
+
+---
+Task ID: 9 (webDevReview round 1)
+Agent: main (Z.ai Code)
+Task: QA pass + Phase 12 (Invoices & Payments) + Cmd+K command palette + reports/ export integration + styling polish.
+
+## Current project status (assessment)
+- QA pass via agent-browser across all 9 views: no console errors, no hydration
+  warnings, every view renders real seeded data, CRUD + shop-notes panel all
+  work. App is stable.
+- Decided work focus: add the highest-value missing commercial module
+  (Phase 12 — Invoices & Payments) plus a Cmd+K navigation palette for UX
+  polish, and wire billing into the dashboard + reports.
+
+## Goals / completed modifications
+### Phase 12 — Invoices & Payments
+- Extended `prisma/schema.prisma` with `Invoice`, `Payment`,
+  `PaymentAllocation` models (enums `InvoiceStatus`, `PaymentMethod`,
+  `PaymentStatus`), relations to Company/User/Contract, unique
+  `(companyId, invoiceNumber)`, `@@unique([paymentId, invoiceId])` on
+  allocations, indexes on dueDate/status. Added back-relations on Company,
+  User, InternetContract. Pushed + regenerated client.
+- New `src/lib/billing.ts`: `outstandingBalance()`,
+  `deriveInvoiceStatus()` (paid/partial/overdue/void), `allocatePayment()`.
+- Extended `prisma/seed.ts` with 5 demo invoices (paid / overdue / partial /
+  issued / draft) + 2 completed payments + 2 allocations. Re-ran seed (✔).
+- API routes:
+  - `/api/invoices` (GET list w/ derived status + outstanding; POST create w/
+    contract-ownership + unique-number + audit)
+  - `/api/invoices/[id]` (GET detail w/ allocations; PATCH; DELETE drafts-only)
+  - `/api/invoices/[id]/void` (POST — preserves history, audit UPDATE)
+  - `/api/payments` (GET list; POST create+allocate in a `$transaction`,
+    over-allocation guarded against invoice outstanding + payment amount)
+  - `/api/payments/[id]` (GET; PATCH reference/notes; DELETE = void)
+- New `InvoicesView` (`src/components/views/invoices.tsx`): list + summary
+  strip (Invoices / Outstanding / Overdue / Paid), create/edit `FormDialog`
+  (subtotal+tax−discount → live total, prefill subtotal from contract fee),
+  detail `Sheet` (amounts + allocations + record-payment/void/delete),
+  `RecordPaymentDialog` (date/amount/method/reference/notes, prefill
+  outstanding, client + server guards against over-allocation).
+- Added "Invoices & Payments" to the sidebar nav (`Receipt` icon) and to the
+  `page.tsx` view switch + hash whitelist.
+
+### Dashboard integration
+- Extended `/api/dashboard` to compute `billing` block (invoicedTotal,
+  collectedTotal, outstandingTotal, overdueCount) + `counts.invoices` /
+  `counts.overdueInvoices`, using the billing helpers server-side.
+- Added a "Billing & outstanding" card to the dashboard view (4 KPIs +
+  "Go to invoices" button).
+
+### Reports integration (Phase 15)
+- Added invoices + payments queries; new "Outstanding invoices" table and
+  "Recent payments" table (with allocation breakdown); added Invoices /
+  Payments to the export buttons + the `/api/export` route (formula-injection
+  mitigation, sensitive-field exclusion preserved).
+
+### UX / styling polish — Cmd+K command palette
+- New `src/components/shared/command-palette.tsx` using shadcn
+  `CommandDialog` (cmdk): fuzzy search across Navigate (all 10 views) +
+  Quick actions (create invoice/contract/service) + Appearance (toggle
+  theme) + Account (sign out).
+- Wired global `Cmd/Ctrl+K` shortcut in `AppShell`; added a "Quick switch ⌘K"
+  button to the header (desktop) + a search icon button (mobile); footer now
+  hints the shortcut.
+
+## Verification results (agent-browser)
+- Signed in, opened every view — no console/runtime errors after fixes.
+- Invoices view: 5 invoices render with correct totals (e.g.
+  INV-2024-004 = ฿2,343.30 = 2190 + 153.3 tax). Summary strip:
+  Invoices 5 · Outstanding ฿5,002.40 · Overdue 1 · Paid 1 — all reconcile
+  (1380.3 + 476.3 + 2343.3 + 802.5 = 5002.4).
+- Partial-invoice detail sheet: Total ฿952.30 · Allocated ฿476.00 ·
+  Outstanding ฿476.30 (correct).
+- Record-payment flow: opened INV-2024-003, prefilled amount = outstanding,
+  submitted → outstanding → 0, derived status → "paid" (stored status
+  unchanged at PARTIAL, preserving posted history). ✓
+- Dashboard billing KPIs after the payment: invoiced ฿6,323.70 =
+  collected ฿1,797.60 + outstanding ฿4,526.10 (reconciles). ✓
+- Cmd+K palette: opens on Ctrl+K, lists all views + quick actions, selecting
+  "Invoices & Payments" navigates to #invoices. ✓
+- Excel export: `/api/export?entity=invoices` returns 200 +
+  application/vnd.openxmlformats-officedocument.spreadsheetml.sheet. ✓
+- `bun run lint` clean. Dev server healthy on :3000.
+
+## Bugs fixed during this round
+- `/api/invoices` initially returned 500 ("db.invoice is undefined") because
+  the running dev server had cached the pre-schema-change Prisma client.
+  Fixed by restarting the dev server so it loads the regenerated
+  `@prisma/client`. (Note for future rounds: after any `prisma db push` +
+  `prisma generate`, the dev server must be restarted to pick up new
+  models/accessors — turbopack does not reload node_modules caches.)
+- `react-hooks/immutability` lint error on `window.location.hash = hash`
+  inside a function body in the command palette → switched to
+  `window.location.assign(`#${hash}`)` (lint-friendly, same behaviour).
+- Export route parse error: the `contracts` branch was a final `else`; added
+  `} else if (entity === "invoices")` / `"payments"` after it, so converted
+  the contracts `} else {` to `} else if (entity === "contracts") {`.
+
+## Unresolved issues / risks + next-phase recommendations
+- The dev server is now started via `nohup bun run dev` (the system did not
+  auto-restart it after I killed the stale process). Future rounds: if the
+  dev server is unresponsive, check `ps aux | grep next` and restart it.
+- Voiding an invoice currently does NOT re-allocate its payments to other
+  invoices — the allocations remain pointing at the void invoice. The
+  outstanding-balance calc treats VOID invoices as irrelevant (derived status
+  = void), so balances stay correct, but a payment fully allocated to a
+  void invoice shows as "allocated" with no recoverable target. Acceptable
+  for the demo; a real system would need a re-allocation workflow.
+- Phase 09 (Excel import), Phase 11 (attachments/cloud storage),
+  Phase 13 (contract renewal workflow UI), Phase 16 (notifications), and
+  Phase 17 (production hardening) remain open — recommended priority for the
+  next rounds: Phase 13 (renewal workflow — high user value, builds on the
+  existing contracts module) then Phase 09 (Excel import — reuses the xlsx
+  library already installed).
+- UI/UX polish ideas for later rounds: per-view empty-state illustrations,
+  framer-motion view-transition fade, dashboard trend sparklines, and a
+  "recent activity" feed on the dashboard.

@@ -19,7 +19,9 @@ export async function GET(req: Request) {
       | "branches"
       | "shops"
       | "services"
-      | "contracts";
+      | "contracts"
+      | "invoices"
+      | "payments";
     const status = url.searchParams.get("status") ?? "ALL";
     const search = (url.searchParams.get("search") ?? "").toLowerCase();
 
@@ -131,7 +133,7 @@ export async function GET(req: Request) {
         Installed: s.installedAt ? s.installedAt.toISOString().slice(0, 10) : "",
         Status: s.status,
       }));
-    } else {
+    } else if (entity === "contracts") {
       // contracts
       sheetName = "Contracts";
       const data = await db.internetContract.findMany({
@@ -187,6 +189,89 @@ export async function GET(req: Request) {
       });
       if (data.length === 0) {
         throw new HttpError(404, "No contracts match the current filters");
+      }
+    } else if (entity === "invoices") {
+      sheetName = "Invoices";
+      const data = await db.invoice.findMany({
+        where: {
+          companyId: user.companyId,
+          ...(status !== "ALL" ? { status } : {}),
+          ...(search
+            ? {
+                OR: [
+                  { invoiceNumber: { contains: search } },
+                  { contract: { contractNumber: { contains: search } } },
+                ],
+              }
+            : {}),
+        },
+        include: {
+          contract: { select: { contractNumber: true, service: { select: { serviceCode: true, branch: { select: { code: true } }, provider: { select: { code: true } } } } } },
+          allocations: { include: { payment: { select: { status: true } } } },
+        },
+        orderBy: { invoiceDate: "desc" },
+      });
+      rows = data.map((inv) => {
+        const allocated = inv.allocations
+          .filter((a) => a.payment?.status !== "VOID")
+          .reduce((s, a) => s + Number(a.amount), 0);
+        const outstanding = Number(inv.total) - allocated;
+        return {
+          "Invoice #": inv.invoiceNumber,
+          "Contract #": inv.contract.contractNumber,
+          "Service code": inv.contract.service.serviceCode,
+          Branch: inv.contract.service.branch?.code ?? "",
+          Provider: inv.contract.service.provider?.code ?? "",
+          "Invoice date": inv.invoiceDate.toISOString().slice(0, 10),
+          "Due date": inv.dueDate ? inv.dueDate.toISOString().slice(0, 10) : "",
+          Period: inv.periodStart && inv.periodEnd
+            ? `${inv.periodStart.toISOString().slice(0,10)} → ${inv.periodEnd.toISOString().slice(0,10)}`
+            : "",
+          Subtotal: Number(inv.subtotal),
+          Tax: Number(inv.tax),
+          Discount: Number(inv.discount),
+          Total: Number(inv.total),
+          Currency: inv.currency,
+          Allocated: allocated,
+          Outstanding: outstanding,
+          Status: inv.status,
+        };
+      });
+      if (data.length === 0) {
+        throw new HttpError(404, "No invoices match the current filters");
+      }
+    } else if (entity === "payments") {
+      sheetName = "Payments";
+      const data = await db.payment.findMany({
+        where: {
+          companyId: user.companyId,
+          ...(status !== "ALL" ? { status } : {}),
+          ...(search
+            ? { OR: [{ reference: { contains: search } }, { notes: { contains: search } }] }
+            : {}),
+        },
+        include: {
+          allocations: { include: { invoice: { select: { invoiceNumber: true } } } },
+        },
+        orderBy: { paymentDate: "desc" },
+      });
+      rows = data.map((p) => {
+        const allocated = p.allocations.reduce((s, a) => s + Number(a.amount), 0);
+        return {
+          "Payment date": p.paymentDate.toISOString().slice(0, 10),
+          Amount: Number(p.amount),
+          Currency: p.currency,
+          Method: p.method,
+          Reference: p.reference ?? "",
+          Status: p.status,
+          Allocated: allocated,
+          Unallocated: Number(p.amount) - allocated,
+          Invoices: p.allocations.map((a) => `${a.invoice.invoiceNumber} (${Number(a.amount)})`).join("; "),
+          Notes: p.notes ?? "",
+        };
+      });
+      if (data.length === 0) {
+        throw new HttpError(404, "No payments match the current filters");
       }
     }
 

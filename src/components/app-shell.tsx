@@ -20,6 +20,8 @@ import {
   Menu,
   Network,
   ShieldCheck,
+  Receipt,
+  Search,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -36,6 +38,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
+import { CommandPalette } from "@/components/shared/command-palette";
 
 export type ViewKey =
   | "dashboard"
@@ -45,6 +48,7 @@ export type ViewKey =
   | "plans"
   | "services"
   | "contracts"
+  | "invoices"
   | "reports"
   | "settings";
 
@@ -61,6 +65,7 @@ const NAV: Array<{
   { key: "plans", label: "Plans", icon: Package, group: "Catalog" },
   { key: "services", label: "Internet Services", icon: Network, group: "Operations" },
   { key: "contracts", label: "Contracts", icon: FileText, group: "Operations" },
+  { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Operations" },
   { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
   { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
 ];
@@ -107,7 +112,20 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
+
+  // Global Cmd/Ctrl+K shortcut for the command palette.
+  React.useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const user = session?.user as
     | {
@@ -231,6 +249,28 @@ export function AppShell({
           </div>
           <div className="ml-auto flex items-center gap-2">
             <Button
+              variant="outline"
+              size="sm"
+              className="hidden h-8 gap-2 px-2.5 text-xs text-muted-foreground sm:flex"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Open command palette"
+            >
+              <Search className="size-3.5" />
+              <span className="hidden md:inline">Quick switch</span>
+              <kbd className="ml-1 rounded border bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                ⌘K
+              </kbd>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-9 sm:hidden"
+              onClick={() => setPaletteOpen(true)}
+              aria-label="Open command palette"
+            >
+              <Search className="size-4" />
+            </Button>
+            <Button
               variant="ghost"
               size="icon"
               className="size-9"
@@ -324,11 +364,16 @@ export function AppShell({
               System
             </span>
             <span className="text-muted-foreground/70">
-              Demo build · scoped to {user?.companyCode ?? "—"}
+              Demo build · scoped to {user?.companyCode ?? "—"} · press{" "}
+              <kbd className="rounded border bg-muted px-1 py-0.5 text-[10px] font-medium">
+                ⌘K
+              </kbd>{" "}
+              to navigate
             </span>
           </div>
         </footer>
       </div>
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }

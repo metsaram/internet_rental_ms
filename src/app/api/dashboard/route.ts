@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, errorResponse } from "@/lib/session";
 import { computeContractCosts, deriveContractStatus, daysUntilEnd } from "@/lib/contracts";
+import { deriveInvoiceStatus, outstandingBalance } from "@/lib/billing";
 import { Decimal } from "@prisma/client/runtime/library";
 
 export async function GET() {
@@ -10,7 +11,7 @@ export async function GET() {
     const cid = user.companyId;
   const now = new Date();
 
-  const [branches, shops, services, providers, plans, contractsRaw] =
+  const [branches, shops, services, providers, plans, contractsRaw, invoicesRaw, paymentsRaw] =
     await Promise.all([
       db.branch.count({ where: { companyId: cid } }),
       db.shop.count({ where: { companyId: cid } }),
@@ -30,6 +31,13 @@ export async function GET() {
             },
           },
         },
+      }),
+      db.invoice.findMany({
+        where: { companyId: cid },
+        include: { allocations: { include: { payment: { select: { status: true } } } } },
+      }),
+      db.payment.findMany({
+        where: { companyId: cid, status: "COMPLETED" },
       }),
     ]);
 
@@ -106,6 +114,23 @@ export async function GET() {
       status: r._derived,
     }));
 
+  // Billing aggregates (Phase 12) -------------------------------------------
+  let outstandingTotal = new Decimal(0);
+  let invoicedTotal = new Decimal(0);
+  let collectedTotal = new Decimal(0);
+  let overdueCount = 0;
+  for (const inv of invoicesRaw) {
+    if (inv.status === "VOID") continue;
+    invoicedTotal = invoicedTotal.plus(inv.total);
+    const outstanding = outstandingBalance(inv, inv.allocations);
+    outstandingTotal = outstandingTotal.plus(outstanding);
+    const derived = deriveInvoiceStatus(inv, inv.allocations, now);
+    if (derived === "overdue") overdueCount += 1;
+  }
+  for (const p of paymentsRaw) {
+    collectedTotal = collectedTotal.plus(p.amount);
+  }
+
   return NextResponse.json({
     counts: {
       branches,
@@ -118,6 +143,14 @@ export async function GET() {
       expiringSoon: expiring.length,
       expired: expired.length,
       upcoming: upcoming.length,
+      invoices: invoicesRaw.length,
+      overdueInvoices: overdueCount,
+    },
+    billing: {
+      invoicedTotal: invoicedTotal.toString(),
+      collectedTotal: collectedTotal.toString(),
+      outstandingTotal: outstandingTotal.toString(),
+      overdueCount,
     },
     costByCurrency: Array.from(byCurrency.entries()).map(([currency, v]) => ({
       currency,

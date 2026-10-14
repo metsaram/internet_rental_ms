@@ -10,6 +10,8 @@ import {
   Network,
   History,
   Wallet,
+  Receipt,
+  CreditCard,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +27,8 @@ type Dash = {
   costByBranch: Array<{ branch: string; code: string; count: number; expectedMonthly: string }>;
   costByProvider: Array<{ provider: string; code: string; count: number; expectedMonthly: string }>;
   costByCurrency: Array<{ currency: string; expectedMonthly: string; effectiveMonthly: string }>;
-  counts: { contracts: number; activeContracts: number; expiringSoon: number; expired: number };
+  counts: { contracts: number; activeContracts: number; expiringSoon: number; expired: number; invoices: number; overdueInvoices: number };
+  billing: { invoicedTotal: string; collectedTotal: string; outstandingTotal: string; overdueCount: number };
 };
 
 type Contract = {
@@ -68,6 +71,33 @@ type Audit = {
   createdAt: string;
 };
 
+type Invoice = {
+  id: string;
+  invoiceNumber: string;
+  contractNumber: string;
+  branch: { name: string; code: string } | null;
+  provider: { name: string; code: string } | null;
+  invoiceDate: string;
+  dueDate: string | null;
+  total: string;
+  outstanding: string;
+  currency: string;
+  status: string;
+  derivedStatus: string;
+};
+
+type Payment = {
+  id: string;
+  paymentDate: string;
+  amount: string;
+  currency: string;
+  method: string;
+  reference: string | null;
+  status: string;
+  unallocated: string;
+  allocations: Array<{ invoiceId: string; invoiceNumber: string; amount: string }>;
+};
+
 export function ReportsView() {
   const { data: session } = useSession();
   const currency = (session?.user as any)?.companyCurrency ?? "THB";
@@ -84,6 +114,14 @@ export function ReportsView() {
   const { data: services = [] } = useQuery<Service[]>({
     queryKey: ["services-all"],
     queryFn: () => api<Service[]>("/api/services"),
+  });
+  const { data: invoices = [] } = useQuery<Invoice[]>({
+    queryKey: ["invoices", "", "ALL"],
+    queryFn: () => api<Invoice[]>("/api/invoices"),
+  });
+  const { data: payments = [] } = useQuery<Payment[]>({
+    queryKey: ["payments-all"],
+    queryFn: () => api<Payment[]>("/api/payments"),
   });
   const { data: audit = [] } = useQuery<Audit[]>({
     queryKey: ["audit"],
@@ -134,6 +172,12 @@ export function ReportsView() {
             <Button variant="outline" size="sm" onClick={() => download("contracts")}>
               <Download className="size-4" /> Contracts
             </Button>
+            <Button variant="outline" size="sm" onClick={() => download("invoices")}>
+              <Download className="size-4" /> Invoices
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => download("payments")}>
+              <Download className="size-4" /> Payments
+            </Button>
           </div>
         }
       />
@@ -156,6 +200,13 @@ export function ReportsView() {
             <Stat label="Effective monthly" value={formatMoney(cost.effectiveMonthly, cost.currency)} />
             <Stat label="Active contracts" value={String(dash?.counts.activeContracts ?? "—")} />
             <Stat label="Total contracts" value={String(dash?.counts.contracts ?? "—")} />
+          </div>
+          {/* Billing strip */}
+          <div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4 sm:grid-cols-4">
+            <Stat label="Total invoiced" value={formatMoney(dash?.billing?.invoicedTotal, cost.currency)} />
+            <Stat label="Collected" value={formatMoney(dash?.billing?.collectedTotal, cost.currency)} />
+            <Stat label="Outstanding" value={formatMoney(dash?.billing?.outstandingTotal, cost.currency)} />
+            <Stat label="Overdue invoices" value={String(dash?.billing?.overdueCount ?? 0)} />
           </div>
         </CardContent>
       </Card>
@@ -267,6 +318,81 @@ export function ReportsView() {
             Bandwidth is normalised to Mbps in the catalog; totals shown per
             provider above. See the Plans view for per-plan bandwidth.
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Outstanding invoices (Phase 12) */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="size-4 text-rose-500" />
+              Outstanding invoices
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Non-void invoices with a positive outstanding balance
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => download("invoices")}>
+            <Download className="size-4" /> Export
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ReportTable
+            headers={["Invoice", "Branch", "Due", "Total", "Outstanding", "Status"]}
+            rows={invoices
+              .filter((i) => i.status !== "VOID" && Number(i.outstanding) > 0)
+              .sort((a, b) => Number(b.outstanding) - Number(a.outstanding))
+              .map((i) => [
+                i.invoiceNumber,
+                i.branch?.name ?? "—",
+                formatDate(i.dueDate),
+                formatMoney(i.total, i.currency),
+                <span key={i.id} className="font-medium text-rose-600">
+                  {formatMoney(i.outstanding, i.currency)}
+                </span>,
+                <StatusBadge
+                  key={i.id + "st"}
+                  status={i.derivedStatus.toUpperCase()}
+                  tone={i.derivedStatus === "overdue" ? "red" : i.derivedStatus === "partial" ? "amber" : "blue"}
+                />,
+              ])}
+            empty="No outstanding invoices"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Payment summary (Phase 12) */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CreditCard className="size-4 text-emerald-500" />
+              Recent payments
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Completed payments with their allocations
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => download("payments")}>
+            <Download className="size-4" /> Export
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ReportTable
+            headers={["Date", "Amount", "Method", "Reference", "Allocated to", "Status"]}
+            rows={payments
+              .filter((p) => p.status === "COMPLETED")
+              .map((p) => [
+                formatDate(p.paymentDate),
+                formatMoney(p.amount, p.currency),
+                <Badge key={p.id} variant="outline" className="text-[10px]">{p.method}</Badge>,
+                p.reference ?? "—",
+                p.allocations.map((a) => a.invoiceNumber).join(", ") || <span className="text-muted-foreground">—</span>,
+                <StatusBadge key={p.id + "st"} status={p.status} tone="green" />,
+              ])}
+            empty="No payments yet"
+          />
         </CardContent>
       </Card>
 

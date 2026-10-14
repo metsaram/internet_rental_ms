@@ -221,7 +221,7 @@ async function main() {
     // suspended service, active contract term
     { sIdx: 7, num: "CT-2024-008", startMonthsAgo: 5, duration: 6, free: 0, fee: 590, cycle: "MONTHLY", status: "TERMINATED" },
   ];
-  await Promise.all(
+  const contracts = await Promise.all(
     contractDefs.map(async (c) => {
       const start = monthsAgo(c.startMonthsAgo);
       const end = new Date(start);
@@ -272,11 +272,131 @@ async function main() {
     },
   });
 
+  // Invoices, payments & allocations (Phase 12) --------------------------
+  // Active contracts (the billable ones) by index in contractDefs:
+  // 0:CT-2024-001(790), 1:CT-2024-002(1290), 2:CT-2024-003(890),
+  // 3:CT-2024-004(2190), 5:CT-2024-006R(750)
+  const invoiceDefs: Array<{
+    id: string;
+    num: string;
+    contractNum: string;
+    monthsAgo: number;
+    periodMonths: number;
+    tax: number;
+    status: "DRAFT" | "ISSUED" | "PAID" | "OVERDUE" | "PARTIAL";
+    dueOffsetDays: number;
+  }> = [
+    // fully paid invoice (1 month, CT-2024-001, 790 + 7% VAT)
+    { id: "seed-inv-1", num: "INV-2024-001", contractNum: "CT-2024-001", monthsAgo: 5, periodMonths: 1, tax: 55.3, status: "PAID", dueOffsetDays: 30 },
+    // issued + overdue (CT-2024-002, 1290) — past due, unpaid
+    { id: "seed-inv-2", num: "INV-2024-002", contractNum: "CT-2024-002", monthsAgo: 2, periodMonths: 1, tax: 90.3, status: "OVERDUE", dueOffsetDays: 15 },
+    // partial payment (CT-2024-003, 890) — half paid
+    { id: "seed-inv-3", num: "INV-2024-003", contractNum: "CT-2024-003", monthsAgo: 1, periodMonths: 1, tax: 62.3, status: "PARTIAL", dueOffsetDays: 30 },
+    // issued, not yet due (CT-2024-004, 2190)
+    { id: "seed-inv-4", num: "INV-2024-004", contractNum: "CT-2024-004", monthsAgo: 0, periodMonths: 1, tax: 153.3, status: "ISSUED", dueOffsetDays: 30 },
+    // draft (CT-2024-006R, 750)
+    { id: "seed-inv-5", num: "INV-2024-005", contractNum: "CT-2024-006R", monthsAgo: 0, periodMonths: 1, tax: 52.5, status: "DRAFT", dueOffsetDays: 30 },
+  ];
+
+  const invoices = await Promise.all(
+    invoiceDefs.map(async (inv) => {
+      const contract = contracts.find((c) => c.contractNumber === inv.contractNum)!;
+      const subtotal = Number(contract.monthlyFee) * inv.periodMonths;
+      const total = subtotal + inv.tax;
+      const invoiceDate = monthsAgo(inv.monthsAgo);
+      const dueDate = new Date(invoiceDate);
+      dueDate.setDate(dueDate.getDate() + inv.dueOffsetDays);
+      const periodStart = new Date(invoiceDate);
+      const periodEnd = new Date(invoiceDate);
+      periodEnd.setMonth(periodEnd.getMonth() + inv.periodMonths);
+      return prisma.invoice.upsert({
+        where: { id: inv.id },
+        update: {},
+        create: {
+          id: inv.id,
+          companyId: company.id,
+          contractId: contract.id,
+          invoiceNumber: inv.num,
+          invoiceDate,
+          periodStart,
+          periodEnd,
+          subtotal: new Prisma.Decimal(subtotal),
+          tax: new Prisma.Decimal(inv.tax),
+          discount: new Prisma.Decimal(0),
+          total: new Prisma.Decimal(total),
+          currency: "THB",
+          status: inv.status,
+          dueDate,
+          notes: "Seeded demo invoice",
+          createdById: admin.id,
+        },
+      });
+    })
+  );
+
+  // Payments + allocations
+  const inv1 = invoices[0]; // paid in full
+  const inv3 = invoices[2]; // partial
+  const payment1Total = Number(inv1.total);
+  const payment3Partial = Math.round(Number(inv3.total) / 2); // half
+
+  await prisma.payment.upsert({
+    where: { id: "seed-pay-1" },
+    update: {},
+    create: {
+      id: "seed-pay-1",
+      companyId: company.id,
+      paymentDate: monthsAgo(4),
+      amount: new Prisma.Decimal(payment1Total),
+      currency: "THB",
+      method: "BANK_TRANSFER",
+      reference: "BANK-TR-0001",
+      status: "COMPLETED",
+      notes: "Full payment for INV-2024-001",
+      createdById: staff.id,
+    },
+  });
+  await prisma.paymentAllocation.upsert({
+    where: { paymentId_invoiceId: { paymentId: "seed-pay-1", invoiceId: inv1.id } },
+    update: {},
+    create: {
+      paymentId: "seed-pay-1",
+      invoiceId: inv1.id,
+      amount: new Prisma.Decimal(payment1Total),
+    },
+  });
+
+  await prisma.payment.upsert({
+    where: { id: "seed-pay-2" },
+    update: {},
+    create: {
+      id: "seed-pay-2",
+      companyId: company.id,
+      paymentDate: monthsAgo(0),
+      amount: new Prisma.Decimal(payment3Partial),
+      currency: "THB",
+      method: "CARD",
+      reference: "CARD-0002",
+      status: "COMPLETED",
+      notes: "Partial payment for INV-2024-003",
+      createdById: staff.id,
+    },
+  });
+  await prisma.paymentAllocation.upsert({
+    where: { paymentId_invoiceId: { paymentId: "seed-pay-2", invoiceId: inv3.id } },
+    update: {},
+    create: {
+      paymentId: "seed-pay-2",
+      invoiceId: inv3.id,
+      amount: new Prisma.Decimal(payment3Partial),
+    },
+  });
+
   console.log("Seed complete ✔");
   console.log("  Company:", company.code, company.name);
   console.log("  Admin:  ", adminEmail, "(password: admin12345)");
   console.log("  Staff:  ", staffEmail, "(password: staff12345)");
-  console.log("  Branches:", branches.length, "| Shops:", shops.length, "| Providers:", providers.length, "| Plans:", plans.length, "| Services:", services.length, "| Contracts:", contractDefs.length);
+  console.log("  Branches:", branches.length, "| Shops:", shops.length, "| Providers:", providers.length, "| Plans:", plans.length, "| Services:", services.length, "| Contracts:", contracts.length, "| Invoices:", invoices.length);
 }
 
 main()

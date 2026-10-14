@@ -37,6 +37,8 @@ model Company {
   plans     InternetPlan[]
   services  InternetService[]
   contracts InternetContract[]
+  invoices  Invoice[]
+  payments  Payment[]
   auditLogs AuditLog[]
   importJobs ImportJob[]
 
@@ -62,6 +64,8 @@ model User {
   company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   notes        Note[]
   contracts    InternetContract[] @relation("ContractAuthor")
+  invoices     Invoice[] @relation("InvoiceAuthor")
+  payments     Payment[] @relation("PaymentAuthor")
   auditLogs    AuditLog[] @relation("AuditActor")
   importJobs   ImportJob[]
 
@@ -291,12 +295,110 @@ model InternetContract {
   company  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   service  InternetService   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   createdBy User             @relation("ContractAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  invoices Invoice[]
 
   @@unique([companyId, contractNumber])
   @@index([companyId, serviceId])
   @@index([companyId, status])
   @@index([endDate])
   @@map("internet_contracts")
+}
+
+// ---------------------------------------------------------------------------
+// Invoices & Payments (Phase 12)
+// ---------------------------------------------------------------------------
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PARTIAL
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CARD
+  CHEQUE
+  ONLINE
+  OTHER
+}
+
+enum PaymentStatus {
+  COMPLETED
+  VOID
+}
+
+model Invoice {
+  id               String        @id @default(cuid())
+  companyId        String
+  contractId       String
+  invoiceNumber    String
+  invoiceDate      DateTime      @default(now())
+  periodStart      DateTime?
+  periodEnd        DateTime?
+  subtotal         Decimal       @default(0)
+  tax              Decimal       @default(0)
+  discount         Decimal       @default(0)
+  total            Decimal       @default(0)
+  currency         String        @default("THB")
+  status           InvoiceStatus @default(DRAFT)
+  dueDate         DateTime?
+  notes            String?
+  createdById      String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contract  InternetContract   @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  createdBy User               @relation("InvoiceAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  allocations PaymentAllocation[]
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, contractId])
+  @@index([companyId, status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+model Payment {
+  id          String         @id @default(cuid())
+  companyId   String
+  paymentDate DateTime       @default(now())
+  amount      Decimal        @default(0)
+  currency    String         @default("THB")
+  method      PaymentMethod  @default(BANK_TRANSFER)
+  reference   String?
+  status      PaymentStatus  @default(COMPLETED)
+  notes       String?
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  company    Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy  User                @relation("PaymentAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  allocations PaymentAllocation[]
+
+  @@index([companyId, paymentDate])
+  @@index([companyId, status])
+  @@map("payments")
+}
+
+model PaymentAllocation {
+  id         String  @id @default(cuid())
+  paymentId  String
+  invoiceId  String
+  amount     Decimal @default(0)
+  createdAt  DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([paymentId, invoiceId])
+  @@index([invoiceId])
+  @@map("payment_allocations")
 }
 
 // ---------------------------------------------------------------------------

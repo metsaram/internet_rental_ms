@@ -13,6 +13,7 @@ import {
   XCircle,
   Clock,
   TrendingUp,
+  Receipt,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -46,6 +47,14 @@ type Dash = {
     expiringSoon: number;
     expired: number;
     upcoming: number;
+    invoices: number;
+    overdueInvoices: number;
+  };
+  billing: {
+    invoicedTotal: string;
+    collectedTotal: string;
+    outstandingTotal: string;
+    overdueCount: number;
   };
   costByCurrency: Array<{ currency: string; expectedMonthly: string; effectiveMonthly: string }>;
   costByProvider: Array<{ provider: string; code: string; count: number; expectedMonthly: string }>;
@@ -99,6 +108,7 @@ export function DashboardView() {
   }
 
   const c = data?.counts;
+  const billing = data?.billing;
   const cost =
     data?.costByCurrency?.[0] ?? {
       currency,
@@ -261,6 +271,56 @@ export function DashboardView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Billing summary (Phase 12) */}
+      <Card className="overflow-hidden">
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Receipt className="size-4 text-primary" />
+              Billing &amp; outstanding
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Invoiced vs collected vs outstanding · {cost.currency}
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { window.location.hash = "invoices"; }}
+          >
+            Go to invoices
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <CostStat
+              label="Total invoiced"
+              value={formatMoney(billing?.invoicedTotal, cost.currency)}
+              hint={`${c?.invoices ?? 0} invoices`}
+              loading={isLoading}
+            />
+            <CostStat
+              label="Collected"
+              value={formatMoney(billing?.collectedTotal, cost.currency)}
+              hint="Σ completed payments"
+              loading={isLoading}
+            />
+            <CostStat
+              label="Outstanding"
+              value={formatMoney(billing?.outstandingTotal, cost.currency)}
+              hint="unpaid balances"
+              loading={isLoading}
+            />
+            <CostStat
+              label="Overdue"
+              value={String(billing?.overdueCount ?? 0)}
+              hint="invoices past due"
+              loading={isLoading}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

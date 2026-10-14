@@ -44,6 +44,7 @@ import { Badge } from "@/components/ui/badge";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import { CommandPalette } from "@/components/shared/command-palette";
+import { ShortcutsHelp, useShortcutsHelp } from "@/components/shared/shortcuts-help";
 
 export type ViewKey =
   | "dashboard"
@@ -124,6 +125,7 @@ export function AppShell({
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useShortcutsHelp();
 
   // Poll notifications unread count for the header bell badge.
   const { data: notifData } = useQuery<{ unreadCount: number }>({
@@ -407,6 +409,7 @@ export function AppShell({
         </footer>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <ShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   );
 }

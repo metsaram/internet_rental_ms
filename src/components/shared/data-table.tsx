@@ -63,13 +63,50 @@ export function DataTable<T>({
   loading,
 }: DataTableProps<T>) {
   const [page, setPage] = React.useState(1);
+  const [activeIndex, setActiveIndex] = React.useState(-1);
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const pageRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   React.useEffect(() => {
     setPage(1);
+    setActiveIndex(-1);
   }, [rows.length, search?.value]);
+
+  // Keyboard shortcuts: j/k = down/up, Enter = open, / = focus search, Esc = clear.
+  React.useEffect(() => {
+    if (!onRowClick) return;
+    const handler = (e: KeyboardEvent) => {
+      // Don't interfere when typing in an input/textarea/select.
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (isInput && e.key !== "Escape") return;
+
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIndex((prev) => Math.min(pageRows.length - 1, prev + 1));
+      } else if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIndex((prev) => Math.max(0, prev - 1));
+      } else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < pageRows.length) {
+        e.preventDefault();
+        onRowClick(pageRows[activeIndex]);
+      } else if (e.key === "/" && search && searchRef.current) {
+        e.preventDefault();
+        searchRef.current.focus();
+      } else if (e.key === "Escape") {
+        if (search?.value) {
+          search.onChange("");
+        }
+        setActiveIndex(-1);
+        (document.activeElement as HTMLElement)?.blur?.();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [pageRows, activeIndex, onRowClick, search]);
 
   return (
     <div className="space-y-3">
@@ -79,6 +116,7 @@ export function DataTable<T>({
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                ref={searchRef}
                 value={search.value}
                 onChange={(e) => search.onChange(e.target.value)}
                 placeholder={search.placeholder ?? "Search..."}
@@ -132,14 +170,15 @@ export function DataTable<T>({
                   </TableCell>
                 </TableRow>
               ) : (
-                pageRows.map((row) => (
+                pageRows.map((row, idx) => (
                   <TableRow
                     key={rowKey(row)}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                     className={cn(
                       "transition-colors",
                       onRowClick &&
-                        "cursor-pointer hover:bg-muted/40 data-[state=selected]:bg-muted/60"
+                        "cursor-pointer hover:bg-muted/40 data-[state=selected]:bg-muted/60",
+                      idx === activeIndex && "bg-primary/10 ring-1 ring-inset ring-primary/20"
                     )}
                   >
                     {columns.map((c) => (

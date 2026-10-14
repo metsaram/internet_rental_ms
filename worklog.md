@@ -858,3 +858,76 @@ Task: Bulk contract status updates + cost variance report + animated dashboard K
   begin a Phase 19 final-QA deep-dive on the newly-added bulk + variance
   features to ensure edge cases (empty selections, multi-currency variance)
   are handled.
+
+---
+Task ID: 16 (webDevReview round 8)
+Agent: main (Z.ai Code)
+Task: UI/UX polish — keyboard shortcuts, shortcuts help dialog, dashboard status pills, empty-state illustrations.
+
+## Current project status (assessment)
+- All 17 phases + extensions (user management, trend chart, bulk operations,
+  variance report, animated KPIs) complete. QA pass via agent-browser across
+  all 13 views: no errors. System is stable and feature-complete.
+- Decided work focus: UI/UX polish per the round-7 recommendation — keyboard
+  shortcuts for table navigation, a shortcuts help dialog, a quick-status
+  pill strip on the dashboard, and refined empty-state illustrations.
+
+## Goals / completed modifications
+### Keyboard shortcuts for DataTable
+- Extended `src/components/shared/data-table.tsx` with global keyboard
+  navigation: `j`/`ArrowDown` = move selection down, `k`/`ArrowUp` = move
+  up, `Enter` = open the selected row's detail (calls `onRowClick`), `/` =
+  focus the search input, `Esc` = clear search + blur. The active row is
+  highlighted with `bg-primary/10 ring-1 ring-inset ring-primary/20`.
+  Shortcuts are disabled when typing in inputs (except Esc). Only active
+  when `onRowClick` is provided.
+- Added a `ref` to the search input so `/` can focus it.
+
+### Shortcuts help dialog
+- New `src/components/shared/shortcuts-help.tsx`: a `ShortcutsHelp` dialog
+  component showing all shortcuts grouped by Global / Tables, with `<kbd>`
+  key chips. `useShortcutsHelp()` hook wires the global `?` key to toggle
+  the dialog (disabled when typing in inputs).
+- Wired into the AppShell — renders alongside the CommandPalette.
+
+### Dashboard quick-status pills
+- Added a row of compact status pills below the KPI cards on the dashboard:
+  Renewals due (amber/green), Overdue invoices (red/green), Outstanding
+  (amber text, formatted as money), Unread notifications (blue/green). Each
+  pill uses a tone color + ring; numeric pills use `AnimatedNumber` for
+  smooth count transitions; the outstanding pill is text-formatted money.
+  Tones dynamically reflect the current state (green = OK, amber/red =
+  needs attention).
+
+### Empty-state illustrations
+- Enhanced `src/components/shared/empty-state.tsx` with an optional
+  `illustration` prop that renders a decorative SVG line-art "empty box"
+  scene (themed with `text-primary/60`) instead of the plain icon circle.
+  The SVG includes a dashed ground line, a 3D box with a lid + tape line,
+  and floating sparkle dots — a softer, more polished look.
+
+## Verification results (agent-browser)
+- All 13 views load with no console/runtime/hydration errors.
+- Dashboard: status pills render with correct tones (Renewals due, Overdue
+  invoices, Outstanding, Unread notifications).
+- Shortcuts help: pressed `?` → dialog opened with Global + Tables groups,
+  all shortcuts listed with kbd chips. Pressed `Esc` → closed. ✓
+- Keyboard navigation: on Contracts view, pressed `j` → active row
+  highlighted (confirmed via DOM: "active row highlighted"). Pressed `/` →
+  search input focused (confirmed: activeElement = "INPUT Search
+  contracts..."). ✓
+- `bun run lint` clean.
+
+## Unresolved issues / risks + next-phase recommendations
+- The project is feature-complete and production-ready, now with a polished
+  keyboard-driven UX. All 17 implementable phases + 5 rounds of extensions
+  are delivered.
+- The keyboard shortcuts are currently global (one active table at a time).
+  A future enhancement could scope them to the focused table when multiple
+  tables are visible.
+- Recommended next round: continue polish — e.g. add the empty-state
+  illustration to all views' no-data states, add a "recently viewed"
+  section to the command palette, or implement the mobile bottom navigation
+  bar from the backlog. Alternatively, do a final deep-dive QA pass on
+  edge cases (multi-currency variance, empty bulk selections, concurrent
+  edits) to harden the system further.

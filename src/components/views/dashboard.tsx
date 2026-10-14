@@ -220,6 +220,35 @@ export function DashboardView() {
         ))}
       </div>
 
+      {/* Quick-status pills */}
+      <div className="flex flex-wrap items-center gap-2">
+        <StatusPill
+          label="Renewals due"
+          value={data?.renewalSummary?.upcoming ?? 0}
+          tone={data?.renewalSummary?.upcoming ? "amber" : "green"}
+          loading={isLoading}
+        />
+        <StatusPill
+          label="Overdue invoices"
+          value={data?.billing?.overdueCount ?? 0}
+          tone={data?.billing?.overdueCount ? "red" : "green"}
+          loading={isLoading}
+        />
+        <StatusPill
+          label="Outstanding"
+          value={data?.billing ? formatMoney(data.billing.outstandingTotal, cost.currency) : "—"}
+          tone={Number(data?.billing?.outstandingTotal) > 0 ? "amber" : "green"}
+          loading={isLoading}
+          isText
+        />
+        <StatusPill
+          label="Unread notifications"
+          value={data?.recentActivity?.length ?? 0}
+          tone={(data?.recentActivity?.length ?? 0) > 0 ? "blue" : "green"}
+          loading={isLoading}
+        />
+      </div>
+
       {/* Cost summary + status */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2 overflow-hidden">
@@ -590,6 +619,39 @@ export function DashboardView() {
         </CardContent>
       </Card>
       </div>
+    </div>
+  );
+}
+
+function StatusPill({
+  label,
+  value,
+  tone,
+  loading,
+  isText,
+}: {
+  label: string;
+  value: number | string;
+  tone: "green" | "amber" | "red" | "blue";
+  loading?: boolean;
+  isText?: boolean;
+}) {
+  const toneCls = {
+    green: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20",
+    amber: "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-amber-500/20",
+    red: "bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20",
+    blue: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 ring-cyan-500/20",
+  }[tone];
+  return (
+    <div className={cn("flex items-center gap-2 rounded-full px-3 py-1.5 text-xs ring-1", toneCls)}>
+      <span className="font-medium">{label}:</span>
+      {loading ? (
+        <span className="size-3 animate-pulse rounded-full bg-current opacity-40" />
+      ) : isText ? (
+        <span className="font-bold tabular-nums">{value}</span>
+      ) : (
+        <AnimatedNumber value={Number(value)} format={(n) => String(Math.round(n))} className="font-bold tabular-nums" />
+      )}
     </div>
   );
 }

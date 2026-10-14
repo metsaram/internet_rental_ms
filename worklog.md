@@ -996,3 +996,64 @@ Task: Mobile bottom navigation bar + command-palette "Recently viewed" + empty-s
   (b) performance optimization (lazy-loading views, query prefetching), or
   (c) a print-friendly invoice/receipt template. All are feasible without
   external dependencies.
+
+---
+Task ID: 18 (webDevReview round 10)
+Agent: main (Z.ai Code)
+Task: Print-friendly invoice template + lazy-load views for code-splitting.
+
+## Current project status (assessment)
+- All 17 phases + 9 rounds of extensions complete. QA pass via agent-browser
+  across all 13 views: no errors. System is stable and feature-complete.
+- Decided work focus: implement the print-friendly invoice template (option c
+  from the round-9 recommendations) + lazy-load views for performance
+  optimization (option b).
+
+## Goals / completed modifications
+### Print-friendly invoice template
+- New `/api/invoices/[id]/print` (GET — returns a standalone HTML page styled
+  for A4 printing: company header with emerald accent, invoice meta grid
+  (bill-to + invoice details), line-items table (subtotal/tax/discount), a
+  totals block (Subtotal → Tax → Discount → Total Due), a payment-summary box
+  (amount paid + outstanding with color-coded balance), notes, and a footer.
+  Includes a floating "Print invoice" button (`window.print()`) that's hidden
+  on print via `@media print`. Authenticated + company-scoped + HTML-escaped
+  to prevent XSS in the rendered template).
+- Added a "Print" button (Printer icon) to the invoice detail sheet's action
+  row — opens the print template in a new tab via `window.open()`.
+
+### Lazy-load views (code-splitting)
+- Rewrote `src/app/page.tsx` to use `React.lazy()` + dynamic `import()` for
+  all 13 views. Each view is now a separate chunk loaded on-demand only when
+  the user navigates to it, reducing the initial JS bundle. A `VIEW_COMPONENTS`
+  map resolves the active view key → lazy component. Wrapped in
+  `<React.Suspense>` with a centered spinner fallback (`ViewLoader`).
+- The Dashboard is also lazy-loaded (it was the default view, but since the
+  user lands on it first, turbopack will prefetch its chunk immediately).
+
+## Verification results (agent-browser)
+- All 13 views load with no console/runtime/hydration errors after switching
+  to lazy loading — every view chunk compiles + renders on-demand.
+- Print template: GET `/api/invoices/{id}/print` returns `text/html` with
+  title "Invoice INV-2024-004". Verified all 7 key elements present in the
+  HTML: company name (Acme Retail Holdings), invoice number, Bill To section,
+  Total Due, Payment Summary, Print invoice button, and the branch name
+  (Silom Downtown). ✓
+- Invoice detail sheet: "Print" button renders alongside Record payment /
+  Edit / Void / Delete. ✓
+- `bun run lint` clean.
+
+## Unresolved issues / risks + next-phase recommendations
+- The project is feature-complete and production-ready, now with a
+  print-friendly invoice template and code-split views for faster initial
+  load. All 17 implementable phases + 8 rounds of extensions are delivered.
+- The print template is a server-rendered HTML response (not a React
+  component) — this is intentional for print fidelity (no React hydration
+  overhead, clean A4 layout). A future enhancement could add a PDF export
+  using Playwright/Puppeteer for email attachments.
+- Recommended next round: the project has reached a very mature state.
+  Remaining backlog items: (a) edge-case QA deep-dive (concurrent edits,
+  multi-currency variance, empty bulk selections), (b) a PDF export of the
+  invoice template, (c) query prefetching on nav hover for instant view
+  loads, or (d) a "recently viewed records" (not just views) section in the
+  command palette.

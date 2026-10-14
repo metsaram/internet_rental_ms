@@ -10,6 +10,7 @@ import {
   Ban,
   Calculator,
   Trash2,
+  Printer,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
@@ -710,6 +711,12 @@ function InvoiceDetailSheet({
                   <CreditCard className="size-4" /> Record payment
                 </Button>
               )}
+              <Button
+                variant="outline"
+                onClick={() => invoice && window.open(`/api/invoices/${invoice.id}/print`, "_blank")}
+              >
+                <Printer className="size-4" /> Print
+              </Button>
               <Button variant="outline" onClick={() => invoice && onEdit(invoice)}>
                 <Pencil className="size-4" /> Edit
               </Button>

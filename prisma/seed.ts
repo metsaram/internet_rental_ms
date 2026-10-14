@@ -1,0 +1,289 @@
+/**
+ * Repeatable seed data for the Internet Rental Management System.
+ * Run with: bun run db:seed  (or: bunx tsx prisma/seed.ts)
+ *
+ * Idempotent: re-running upserts the demo company/users and a realistic
+ * set of branches, shops, providers, plans, services and contracts.
+ */
+import { PrismaClient, UserRole, Prisma } from "@prisma/client";
+import { hashPassword } from "../src/lib/password";
+
+const prisma = new PrismaClient();
+
+function daysFromNow(d: number): Date {
+  const t = new Date();
+  t.setDate(t.getDate() + d);
+  t.setHours(0, 0, 0, 0);
+  return t;
+}
+function monthsAgo(m: number): Date {
+  const t = new Date();
+  t.setMonth(t.getMonth() - m);
+  t.setHours(0, 0, 0, 0);
+  return t;
+}
+function monthsFromNow(m: number): Date {
+  const t = new Date();
+  t.setMonth(t.getMonth() + m);
+  t.setHours(0, 0, 0, 0);
+  return t;
+}
+
+async function main() {
+  const company = await prisma.company.upsert({
+    where: { code: "ACME" },
+    update: {},
+    create: {
+      code: "ACME",
+      name: "Acme Retail Holdings",
+      taxId: "0105556000000",
+      address: "1 Rama IX Rd, Huai Khwang",
+      city: "Bangkok",
+      phone: "+66 2 123 4567",
+      email: "ops@acme.example",
+      currency: "THB",
+      status: "ACTIVE",
+    },
+  });
+
+  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@netrent.local";
+  const staffEmail = process.env.SEED_STAFF_EMAIL ?? "staff@netrent.local";
+
+  const admin = await prisma.user.upsert({
+    where: { email: adminEmail },
+    update: {},
+    create: {
+      email: adminEmail,
+      name: "Site Admin",
+      passwordHash: hashPassword(process.env.SEED_ADMIN_PASSWORD ?? "admin12345"),
+      role: UserRole.ADMIN,
+      companyId: company.id,
+      status: "ACTIVE",
+    },
+  });
+
+  const staff = await prisma.user.upsert({
+    where: { email: staffEmail },
+    update: {},
+    create: {
+      email: staffEmail,
+      name: "Floor Staff",
+      passwordHash: hashPassword(process.env.SEED_STAFF_PASSWORD ?? "staff12345"),
+      role: UserRole.STAFF,
+      companyId: company.id,
+      status: "ACTIVE",
+    },
+  });
+
+  // Branches ---------------------------------------------------------------
+  const branches = await Promise.all(
+    [
+      { code: "BKK-01", name: "Sukhumvit Flagship", city: "Bangkok", manager: "N. Chai", phone: "+66 81 111 1111" },
+      { code: "BKK-02", name: "Silom Downtown", city: "Bangkok", manager: "P. Saen", phone: "+66 81 222 2222" },
+      { code: "CNX-01", name: "Chiang Mai Nimman", city: "Chiang Mai", manager: "K. Pim", phone: "+66 81 333 3333" },
+      { code: "HKT-01", name: "Phuket Patong", city: "Phuket", manager: "S. Lek", phone: "+66 81 444 4444" },
+    ].map((b) =>
+      prisma.branch.upsert({
+        where: { companyId_code: { companyId: company.id, code: b.code } },
+        update: { name: b.name, city: b.city, manager: b.manager, phone: b.phone },
+        create: { companyId: company.id, ...b, address: `${b.name}, ${b.city}`, status: "ACTIVE" },
+      })
+    )
+  );
+
+  // Shops ------------------------------------------------------------------
+  const shopDefs: Array<{ branchIdx: number; code: string; name: string; type: any }> = [
+    { branchIdx: 0, code: "SUK-A1", name: "Shop A1 - Electronics", type: "UNIT" },
+    { branchIdx: 0, code: "SUK-B2", name: "Kiosk B2 - Coffee", type: "KIOSK" },
+    { branchIdx: 1, code: "SIL-01", name: "Office 01 - Finance", type: "OFFICE" },
+    { branchIdx: 1, code: "SIL-02", name: "Restaurant 02", type: "RESTAURANT" },
+    { branchIdx: 2, code: "CNX-01", name: "Shop 01 - Fashion", type: "UNIT" },
+    { branchIdx: 3, code: "HKT-01", name: "Shop 01 - Souvenirs", type: "UNIT" },
+  ];
+  const shops = await Promise.all(
+    shopDefs.map((s) =>
+      prisma.shop.upsert({
+        where: { companyId_code: { companyId: company.id, code: s.code } },
+        update: { branchId: branches[s.branchIdx].id, name: s.name, type: s.type },
+        create: {
+          companyId: company.id,
+          branchId: branches[s.branchIdx].id,
+          code: s.code,
+          name: s.name,
+          type: s.type,
+          contactPerson: "Counter staff",
+          phone: branches[s.branchIdx].phone,
+          status: "ACTIVE",
+        },
+      })
+    )
+  );
+
+  // Providers --------------------------------------------------------------
+  const providers = await Promise.all(
+    [
+      { code: "AIS-FIBER", name: "AIS Fibre", contactPerson: "AIS Biz", phone: "+66 2 571 2000", email: "biz@ais.example", website: "https://ais.example" },
+      { code: "TRUE", name: "True Internet", contactPerson: "True Biz", phone: "+66 2 700 8000", email: "biz@true.example", website: "https://true.example" },
+      { code: "3BB", name: "3BB Broadband", contactPerson: "3BB Sales", phone: "+66 2 100 2000", email: "sales@3bb.example", website: "https://3bb.example" },
+      { code: "TOT", name: "TOT Plc", contactPerson: "TOT Enterprise", phone: "+66 2 537 0000", email: "ent@tot.example", website: "https://tot.example" },
+    ].map((p) =>
+      prisma.internetProvider.upsert({
+        where: { companyId_code: { companyId: company.id, code: p.code } },
+        update: {},
+        create: { companyId: company.id, ...p, status: "ACTIVE" },
+      })
+    )
+  );
+
+  // Plans ------------------------------------------------------------------
+  const planDefs: Array<{ pIdx: number; name: string; down: number; up: number; type: any; price: number; desc?: string }> = [
+    { pIdx: 0, name: "Home 300/100", down: 300, up: 100, type: "FIBER", price: 790, desc: "Residential fibre 300/100" },
+    { pIdx: 0, name: "Biz 500/500", down: 500, up: 500, type: "FIBER", price: 1290, desc: "Symmetric business fibre" },
+    { pIdx: 0, name: "Biz 1000/1000", down: 1000, up: 1000, type: "FIBER", price: 2490, desc: "1 Gbps symmetric business" },
+    { pIdx: 1, name: "True 600/150", down: 600, up: 150, type: "FIBER", price: 890 },
+    { pIdx: 1, name: "True Biz 1000/500", down: 1000, up: 500, type: "FIBER", price: 2190 },
+    { pIdx: 2, name: "3BB 200/50", down: 200, up: 50, type: "FIBER", price: 590 },
+    { pIdx: 3, name: "TOT Wireless 50/10", down: 50, up: 10, type: "WIRELESS", price: 690 },
+  ];
+  const plans = await Promise.all(
+    planDefs.map((p) =>
+      prisma.internetPlan.upsert({
+        where: { companyId_providerId_name: { companyId: company.id, providerId: providers[p.pIdx].id, name: p.name } },
+        update: {},
+        create: {
+          companyId: company.id,
+          providerId: providers[p.pIdx].id,
+          name: p.name,
+          bandwidthDownMbps: p.down,
+          bandwidthUpMbps: p.up,
+          connectionType: p.type,
+          catalogMonthlyPrice: new Prisma.Decimal(p.price),
+          currency: "THB",
+          status: "ACTIVE",
+          description: p.desc ?? null,
+        },
+      })
+    )
+  );
+
+  // Services ---------------------------------------------------------------
+  const serviceDefs: Array<{ branchIdx: number; shopIdx?: number; pIdx: number; planIdx: number; code: string; acct: string; addr: string; ip?: string; ipType?: any; user?: string; status?: any }> = [
+    { branchIdx: 0, shopIdx: 0, pIdx: 0, planIdx: 0, code: "SVC-0001", acct: "AIS-100001", addr: "Sukhumvit, Shop A1", ip: "10.0.1.5", ipType: "STATIC", user: "ais_user_001", status: "ACTIVE" },
+    { branchIdx: 0, shopIdx: 1, pIdx: 0, planIdx: 1, code: "SVC-0002", acct: "AIS-100002", addr: "Sukhumvit, Kiosk B2", ip: "10.0.1.6", ipType: "STATIC", user: "ais_user_002", status: "ACTIVE" },
+    { branchIdx: 1, shopIdx: 2, pIdx: 1, planIdx: 3, code: "SVC-0003", acct: "TRUE-200001", addr: "Silom, Office 01", ip: "10.0.2.5", ipType: "STATIC", user: "true_user_001", status: "ACTIVE" },
+    { branchIdx: 1, shopIdx: 3, pIdx: 1, planIdx: 4, code: "SVC-0004", acct: "TRUE-200002", addr: "Silom, Restaurant 02", ipType: "DYNAMIC", status: "ACTIVE" },
+    { branchIdx: 2, shopIdx: 4, pIdx: 2, planIdx: 5, code: "SVC-0005", acct: "3BB-300001", addr: "Nimman, Shop 01", ipType: "DYNAMIC", status: "ACTIVE" },
+    { branchIdx: 3, shopIdx: 5, pIdx: 3, planIdx: 6, code: "SVC-0006", acct: "TOT-400001", addr: "Patong, Shop 01", ipType: "CGNAT", status: "ACTIVE" },
+    // a branch-only service (no shop)
+    { branchIdx: 0, pIdx: 0, planIdx: 2, code: "SVC-0007", acct: "AIS-100007", addr: "Sukhumvit, Branch backbone", ip: "10.0.1.1", ipType: "STATIC", user: "ais_admin_007", status: "ACTIVE" },
+    { branchIdx: 1, pIdx: 2, planIdx: 5, code: "SVC-0008", acct: "3BB-300008", addr: "Silom, backup line", ipType: "DYNAMIC", status: "SUSPENDED" },
+  ];
+  const services = await Promise.all(
+    serviceDefs.map((s) =>
+      prisma.internetService.upsert({
+        where: { companyId_serviceCode: { companyId: company.id, serviceCode: s.code } },
+        update: {},
+        create: {
+          companyId: company.id,
+          branchId: branches[s.branchIdx].id,
+          shopId: s.shopIdx !== undefined ? shops[s.shopIdx].id : null,
+          providerId: providers[s.pIdx].id,
+          planId: plans[s.planIdx].id,
+          serviceCode: s.code,
+          accountId: s.acct,
+          installationAddress: s.addr,
+          ipAddress: s.ip ?? null,
+          ipType: s.ipType ?? "DYNAMIC",
+          username: s.user ?? null,
+          status: s.status ?? "PENDING",
+          installedAt: monthsAgo(6),
+        },
+      })
+    )
+  );
+
+  // Contracts -------------------------------------------------------------
+  // A mix: active, expiring soon, expired, upcoming. Some services get a
+  // renewed (second) contract period to demonstrate history preservation.
+  const contractDefs: Array<{ sIdx: number; num: string; startMonthsAgo: number; duration: number; free: number; fee: number; cycle?: any; status?: any }> = [
+    { sIdx: 0, num: "CT-2024-001", startMonthsAgo: 6, duration: 12, free: 1, fee: 790, cycle: "MONTHLY", status: "ACTIVE" },
+    { sIdx: 1, num: "CT-2024-002", startMonthsAgo: 4, duration: 12, free: 0, fee: 1290, cycle: "MONTHLY", status: "ACTIVE" },
+    { sIdx: 2, num: "CT-2024-003", startMonthsAgo: 10, duration: 12, free: 2, fee: 890, cycle: "MONTHLY", status: "ACTIVE" },
+    // expiring soon (started 11 months ago, 12-month term → 1 month left)
+    { sIdx: 3, num: "CT-2024-004", startMonthsAgo: 11, duration: 12, free: 0, fee: 2190, cycle: "MONTHLY", status: "ACTIVE" },
+    // expired (15 months ago, 12-month term)
+    { sIdx: 4, num: "CT-2023-005", startMonthsAgo: 15, duration: 12, free: 0, fee: 590, cycle: "MONTHLY", status: "EXPIRED" },
+    // renewed history: old expired contract + new active contract on same service
+    { sIdx: 5, num: "CT-2023-006", startMonthsAgo: 14, duration: 12, free: 0, fee: 690, cycle: "MONTHLY", status: "EXPIRED" },
+    { sIdx: 5, num: "CT-2024-006R", startMonthsAgo: 2, duration: 12, free: 1, fee: 750, cycle: "MONTHLY", status: "ACTIVE" },
+    // upcoming contract
+    { sIdx: 6, num: "CT-2025-007", startMonthsAgo: -1, duration: 24, free: 3, fee: 2490, cycle: "MONTHLY", status: "DRAFT" },
+    // suspended service, active contract term
+    { sIdx: 7, num: "CT-2024-008", startMonthsAgo: 5, duration: 6, free: 0, fee: 590, cycle: "MONTHLY", status: "TERMINATED" },
+  ];
+  await Promise.all(
+    contractDefs.map(async (c) => {
+      const start = monthsAgo(c.startMonthsAgo);
+      const end = new Date(start);
+      end.setMonth(end.getMonth() + c.duration);
+      return prisma.internetContract.upsert({
+        where: { companyId_contractNumber: { companyId: company.id, contractNumber: c.num } },
+        update: {},
+        create: {
+          companyId: company.id,
+          serviceId: services[c.sIdx].id,
+          contractNumber: c.num,
+          startDate: start,
+          endDate: end,
+          durationMonths: c.duration,
+          freeMonths: c.free,
+          monthlyFee: new Prisma.Decimal(c.fee),
+          currency: "THB",
+          billingCycle: c.cycle ?? "MONTHLY",
+          status: c.status ?? "DRAFT",
+          createdById: admin.id,
+          notes: "Seeded demo contract",
+        },
+      });
+    })
+  );
+
+  // A few shop notes -------------------------------------------------------
+  await prisma.note.upsert({
+    where: { id: "seed-note-1" },
+    update: {},
+    create: {
+      id: "seed-note-1",
+      companyId: company.id,
+      shopId: shops[0].id,
+      authorId: admin.id,
+      body: "Counter POS now connected over the new fibre line. Speeds look good.",
+    },
+  });
+  await prisma.note.upsert({
+    where: { id: "seed-note-2" },
+    update: {},
+    create: {
+      id: "seed-note-2",
+      companyId: company.id,
+      shopId: shops[2].id,
+      authorId: staff.id,
+      body: "Reported intermittent drops on True line — opened ticket #T-9912.",
+    },
+  });
+
+  console.log("Seed complete ✔");
+  console.log("  Company:", company.code, company.name);
+  console.log("  Admin:  ", adminEmail, "(password: admin12345)");
+  console.log("  Staff:  ", staffEmail, "(password: staff12345)");
+  console.log("  Branches:", branches.length, "| Shops:", shops.length, "| Providers:", providers.length, "| Plans:", plans.length, "| Services:", services.length, "| Contracts:", contractDefs.length);
+}
+
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

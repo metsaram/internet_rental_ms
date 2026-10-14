@@ -1,0 +1,360 @@
+// Internet Rental Management System
+// SQLite adapter (sandbox). Decimal is stored as text by Prisma on SQLite,
+// preserving precision for money. Enums are stored as text.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Multi-tenant root + users
+// ---------------------------------------------------------------------------
+
+model Company {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  taxId     String?
+  address   String?
+  city      String?
+  phone     String?
+  email     String?
+  currency  String   @default("THB")
+  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  branches  Branch[]
+  shops     Shop[]
+  notes     Note[]
+  providers InternetProvider[]
+  plans     InternetPlan[]
+  services  InternetService[]
+  contracts InternetContract[]
+  auditLogs AuditLog[]
+  importJobs ImportJob[]
+
+  @@map("companies")
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         UserRole @default(STAFF)
+  companyId    String
+  status       String   @default("ACTIVE") // ACTIVE | DISABLED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  notes        Note[]
+  contracts    InternetContract[] @relation("ContractAuthor")
+  auditLogs    AuditLog[] @relation("AuditActor")
+  importJobs   ImportJob[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Branches & Shops
+// ---------------------------------------------------------------------------
+
+model Branch {
+  id        String   @id @default(cuid())
+  companyId String
+  code      String
+  name      String
+  address   String?
+  city      String?
+  manager   String?
+  phone     String?
+  email     String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shops    Shop[]
+  services InternetService[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("branches")
+}
+
+enum ShopType {
+  UNIT
+  KIOSK
+  OFFICE
+  RESTAURANT
+  OTHER
+}
+
+model Shop {
+  id            String   @id @default(cuid())
+  companyId     String
+  branchId      String
+  code          String
+  name          String
+  type          ShopType @default(UNIT)
+  contactPerson String?
+  phone         String?
+  email         String?
+  address       String?
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch    Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  notes     Note[]
+  services InternetService[]
+
+  @@unique([companyId, code])
+  @@index([companyId, branchId])
+  @@map("shops")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  companyId String
+  shopId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shop    Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([shopId])
+  @@map("notes")
+}
+
+// ---------------------------------------------------------------------------
+// Providers & Plans (master data)
+// ---------------------------------------------------------------------------
+
+model InternetProvider {
+  id            String   @id @default(cuid())
+  companyId     String
+  code          String
+  name          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  website       String?
+  status        String   @default("ACTIVE")
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plans   InternetPlan[]
+  services InternetService[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("internet_providers")
+}
+
+enum ConnectionType {
+  FIBER
+  DSL
+  CABLE
+  WIRELESS
+  SATELLITE
+  OTHER
+}
+
+model InternetPlan {
+  id                  String          @id @default(cuid())
+  companyId           String
+  providerId          String
+  name                String
+  bandwidthDownMbps  Int
+  bandwidthUpMbps     Int
+  connectionType      ConnectionType  @default(FIBER)
+  catalogMonthlyPrice Decimal         @default(0)
+  currency            String          @default("THB")
+  status              String          @default("ACTIVE")
+  description         String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  provider InternetProvider  @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  services InternetService[]
+
+  @@unique([companyId, providerId, name])
+  @@index([companyId, providerId])
+  @@map("internet_plans")
+}
+
+// ---------------------------------------------------------------------------
+// Installed services & contracts
+// ---------------------------------------------------------------------------
+
+enum IPType {
+  STATIC
+  DYNAMIC
+  CGNAT
+}
+
+enum ServiceStatus {
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  PENDING
+}
+
+model InternetService {
+  id                String         @id @default(cuid())
+  companyId         String
+  branchId          String
+  shopId            String?
+  providerId        String
+  planId            String?
+  serviceCode       String
+  accountId         String?
+  installationAddress String?
+  ipAddress         String?
+  ipType            IPType         @default(DYNAMIC)
+  username          String?        // ISP account username (treat as sensitive)
+  status            ServiceStatus @default(PENDING)
+  installedAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch    Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  shop      Shop?             @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  provider  InternetProvider  @relation(fields: [providerId], references: [id], onDelete: Restrict)
+  plan      InternetPlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  contracts InternetContract[]
+
+  @@unique([companyId, serviceCode])
+  @@index([companyId, branchId])
+  @@index([companyId, shopId])
+  @@index([companyId, providerId])
+  @@map("internet_services")
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  TERMINATED
+  RENEWED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
+}
+
+model InternetContract {
+  id              String         @id @default(cuid())
+  companyId       String
+  serviceId       String
+  contractNumber  String
+  startDate       DateTime
+  endDate         DateTime
+  durationMonths  Int
+  freeMonths      Int            @default(0)
+  monthlyFee      Decimal        @default(0)
+  currency        String         @default("THB")
+  billingCycle    BillingCycle   @default(MONTHLY)
+  status          ContractStatus @default(DRAFT)
+  notes           String?
+  createdById     String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  service  InternetService   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  createdBy User             @relation("ContractAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, contractNumber])
+  @@index([companyId, serviceId])
+  @@index([companyId, status])
+  @@index([endDate])
+  @@map("internet_contracts")
+}
+
+// ---------------------------------------------------------------------------
+// Audit log + import jobs
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  companyId     String
+  actorId       String?
+  action        String   // CREATE | UPDATE | ARCHIVE | DELETE | LOGIN ...
+  entityType    String
+  entityId      String?
+  before        String?  // JSON
+  after         String?  // JSON
+  correlationId String?
+  createdAt     DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actor   User?   @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, entityType])
+  @@index([companyId, createdAt])
+  @@map("audit_logs")
+}
+
+model ImportJob {
+  id            String   @id @default(cuid())
+  companyId     String
+  fileName      String
+  worksheet     String?
+  status        String   @default("PENDING") // PENDING | PREVIEW | COMPLETED | FAILED
+  totalRows     Int      @default(0)
+  importedRows  Int      @default(0)
+  errorRows     Int      @default(0)
+  summary       String?
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  rows     ImportRow[]
+
+  @@index([companyId])
+  @@map("import_jobs")
+}
+
+model ImportRow {
+  id        String @id @default(cuid())
+  jobId     String
+  rowIndex  Int
+  status    String @default("PENDING") // OK | ERROR | IMPORTED
+  message   String?
+  data      String // JSON
+
+  job ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("import_rows")
+}

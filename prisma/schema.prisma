@@ -479,6 +479,8 @@ model ImportJob {
   companyId     String
   fileName      String
   worksheet     String?
+  entityType    String   @default("contract") // contract | service | invoice
+  columnMap     String?  // JSON of { targetField: sourceHeader }
   status        String   @default("PENDING") // PENDING | PREVIEW | COMPLETED | FAILED
   totalRows     Int      @default(0)
   importedRows  Int      @default(0)

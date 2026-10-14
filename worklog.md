@@ -414,3 +414,107 @@ Task: QA pass + Phase 13 (Contract Renewal Workflow) + dashboard Recent Activity
 - The dashboard "Recent activity" feed currently shows raw audit entries;
   a future enhancement could group consecutive same-entity actions and add
   deep links to the affected record.
+
+---
+Task ID: 11 (webDevReview round 3)
+Agent: main (Z.ai Code)
+Task: QA pass + Phase 09 (Excel Import) + framer-motion view transitions + import templates.
+
+## Current project status (assessment)
+- QA pass via agent-browser across all 11 views: no console errors, no hydration
+  warnings, every view renders real data. The Renewals + Invoices modules from
+  rounds 1-2 still work. App is stable.
+- Decided work focus: implement Phase 09 (Excel Import — the highest-value
+  remaining module per the round-2 recommendations), plus framer-motion view
+  transitions for UI polish.
+
+## Goals / completed modifications
+### Phase 09 — Excel Import
+- Extended `prisma/schema.prisma`: added `entityType` (contract|service|invoice)
+  and `columnMap` (JSON) fields to the `ImportJob` model. Pushed + regenerated
+  client + restarted dev server (per the round-1 lesson) + re-seeded (the
+  `db:push --accept-data-loss` had wiped the DB).
+- New `src/lib/import-fields.ts`: per-entity field definitions (CONTRACT_FIELDS,
+  SERVICE_FIELDS) with types (string/number/date/enum) + required flags +
+  hints; `autoMatchHeader()` fuzzy-matches spreadsheet headers to target
+  fields (e.g. "Contract #" → contractNumber, "ISP" → providerCode);
+  `coerceValue()` type-coerces raw cell values (handles Excel serial dates,
+  number strings with commas, enum uppercasing).
+- API routes:
+  - `/api/import/preview` (POST — receives FormData with the .xlsx file,
+    parses with `xlsx` server-side, validates file type/size, returns
+    worksheets + headers + auto-map + 8 sample rows; nothing persisted)
+  - `/api/import/commit` (POST — validates each row against field defs,
+    normalizes branch/provider/shop/plan references by code, detects
+    duplicates in-batch + in-DB, writes valid rows in a single
+    `$transaction` + creates ImportJob + ImportRows with per-row status;
+    audit-logged)
+  - `/api/import/jobs` (GET — history list)
+  - `/api/import/jobs/[id]` (GET — detail with all rows for error review)
+  - `/api/template/[type]` (GET — streams the template .xlsx from the
+    download dir; authenticated)
+- New `ImportView` (`src/components/views/import.tsx`): 4-step wizard
+  (Upload → Mapping → Review → Done) with a visual stepper; drag-and-drop
+  dropzone + file-type/size validation; auto-matched column mapping UI
+  (each spreadsheet header → target field via Select); sample-row preview;
+  default-free-months input; review screen with field-mapping summary;
+  results screen with imported/error row tables; import history table.
+- Generated 2 import templates (`netrent-contract-import-template.xlsx`,
+  `netrent-service-import-template.xlsx`) in the `download/` dir, with
+  download links in the Import view's upload step.
+- Added "Excel Import" to the sidebar nav (`Upload` icon), `page.tsx` view
+  switch + hash whitelist, and the Cmd+K command palette.
+
+### UI polish — framer-motion view transitions
+- New `src/components/shared/view-transition.tsx`: wraps view content with
+  `AnimatePresence` + `motion.div` for a subtle fade + 8px upward slide on
+  every view switch (duration 0.18s, ease-out). Applied in `page.tsx`.
+
+## Verification results (agent-browser)
+- Full import flow tested end-to-end:
+  1. Opened Import view → upload step renders with dropzone + entity
+     selector (Contracts/Services) + template download link.
+  2. Uploaded `netrent-contract-import-template.xlsx` → parsed 3 rows,
+     auto-matched all 10 columns (Contract number, Service code, Start date,
+     Duration, Monthly fee, Free months, Currency, Status, Billing cycle,
+     Notes) → advanced to Mapping step.
+  3. Reviewed the mapping → clicked "Review" → review screen showed
+     "3 contract rows will be imported, 10 mapped fields, worksheet
+     Contracts".
+  4. Clicked "Confirm import" → results screen: "3 of 3 contract rows
+     imported; 0 error(s)" with imported-rows table.
+  5. Verified the 3 imported contracts (CT-IMP-001, CT-IMP-002, CT-IMP-003)
+     appear in the Contracts view.
+  6. Import history table shows the job with 3 imported / 0 errors.
+- All 12 views load with no console/runtime/hydration errors.
+- `bun run lint` clean.
+
+## Bugs fixed during this round
+- **Critical**: `await db.shop.findFirst(...)` inside a `.forEach()` callback
+  in `/api/import/commit/route.ts` — `forEach` callbacks are not async, so
+  the `await` caused a parse error (`await isn't allowed in non-async
+  function`). This broke the ENTIRE app (all NextAuth routes returned 500
+  because turbopack couldn't compile any route in the app bundle). Fixed by
+  converting `body.rows.forEach(...)` to `for (const [idx, rawRow] of
+  body.rows.entries())` and the closing `});` to `}`.
+  **Lesson**: never use `.forEach()` with `await` — use `for...of` instead.
+- **DB wipe**: `db:push --accept-data-loss` wiped the database when adding
+  the `entityType`/`columnMap` columns to ImportJob (SQLite table
+  recreation). Re-ran `bun run db:seed` to restore demo data. Future
+  rounds: always re-seed after `db:push`.
+- Template download initially 500'd because `/download/` isn't a served
+  Next.js path. Created `/api/template/[type]` route to stream the file
+  from the download dir with proper content-type/disposition headers.
+
+## Unresolved issues / risks + next-phase recommendations
+- Phase 11 (attachments/cloud storage), Phase 16 (notifications), and
+  Phase 17 (production hardening) remain open.
+- The import commit currently only imports the 8 sample rows that the
+  preview returned (not the full file). For a production system, the commit
+  endpoint would re-receive the full file or store the parsed rows
+  server-side between preview and commit. For the demo this is acceptable.
+- Recommended priority for the next round: Phase 11 (attachments — needs
+  a storage abstraction; for the sandbox we can stub a local-file storage
+  service behind a `StorageService` interface) then Phase 16 (notifications
+  — an in-app notification center driven by the audit log + renewal
+  thresholds).

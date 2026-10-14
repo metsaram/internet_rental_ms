@@ -23,6 +23,7 @@ import {
   Receipt,
   Search,
   RefreshCw,
+  Upload,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -51,6 +52,7 @@ export type ViewKey =
   | "contracts"
   | "invoices"
   | "renewals"
+  | "import"
   | "reports"
   | "settings";
 
@@ -69,6 +71,7 @@ const NAV: Array<{
   { key: "contracts", label: "Contracts", icon: FileText, group: "Operations" },
   { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Operations" },
   { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
+  { key: "import", label: "Excel Import", icon: Upload, group: "Operations" },
   { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
   { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
 ];

@@ -13,8 +13,10 @@ import { ServicesView } from "@/components/views/services";
 import { ContractsView } from "@/components/views/contracts";
 import { InvoicesView } from "@/components/views/invoices";
 import { RenewalsView } from "@/components/views/renewals";
+import { ImportView } from "@/components/views/import";
 import { ReportsView } from "@/components/views/reports";
 import { SettingsView } from "@/components/views/settings";
+import { ViewTransition } from "@/components/shared/view-transition";
 import type { ViewKey } from "@/components/app-shell";
 import { Loader2 } from "lucide-react";
 
@@ -36,6 +38,7 @@ export default function Home() {
         "contracts",
         "invoices",
         "renewals",
+        "import",
         "reports",
         "settings",
       ];
@@ -60,17 +63,20 @@ export default function Home() {
 
   return (
     <AppShell>
-      {view === "dashboard" && <DashboardView />}
-      {view === "branches" && <BranchesView />}
-      {view === "shops" && <ShopsView />}
-      {view === "providers" && <ProvidersView />}
-      {view === "plans" && <PlansView />}
-      {view === "services" && <ServicesView />}
-      {view === "contracts" && <ContractsView />}
-      {view === "invoices" && <InvoicesView />}
-      {view === "renewals" && <RenewalsView />}
-      {view === "reports" && <ReportsView />}
-      {view === "settings" && <SettingsView />}
+      <ViewTransition viewKey={view}>
+        {view === "dashboard" && <DashboardView />}
+        {view === "branches" && <BranchesView />}
+        {view === "shops" && <ShopsView />}
+        {view === "providers" && <ProvidersView />}
+        {view === "plans" && <PlansView />}
+        {view === "services" && <ServicesView />}
+        {view === "contracts" && <ContractsView />}
+        {view === "invoices" && <InvoicesView />}
+        {view === "renewals" && <RenewalsView />}
+        {view === "import" && <ImportView />}
+        {view === "reports" && <ReportsView />}
+        {view === "settings" && <SettingsView />}
+      </ViewTransition>
     </AppShell>
   );
 }

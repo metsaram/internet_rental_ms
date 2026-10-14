@@ -25,6 +25,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatMoney, formatNumber, formatDate, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { AnimatedNumber } from "@/components/shared/animated-number";
 import { useSession } from "next-auth/react";
 import {
   Area,
@@ -688,7 +689,11 @@ function KpiCard({
       </div>
       <div className="min-w-0">
         <div className="text-2xl font-semibold leading-tight">
-          {loading ? <Skeleton className="h-6 w-10" /> : formatNumber(value ?? 0)}
+          {loading ? (
+            <Skeleton className="h-6 w-10" />
+          ) : (
+            <AnimatedNumber value={value ?? 0} format={(n) => formatNumber(Math.round(n))} />
+          )}
         </div>
         <p className="text-[11px] text-muted-foreground group-hover:text-foreground">
           {label}

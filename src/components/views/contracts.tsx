@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -88,6 +89,9 @@ export function ContractsView() {
   const [editing, setEditing] = React.useState<Contract | null>(null);
   const [detail, setDetail] = React.useState<Contract | null>(null);
   const [deleting, setDeleting] = React.useState<Contract | null>(null);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = React.useState<string>("ACTIVE");
+  const [bulkOpen, setBulkOpen] = React.useState(false);
 
   const { data: contracts = [], isLoading } = useQuery<Contract[]>({
     queryKey: ["contracts", search, statusFilter],
@@ -148,7 +152,55 @@ export function ContractsView() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const bulkStatusMut = async (ids: string[], status: string) => {
+    await api("/api/contracts/bulk-status", {
+      method: "POST",
+      body: JSON.stringify({ ids, status }),
+    });
+    toast.success(`${ids.length} contract(s) set to ${status}`);
+    setSelected(new Set());
+    setBulkOpen(false);
+    qc.invalidateQueries({ queryKey: ["contracts"] });
+    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allSelected = filtered.length > 0 && filtered.every((c) => selected.has(c.id));
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(filtered.map((c) => c.id)));
+  };
+
   const columns: DataTableColumn<Contract>[] = [
+    {
+      key: "select",
+      header: (
+        <Checkbox
+          checked={allSelected}
+          onCheckedChange={toggleAll}
+          aria-label="Select all"
+          className="size-4"
+        />
+      ),
+      cell: (c) => (
+        <Checkbox
+          checked={selected.has(c.id)}
+          onCheckedChange={() => toggleSelect(c.id)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`Select ${c.contractNumber}`}
+          className="size-4"
+        />
+      ),
+      className: "w-10",
+    },
     {
       key: "contract",
       header: "Contract",
@@ -283,6 +335,32 @@ export function ContractsView() {
           >
             Go to services →
           </button>
+        </div>
+      )}
+
+      {/* Bulk-action toolbar */}
+      {selected.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="font-medium">{selected.size}</span>
+            <span className="text-muted-foreground">contract(s) selected</span>
+            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={bulkStatus} onValueChange={setBulkStatus}>
+              <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTS.map((s) => (
+                  <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button size="sm" onClick={() => bulkStatusMut(Array.from(selected), bulkStatus)}>
+              Set {bulkStatus.toLowerCase()}
+            </Button>
+          </div>
         </div>
       )}
 

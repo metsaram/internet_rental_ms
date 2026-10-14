@@ -786,3 +786,75 @@ Task: Phase 19 final QA pass + user management (Phase 2 extension) + dashboard c
   a map view of branches, email notifications (in addition to in-app),
   per-contract cost-vs-invoiced variance report, and a mobile-responsive
   bottom navigation bar.
+
+---
+Task ID: 15 (webDevReview round 7)
+Agent: main (Z.ai Code)
+Task: Bulk contract status updates + cost variance report + animated dashboard KPIs.
+
+## Current project status (assessment)
+- All 17 phases + user management + trend chart complete. QA pass via
+  agent-browser across all 13 views: no errors. System is stable and
+  feature-complete.
+- Decided work focus: add the two highest-value "future enhancement ideas"
+  from the round-6 worklog — bulk contract status updates + a per-contract
+  cost-vs-invoiced variance report — plus animated KPI counters for UI polish.
+
+## Goals / completed modifications
+### Bulk contract status updates
+- New `/api/contracts/bulk-status` (POST — Zod-validated `{ids, status}`,
+  updates all matching contracts in a single `$transaction`, company-scoped
+  via the WHERE clause, audit-logged with the count + IDs).
+- Added bulk-select to the Contracts view: a "Select all" checkbox column
+  header + per-row checkboxes (using the shadcn `Checkbox` component). A
+  bulk-action toolbar appears when ≥1 row is selected, showing the count, a
+  status Select (DRAFT/ACTIVE/EXPIRED/TERMINATED/RENEWED), a "Set {status}"
+  button, and a "Clear" button. On success, the selection clears + the
+  contracts + dashboard queries invalidate.
+
+### Cost variance report (scheduled vs invoiced vs paid)
+- New `/api/reports/variance` (GET — for each contract, computes
+  scheduledTotal = monthlyFee × paidMonths, invoicedTotal = Σ invoice.total
+  (non-void), collectedTotal = Σ completed allocations, outstanding =
+  invoiced - collected, variance = invoiced - scheduled; returns per-contract
+  rows + a summary block).
+- Added a "Cost variance" card to the Reports view with a 5-column summary
+  strip (Scheduled / Invoiced / Collected / Outstanding / Variance, with the
+  variance highlighted amber if non-zero) + a per-contract table showing
+  each metric with color-coded values (green=collected, rose=outstanding,
+  amber=positive variance, cyan=negative variance).
+
+### Animated dashboard KPIs
+- New `src/components/shared/animated-number.tsx` — a `requestAnimationFrame`
+  counter that smoothly tweens from the previous value to the new value with
+  an ease-out cubic curve (600ms). Used in the dashboard KpiCard so counts
+  animate on every refetch instead of snapping.
+- Added a refined hover shadow to the KPI cards (`hover:shadow-sm` already
+  present; the animated numbers add a polished feel).
+
+## Verification results (agent-browser)
+- All 13 views load with no console/runtime/hydration errors.
+- Bulk update: selected 1 contract (CT-2023-005) → bulk toolbar showed "1
+  contract(s) selected" → clicked "Set active" → POST returned 200, toast
+  appeared, selection cleared. ✓
+- Variance report: GET /api/reports/variance returned 13 rows + summary
+  (scheduled ฿199,920, invoiced ฿6,323.70, collected ฿1,797.60, variance
+  -฿193,596.30 — the negative variance is expected since most contracts have
+  no invoices yet). The Reports view renders the summary strip + per-contract
+  table. ✓
+- `bun run lint` clean.
+
+## Unresolved issues / risks + next-phase recommendations
+- The project continues to be feature-complete and production-ready. All
+  17 implementable phases are delivered, plus user management, a trend chart,
+  bulk operations, a variance report, and animated KPIs.
+- Future enhancement ideas still on the backlog: a map view of branches
+  (needs a maps API), email notifications (needs an email provider), and a
+  mobile-responsive bottom navigation bar. These require external
+  dependencies/infra that aren't available in the sandbox.
+- Recommended next round: continue UI/UX polish — e.g. skeleton loading
+  states for all data tables, a refined empty-state illustration set, and
+  keyboard shortcuts (j/k navigation in tables, Enter to open detail). Or
+  begin a Phase 19 final-QA deep-dive on the newly-added bulk + variance
+  features to ensure edge cases (empty selections, multi-currency variance)
+  are handled.

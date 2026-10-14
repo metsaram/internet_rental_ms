@@ -12,6 +12,7 @@ import {
   Wallet,
   Receipt,
   CreditCard,
+  Scale,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { formatMoney, formatDate, formatDateTime, formatBandwidth } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 type Dash = {
   costByBranch: Array<{ branch: string; code: string; count: number; expectedMonthly: string }>;
@@ -98,6 +100,35 @@ type Payment = {
   allocations: Array<{ invoiceId: string; invoiceNumber: string; amount: string }>;
 };
 
+type VarianceRow = {
+  id: string;
+  contractNumber: string;
+  serviceCode: string;
+  branch: string;
+  provider: string;
+  status: string;
+  currency: string;
+  scheduledTotal: string;
+  invoicedTotal: string;
+  collectedTotal: string;
+  outstanding: string;
+  variance: string;
+  invoiceCount: number;
+};
+
+type VarianceReport = {
+  rows: VarianceRow[];
+  summary: {
+    currency: string;
+    scheduledTotal: string;
+    invoicedTotal: string;
+    collectedTotal: string;
+    outstanding: string;
+    variance: string;
+    contractCount: number;
+  };
+};
+
 export function ReportsView() {
   const { data: session } = useSession();
   const currency = (session?.user as any)?.companyCurrency ?? "THB";
@@ -122,6 +153,10 @@ export function ReportsView() {
   const { data: payments = [] } = useQuery<Payment[]>({
     queryKey: ["payments-all"],
     queryFn: () => api<Payment[]>("/api/payments"),
+  });
+  const { data: variance, isLoading: varianceLoading } = useQuery<VarianceReport>({
+    queryKey: ["variance"],
+    queryFn: () => api<VarianceReport>("/api/reports/variance"),
   });
   const { data: audit = [] } = useQuery<Audit[]>({
     queryKey: ["audit"],
@@ -396,6 +431,61 @@ export function ReportsView() {
         </CardContent>
       </Card>
 
+      {/* Cost variance report (scheduled vs invoiced vs paid) */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Scale className="size-4 text-primary" />
+              Cost variance — scheduled vs invoiced vs paid
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Per-contract: scheduled total (monthly fee × paid months) vs invoiced vs collected
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Summary strip */}
+          {variance && (
+            <div className="grid grid-cols-2 gap-3 border-b pb-3 sm:grid-cols-5">
+              <Stat label="Scheduled" value={formatMoney(variance.summary.scheduledTotal, variance.summary.currency)} />
+              <Stat label="Invoiced" value={formatMoney(variance.summary.invoicedTotal, variance.summary.currency)} />
+              <Stat label="Collected" value={formatMoney(variance.summary.collectedTotal, variance.summary.currency)} />
+              <Stat label="Outstanding" value={formatMoney(variance.summary.outstanding, variance.summary.currency)} />
+              <Stat
+                label="Variance"
+                value={formatMoney(variance.summary.variance, variance.summary.currency)}
+                tone={Number(variance.summary.variance) !== 0 ? "text-amber-600" : "text-muted-foreground"}
+              />
+            </div>
+          )}
+          <ReportTable
+            loading={varianceLoading}
+            headers={["Contract", "Branch", "Scheduled", "Invoiced", "Collected", "Outstanding", "Variance"]}
+            rows={(variance?.rows ?? [])
+              .filter((r) => Number(r.invoicedTotal) > 0 || Number(r.scheduledTotal) > 0)
+              .map((r) => [
+                r.contractNumber,
+                r.branch,
+                <span key="s" className="tabular-nums">{formatMoney(r.scheduledTotal, r.currency)}</span>,
+                <span key="i" className="tabular-nums">{formatMoney(r.invoicedTotal, r.currency)}</span>,
+                <span key="c" className="tabular-nums text-emerald-600">{formatMoney(r.collectedTotal, r.currency)}</span>,
+                <span key="o" className="tabular-nums text-rose-600">{formatMoney(r.outstanding, r.currency)}</span>,
+                <span
+                  key="v"
+                  className={cn(
+                    "tabular-nums font-medium",
+                    Number(r.variance) > 0 ? "text-amber-600" : Number(r.variance) < 0 ? "text-cyan-600" : "text-muted-foreground"
+                  )}
+                >
+                  {Number(r.variance) > 0 ? "+" : ""}{formatMoney(r.variance, r.currency)}
+                </span>,
+              ])}
+            empty="No contracts with invoiced data"
+          />
+        </CardContent>
+      </Card>
+
       {/* Audit log (admin) */}
       {isAdmin && (
         <Card>
@@ -432,13 +522,13 @@ export function ReportsView() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
     <div className="rounded-lg border bg-muted/20 p-3">
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
+      <p className={cn("mt-1 text-xl font-semibold tabular-nums", tone ?? "")}>{value}</p>
     </div>
   );
 }

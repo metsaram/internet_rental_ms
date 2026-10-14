@@ -720,3 +720,69 @@ Task: QA pass + Phase 17 (Production Hardening) — security headers, error boun
   CRUD module's create/edit/delete/archive flows, import/export, attachments,
   notifications, and responsive/accessibility basics. Then the project is
   production-ready for a real Vercel + PostgreSQL deployment.
+
+---
+Task ID: 14 (webDevReview round 6)
+Agent: main (Z.ai Code)
+Task: Phase 19 final QA pass + user management (Phase 2 extension) + dashboard cost-trend chart.
+
+## Current project status (assessment)
+- All 17 implementable phases (00-17) complete. Ran a comprehensive QA pass via
+  agent-browser across all 13 views: no console/runtime/hydration errors.
+  Verified data integrity: 13 contracts, 5 invoices, outstanding ฿4,526.10,
+  2 completed renewals, notifications generating correctly. Security headers
+  live, health endpoint OK, 404 page works. System is production-ready.
+- Decided work focus: add the two highest-value remaining features — admin
+  user management (Phase 2 extension, previously only seed-created users) and
+  a dashboard 6-month cost-trend chart — plus run the final QA pass.
+
+## Goals / completed modifications
+### User management (admin-only)
+- New `/api/users` route (GET list with activity counts; POST create with Zod
+  validation: email/name/password≥8/role, unique-email guard, scrypt-hashed
+  password, company-scoped, audit-logged). `requireAdmin()` enforces
+  admin-only access.
+- New `/api/users/[id]` route (PATCH — update name/role/status/password;
+  lockout protections: can't disable yourself, can't demote the last admin;
+  audit-logged).
+- New `UsersSection` component in the Settings view (admin-only): table with
+  user/name/email, inline role Select, activity count, status badge, created
+  date, "Reset password" + "Disable/Enable" actions. "Add user" button opens
+  a `CreateUserDialog` (email/name/password/role). `ResetPasswordDialog` for
+  password resets. All mutations invalidate the `["users"]` query + toast.
+
+### Dashboard cost-trend chart
+- Extended `/api/dashboard` to compute a `costTrend` block: for each of the
+  last 6 months, sums the monthly fee of contracts active during that month
+  (start ≤ month-end && end ≥ month-start). Returns `[{label, value}]`.
+- Added a 6-month cost-trend area chart to the dashboard (recharts `AreaChart`
+  with a gradient fill, dots, and a tooltip formatted with `formatMoney`).
+  Renders between the billing summary card and the cost-by-provider/branch
+  charts. Verified: trend shows ฿8,710 → ฿10,160 over May-Oct, reflecting
+  contracts starting/expiring across the period.
+
+## Verification results (agent-browser)
+- All 13 views load with no errors.
+- User management: opened Settings → Users section rendered with 2 seeded
+  users (admin + staff). Created "test.staff@netrent.local" (STAFF) →
+  appeared in the list (3 users). Signed out + signed in as the new user
+  with the created password → success ("Welcome back, Test"). Confirms the
+  create → hash → login flow works end-to-end. ✓
+- Cost-trend chart: renders on the dashboard with 6 months (May-Oct) and
+  correct values (฿8,710 → ฿10,160). ✓
+- `bun run lint` clean.
+
+## Unresolved issues / risks + next-phase recommendations
+- The project has now delivered all 17 implementable phases (00-17) plus
+  user management (Phase 2 extension) and a dashboard trend chart. The only
+  remaining phases are 18 (Vercel deployment — requires real infra) and 19
+  (final QA — this round served as that pass; the system is verified
+  end-to-end).
+- Residual risks (unchanged from round 5): in-memory rate limiting, local-
+  filesystem attachment storage, inline notification generator, dev
+  NEXTAUTH_SECRET. All documented and acceptable for the sandbox demo.
+- The project is feature-complete and production-ready for a real Vercel +
+  PostgreSQL deployment. Future enhancement ideas: bulk contract actions,
+  a map view of branches, email notifications (in addition to in-app),
+  per-contract cost-vs-invoiced variance report, and a mobile-responsive
+  bottom navigation bar.

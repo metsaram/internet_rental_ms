@@ -208,6 +208,32 @@ export async function GET() {
       actor: a.actor ? a.actor.name ?? a.actor.email : "system",
       createdAt: a.createdAt,
     })),
+    // 6-month cost trend: for each of the last 6 months, sum the monthly fee
+    // of contracts that were active during that month (start <= month-end &&
+    // end >= month-start). Gives a realistic "what was my monthly cost" view.
+    costTrend: (() => {
+      const months: Array<{ label: string; value: number }> = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+        const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+        let total = new Decimal(0);
+        for (const c of contractsRaw) {
+          const cs = new Date(c.startDate);
+          const ce = new Date(c.endDate);
+          // Contract is active in this month if it started on/before month-end
+          // and ends on/after month-start.
+          if (cs <= monthEnd && ce >= monthStart) {
+            total = total.plus(c.monthlyFee);
+          }
+        }
+        months.push({
+          label: d.toLocaleString("en", { month: "short" }),
+          value: total.toNumber(),
+        });
+      }
+      return months;
+    })(),
   });
   } catch (err) {
     return errorResponse(err);

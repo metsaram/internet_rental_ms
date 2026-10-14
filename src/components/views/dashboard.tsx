@@ -27,6 +27,8 @@ import { formatMoney, formatNumber, formatDate, formatRelative } from "@/lib/for
 import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -81,6 +83,7 @@ type Dash = {
     actor: string;
     createdAt: string;
   }>;
+  costTrend: Array<{ label: string; value: number }>;
 };
 
 const CHART_COLORS = [
@@ -332,6 +335,54 @@ export function DashboardView() {
           </div>
         </CardContent>
       </Card>
+
+      {/* 6-month cost trend */}
+      {(data?.costTrend ?? []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="size-4 text-primary" />
+              Monthly cost trend
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Σ monthly fees of contracts active in each month · last 6 months · {cost.currency}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-[200px] w-full rounded-lg" />
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={data?.costTrend ?? []} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} width={48} />
+                  <Tooltip
+                    cursor={{ stroke: "#10b981", strokeWidth: 1 }}
+                    contentStyle={{ borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 12 }}
+                    formatter={(v: number) => [formatMoney(v, cost.currency), "Monthly cost"]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#costGrad)"
+                    dot={{ r: 3, fill: "#10b981" }}
+                    activeDot={{ r: 5 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

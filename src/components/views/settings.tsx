@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Building2, ShieldCheck, UserCircle2, Save, Lock, Bell, Clock, Database, FileCheck, Activity } from "lucide-react";
+import { Building2, ShieldCheck, UserCircle2, Save, Lock, Bell, Clock, Database, FileCheck, Activity, Plus } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/page-header";
+import { FormDialog } from "@/components/shared/form-dialog";
 import { toast } from "sonner";
 
 type Company = {
@@ -251,6 +259,311 @@ export function SettingsView() {
           </Card>
         </div>
       </div>
+
+      {/* User management (admin only) */}
+      {isAdmin && <UsersSection />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Users management section (admin only)
+// ---------------------------------------------------------------------------
+
+type UserRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  status: string;
+  createdAt: string;
+  activityCount: number;
+};
+
+function UsersSection() {
+  const qc = useQueryClient();
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [resetFor, setResetFor] = React.useState<UserRow | null>(null);
+
+  const { data: users = [], isLoading } = useQuery<UserRow[]>({
+    queryKey: ["users"],
+    queryFn: () => api<UserRow[]>("/api/users"),
+  });
+
+  const toggleStatus = async (u: UserRow) => {
+    const next = u.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
+    try {
+      await api(`/api/users/${u.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: next }),
+      });
+      toast.success(`${u.email} ${next === "ACTIVE" ? "enabled" : "disabled"}`);
+      qc.invalidateQueries({ queryKey: ["users"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const setRole = async (u: UserRow, role: string) => {
+    try {
+      await api(`/api/users/${u.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role }),
+      });
+      toast.success(`${u.email} is now ${role}`);
+      qc.invalidateQueries({ queryKey: ["users"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <UserCircle2 className="size-4 text-primary" />
+            User management
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Create staff accounts, reset passwords, and manage roles. Users are scoped to your company.
+          </CardDescription>
+        </div>
+        <Button size="sm" onClick={() => setDialogOpen(true)}>
+          <Plus className="size-4" />
+          Add user
+        </Button>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
+          </div>
+        ) : users.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">No users yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-2 font-semibold">User</th>
+                  <th className="px-4 py-2 font-semibold">Role</th>
+                  <th className="px-4 py-2 font-semibold">Activity</th>
+                  <th className="px-4 py-2 font-semibold">Status</th>
+                  <th className="px-4 py-2 font-semibold">Created</th>
+                  <th className="px-4 py-2 font-semibold text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u) => (
+                  <tr key={u.id} className="border-b last:border-0 hover:bg-muted/30">
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium">{u.name ?? "—"}</div>
+                      <div className="text-[11px] text-muted-foreground">{u.email}</div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <Select value={u.role} onValueChange={(v) => setRole(u, v)}>
+                        <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ADMIN" className="text-xs">Admin</SelectItem>
+                          <SelectItem value="STAFF" className="text-xs">Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-2.5 tabular-nums text-muted-foreground">{u.activityCount}</td>
+                    <td className="px-4 py-2.5">
+                      <Badge variant="outline" className={u.status === "ACTIVE" ? "border-emerald-500/30 text-emerald-600" : "text-muted-foreground"}>
+                        {u.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-muted-foreground">{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setResetFor(u)}>
+                          Reset password
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => toggleStatus(u)}
+                        >
+                          {u.status === "ACTIVE" ? "Disable" : "Enable"}
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+
+      <CreateUserDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["users"] })}
+      />
+      <ResetPasswordDialog
+        user={resetFor}
+        onClose={() => setResetFor(null)}
+        onDone={() => qc.invalidateQueries({ queryKey: ["users"] })}
+      />
+    </Card>
+  );
+}
+
+function CreateUserDialog({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onCreated: () => void;
+}) {
+  const [email, setEmail] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [role, setRole] = React.useState("STAFF");
+  const [error, setError] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (open) { setEmail(""); setName(""); setPassword(""); setRole("STAFF"); setError(null); }
+  }, [open]);
+
+  const submit = async () => {
+    setError(null);
+    if (!email.trim() || !name.trim() || password.length < 8) {
+      setError("Email, name, and an 8+ char password are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      await api("/api/users", {
+        method: "POST",
+        body: JSON.stringify({ email: email.trim(), name: name.trim(), password, role }),
+      });
+      toast.success("User created");
+      onCreated();
+      onOpenChange(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Add user"
+      description="Create a new account scoped to your company."
+      submitText="Create user"
+      onSubmit={submit}
+      size="md"
+    >
+      <div className="space-y-4">
+        {error && (
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+            {error}
+          </div>
+        )}
+        <Field label="Email" required>
+          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" />
+        </Field>
+        <Field label="Name" required>
+          <Input value={name} onChange={(e) => setName(e.target.value)} />
+        </Field>
+        <Field label="Password" required hint="Minimum 8 characters">
+          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </Field>
+        <Field label="Role">
+          <Select value={role} onValueChange={setRole}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="STAFF">Staff — operational access</SelectItem>
+              <SelectItem value="ADMIN">Admin — full access + user management</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        {saving && <p className="text-xs text-muted-foreground">Creating…</p>}
+      </div>
+    </FormDialog>
+  );
+}
+
+function ResetPasswordDialog({
+  user,
+  onClose,
+  onDone,
+}: {
+  user: UserRow | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [password, setPassword] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => { setPassword(""); setError(null); }, [user]);
+
+  const submit = async () => {
+    if (!user) return;
+    setError(null);
+    if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
+    setSaving(true);
+    try {
+      await api(`/api/users/${user.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ password }),
+      });
+      toast.success(`Password reset for ${user.email}`);
+      onDone();
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <FormDialog
+      open={!!user}
+      onOpenChange={(v) => !v && onClose()}
+      title={`Reset password — ${user?.email ?? ""}`}
+      description="Set a new password for this account."
+      submitText="Reset password"
+      onSubmit={submit}
+      size="sm"
+    >
+      <div className="space-y-3">
+        {error && (
+          <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
+            {error}
+          </div>
+        )}
+        <Field label="New password" required hint="Minimum 8 characters">
+          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </Field>
+        {saving && <p className="text-xs text-muted-foreground">Resetting…</p>}
+      </div>
+    </FormDialog>
+  );
+}
+
+function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">
+        {label}{required && <span className="text-rose-500">*</span>}
+      </Label>
+      {children}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }

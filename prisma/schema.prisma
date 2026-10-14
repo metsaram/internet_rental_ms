@@ -37,6 +37,7 @@ model Company {
   plans     InternetPlan[]
   services  InternetService[]
   contracts InternetContract[]
+  renewals ContractRenewal[]
   invoices  Invoice[]
   payments  Payment[]
   auditLogs AuditLog[]
@@ -66,6 +67,8 @@ model User {
   contracts    InternetContract[] @relation("ContractAuthor")
   invoices     Invoice[] @relation("InvoiceAuthor")
   payments     Payment[] @relation("PaymentAuthor")
+  renewalsDecidedBy ContractRenewal[] @relation("RenewalDecidedBy")
+  renewalsAuthored ContractRenewal[] @relation("RenewalAuthor")
   auditLogs    AuditLog[] @relation("AuditActor")
   importJobs   ImportJob[]
 
@@ -296,12 +299,58 @@ model InternetContract {
   service  InternetService   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   createdBy User             @relation("ContractAuthor", fields: [createdById], references: [id], onDelete: Cascade)
   invoices Invoice[]
+  renewalsAsOld ContractRenewal[] @relation("RenewalOldContract")
+  renewalsAsNew ContractRenewal[] @relation("RenewalNewContract")
 
   @@unique([companyId, contractNumber])
   @@index([companyId, serviceId])
   @@index([companyId, status])
   @@index([endDate])
   @@map("internet_contracts")
+}
+
+// ---------------------------------------------------------------------------
+// Contract renewals (Phase 13)
+// ---------------------------------------------------------------------------
+
+enum RenewalStatus {
+  PENDING
+  COMPLETED
+  DECLINED
+}
+
+model ContractRenewal {
+  id            String         @id @default(cuid())
+  companyId     String
+  oldContractId String
+  newContractId String?
+  serviceId     String
+  decisionDate DateTime?
+  decidedById   String?
+  status        RenewalStatus  @default(PENDING)
+  warningDate   DateTime?
+  noticeDate    DateTime?
+  newStartDate  DateTime?
+  newEndDate    DateTime?
+  newMonthlyFee Decimal?
+  newCurrency   String?
+  newDurationMonths Int?
+  newFreeMonths Int?
+  notes         String?
+  createdById   String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  oldContract  InternetContract  @relation("RenewalOldContract", fields: [oldContractId], references: [id], onDelete: Cascade)
+  newContract  InternetContract? @relation("RenewalNewContract", fields: [newContractId], references: [id], onDelete: SetNull)
+  decidedBy    User?             @relation("RenewalDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+  createdBy    User               @relation("RenewalAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([oldContractId])
+  @@index([companyId, status])
+  @@index([companyId, warningDate])
+  @@map("contract_renewals")
 }
 
 // ---------------------------------------------------------------------------

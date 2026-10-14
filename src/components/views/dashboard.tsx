@@ -14,6 +14,7 @@ import {
   Clock,
   TrendingUp,
   Receipt,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,7 +23,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
-import { formatMoney, formatNumber, formatDate } from "@/lib/format";
+import { formatMoney, formatNumber, formatDate, formatRelative } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 import {
   Bar,
@@ -69,6 +71,15 @@ type Dash = {
     monthlyFee: string;
     currency: string;
     status: string;
+  }>;
+  renewalSummary: { upcoming: number; overdue: number; completed: number; total: number };
+  recentActivity: Array<{
+    id: string;
+    action: string;
+    entityType: string;
+    entityId: string | null;
+    actor: string;
+    createdAt: string;
   }>;
 };
 
@@ -360,8 +371,37 @@ export function DashboardView() {
         </Card>
       </div>
 
+      {/* Renewals summary strip + table */}
+      <div className="grid grid-cols-3 gap-3">
+        <RenewalTile
+          label="Upcoming renewals"
+          value={data?.renewalSummary?.upcoming}
+          tone="amber"
+          icon={Clock}
+          loading={isLoading}
+          hash="renewals"
+        />
+        <RenewalTile
+          label="Overdue renewals"
+          value={data?.renewalSummary?.overdue}
+          tone="rose"
+          icon={AlertTriangle}
+          loading={isLoading}
+          hash="renewals"
+        />
+        <RenewalTile
+          label="Completed renewals"
+          value={data?.renewalSummary?.completed}
+          tone="emerald"
+          icon={CheckCircle2}
+          loading={isLoading}
+          hash="renewals"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       {/* Renewals */}
-      <Card>
+      <Card className="lg:col-span-2">
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle className="text-base">Upcoming renewals &amp; expiries</CardTitle>
@@ -373,10 +413,10 @@ export function DashboardView() {
             variant="outline"
             size="sm"
             onClick={() => {
-              window.location.hash = "contracts";
+              window.location.hash = "renewals";
             }}
           >
-            View all contracts
+            Manage renewals
           </Button>
         </CardHeader>
         <CardContent className="p-0">
@@ -442,8 +482,134 @@ export function DashboardView() {
           )}
         </CardContent>
       </Card>
+
+      {/* Recent activity feed (audit-based) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Activity className="size-4 text-primary" />
+            Recent activity
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Latest changes across your workspace
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-full" />
+              ))}
+            </div>
+          ) : (data?.recentActivity ?? []).length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No activity yet.
+            </p>
+          ) : (
+            <ol className="relative space-y-3 border-l border-border pl-4">
+              {data?.recentActivity.map((a) => (
+                <li key={a.id} className="relative">
+                  <span
+                    className={cn(
+                      "absolute -left-[21px] top-1 size-2.5 rounded-full ring-2 ring-background",
+                      a.action === "CREATE" && "bg-emerald-500",
+                      a.action === "UPDATE" && "bg-amber-500",
+                      a.action === "DELETE" && "bg-rose-500",
+                      a.action === "LOGIN" && "bg-cyan-500",
+                      !["CREATE", "UPDATE", "DELETE", "LOGIN"].includes(a.action) && "bg-slate-400"
+                    )}
+                  />
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-sm">
+                      <span className="font-medium">{a.actor}</span>{" "}
+                      <span className="text-muted-foreground">
+                        {actionVerb(a.action)}
+                      </span>{" "}
+                      <span className="font-medium">{entityLabel(a.entityType)}</span>
+                    </p>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {formatRelative(a.createdAt)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </CardContent>
+      </Card>
+      </div>
     </div>
   );
+}
+
+function RenewalTile({
+  label,
+  value,
+  tone,
+  icon: Icon,
+  loading,
+  hash,
+}: {
+  label: string;
+  value?: number;
+  tone: "amber" | "rose" | "emerald";
+  icon: React.ComponentType<{ className?: string }>;
+  loading?: boolean;
+  hash: string;
+}) {
+  const toneCls = {
+    amber: "bg-amber-500/10 text-amber-600",
+    rose: "bg-rose-500/10 text-rose-600",
+    emerald: "bg-emerald-500/10 text-emerald-600",
+  }[tone];
+  return (
+    <button
+      onClick={() => { window.location.hash = hash; }}
+      className="group flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition hover:border-primary/40 hover:shadow-sm"
+    >
+      <div className={cn("flex size-10 items-center justify-center rounded-lg", toneCls)}>
+        <Icon className="size-5" />
+      </div>
+      <div className="min-w-0">
+        <div className="text-2xl font-semibold leading-tight tabular-nums">
+          {loading ? <Skeleton className="h-6 w-8" /> : value ?? 0}
+        </div>
+        <p className="text-[11px] text-muted-foreground group-hover:text-foreground">
+          {label}
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function actionVerb(action: string): string {
+  const map: Record<string, string> = {
+    CREATE: "created",
+    UPDATE: "updated",
+    DELETE: "deleted",
+    LOGIN: "signed in",
+    LOGOUT: "signed out",
+    IMPORT: "imported",
+    EXPORT: "exported",
+  };
+  return map[action] ?? action.toLowerCase();
+}
+
+function entityLabel(entityType: string): string {
+  const map: Record<string, string> = {
+    Branch: "a branch",
+    Shop: "a shop",
+    Note: "a note",
+    InternetProvider: "a provider",
+    InternetPlan: "a plan",
+    InternetService: "a service",
+    InternetContract: "a contract",
+    Invoice: "an invoice",
+    Payment: "a payment",
+    Company: "company profile",
+    ContractRenewal: "a renewal",
+  };
+  return map[entityType] ?? entityType;
 }
 
 function KpiCard({

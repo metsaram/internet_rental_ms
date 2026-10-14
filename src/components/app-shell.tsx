@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Receipt,
   Search,
+  RefreshCw,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,7 @@ export type ViewKey =
   | "services"
   | "contracts"
   | "invoices"
+  | "renewals"
   | "reports"
   | "settings";
 
@@ -66,6 +68,7 @@ const NAV: Array<{
   { key: "services", label: "Internet Services", icon: Network, group: "Operations" },
   { key: "contracts", label: "Contracts", icon: FileText, group: "Operations" },
   { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Operations" },
+  { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
   { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
   { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
 ];

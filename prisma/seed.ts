@@ -248,6 +248,54 @@ async function main() {
     })
   );
 
+  // Contract renewals (Phase 13) -------------------------------------------
+  // Link the renewed pair: old CT-2023-006 (expired) → new CT-2024-006R (active).
+  const oldRenewed = contracts.find((c) => c.contractNumber === "CT-2023-006")!;
+  const newRenewed = contracts.find((c) => c.contractNumber === "CT-2024-006R")!;
+  await prisma.contractRenewal.upsert({
+    where: { oldContractId: oldRenewed.id },
+    update: {},
+    create: {
+      companyId: company.id,
+      oldContractId: oldRenewed.id,
+      newContractId: newRenewed.id,
+      serviceId: oldRenewed.serviceId,
+      decisionDate: newRenewed.startDate,
+      decidedById: admin.id,
+      status: "COMPLETED",
+      warningDate: monthsAgo(3),
+      noticeDate: monthsAgo(2),
+      newStartDate: newRenewed.startDate,
+      newEndDate: newRenewed.endDate,
+      newMonthlyFee: newRenewed.monthlyFee,
+      newCurrency: newRenewed.currency,
+      newDurationMonths: newRenewed.durationMonths,
+      newFreeMonths: newRenewed.freeMonths,
+      notes: "Seed: completed renewal (old ฿690 → new ฿750, added 1 free month).",
+      createdById: admin.id,
+    },
+  });
+
+  // A pending renewal on CT-2024-004 (expiring soon — 1 month left) to show in
+  // the "Upcoming" tab.
+  const expiring = contracts.find((c) => c.contractNumber === "CT-2024-004")!;
+  await prisma.contractRenewal.upsert({
+    where: { oldContractId: expiring.id },
+    update: {},
+    create: {
+      id: "seed-renewal-pending-004",
+      companyId: company.id,
+      oldContractId: expiring.id,
+      newContractId: null,
+      serviceId: expiring.serviceId,
+      status: "PENDING",
+      warningDate: new Date(),
+      noticeDate: monthsFromNow(0),
+      notes: "Seed: pending renewal awaiting decision (contract ends in ~30 days).",
+      createdById: admin.id,
+    },
+  });
+
   // A few shop notes -------------------------------------------------------
   await prisma.note.upsert({
     where: { id: "seed-note-1" },

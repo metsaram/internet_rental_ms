@@ -12,6 +12,7 @@ import { PlansView } from "@/components/views/plans";
 import { ServicesView } from "@/components/views/services";
 import { ContractsView } from "@/components/views/contracts";
 import { InvoicesView } from "@/components/views/invoices";
+import { RenewalsView } from "@/components/views/renewals";
 import { ReportsView } from "@/components/views/reports";
 import { SettingsView } from "@/components/views/settings";
 import type { ViewKey } from "@/components/app-shell";
@@ -34,6 +35,7 @@ export default function Home() {
         "services",
         "contracts",
         "invoices",
+        "renewals",
         "reports",
         "settings",
       ];
@@ -66,6 +68,7 @@ export default function Home() {
       {view === "services" && <ServicesView />}
       {view === "contracts" && <ContractsView />}
       {view === "invoices" && <InvoicesView />}
+      {view === "renewals" && <RenewalsView />}
       {view === "reports" && <ReportsView />}
       {view === "settings" && <SettingsView />}
     </AppShell>

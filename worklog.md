@@ -311,3 +311,106 @@ Task: QA pass + Phase 12 (Invoices & Payments) + Cmd+K command palette + reports
 - UI/UX polish ideas for later rounds: per-view empty-state illustrations,
   framer-motion view-transition fade, dashboard trend sparklines, and a
   "recent activity" feed on the dashboard.
+
+---
+Task ID: 10 (webDevReview round 2)
+Agent: main (Z.ai Code)
+Task: QA pass + Phase 13 (Contract Renewal Workflow) + dashboard Recent Activity feed + renewal KPI tiles.
+
+## Current project status (assessment)
+- QA pass via agent-browser across all 11 views: no console errors, no hydration
+  warnings, every view renders real data. The Invoices & Payments module (added
+  in round 1) still reconciles correctly. App is stable.
+- Decided work focus: implement Phase 13 (Contract Renewal Workflow — the
+  highest-value remaining module per the round-1 recommendations), plus a
+  dashboard "Recent Activity" feed and renewal summary tiles for at-a-glance
+  visibility.
+
+## Goals / completed modifications
+### Phase 13 — Contract Renewal Workflow
+- Extended `prisma/schema.prisma` with a `ContractRenewal` model
+  (`RenalStatus` enum: PENDING/COMPLETED/DECLINED) linking an old contract to
+  a new one, capturing decision date/actor, warning/notice dates, and the
+  proposed new terms (startDate/endDate/monthlyFee/currency/duration/freeMonths).
+  Added `@@unique([oldContractId])` to prevent duplicate renewals, indexes on
+  `(companyId, status)` and `(companyId, warningDate)`. Added back-relations
+  on Company, User (decidedBy + authored), and InternetContract
+  (`renewalsAsOld` / `renewalsAsNew`). Pushed + regenerated client + restarted
+  dev server (per the round-1 lesson).
+- New `src/lib/renewals.ts`: `classifyRenewal()` (upcoming/overdue/completed),
+  `daysUntil()`, `suggestRenewalTerms()`, `renewalFeeDelta()`,
+  `DEFAULT_WARNING_DAYS = 30`.
+- Extended `prisma/seed.ts` with 2 renewal records: a COMPLETED renewal
+  linking CT-2023-006 → CT-2024-006R (old ฿690 → new ฿750), and a PENDING
+  renewal on CT-2024-004 (expiring in ~30 days) to populate the Upcoming tab.
+  Re-ran seed (✔).
+- API routes:
+  - `/api/renewals` (GET — list with `bucket` classification
+    upcoming/overdue/completed + per-tab counts; includes old+new contract
+    relations + decidedBy/createdBy)
+  - `/api/contracts/[id]/renew` (POST — atomic `$transaction`: creates the
+    NEW contract, marks the old one RENEWED, upserts the renewal record;
+    guards against duplicate renewals via `@@unique([oldContractId])` → 409;
+    validates dates + freeMonths ≤ duration; unique contract number → 409)
+  - `/api/renewals/[id]/decline` (POST — marks status=DECLINED, preserves
+    the record; refuses declining a COMPLETED renewal)
+- New `RenewalsView` (`src/components/views/renewals.tsx`): tabbed UI
+  (Upcoming/Overdue/Completed) with summary tiles + counts; per-renewal card
+  showing old→new term comparison side-by-side (period, duration, monthly,
+  provider) + fee delta badge (▲/▼) + days-left indicator + actor + relative
+  time; `RenewDialog` (prefills start=old end, same fee/duration, auto-computes
+  end date, live old-vs-new monthly comparison banner); `DeclineDialog`.
+- Added "Renewals" to the sidebar nav (`RefreshCw` icon), `page.tsx` view
+  switch + hash whitelist, and the Cmd+K command palette.
+
+### Dashboard enhancements
+- Extended `/api/dashboard` to compute a `renewalSummary` block
+  (upcoming/overdue/completed/total) by classifying each renewal record, and a
+  `recentActivity` block (latest 8 audit entries with actor + action + entity
+  type).
+- Added 3 renewal summary tiles to the dashboard (Upcoming/Overdue/Completed)
+  that link to #renewals.
+- Added a "Recent activity" card with a vertical timeline (colored dots per
+  action type: green=CREATE, amber=UPDATE, rose=DELETE, cyan=LOGIN) showing
+  "actor + verb + entity + relative time" — driven by the existing audit log,
+  so it reflects every mutation across the app automatically.
+
+## Verification results (agent-browser)
+- All 11 views load with no console/runtime/hydration errors.
+- Renewals view: shows 1 Upcoming (CT-2024-004) + 1 Completed (CT-2023-006 →
+  CT-2024-006R) matching the seed; tabs switch correctly; summary tiles
+  display counts.
+- Renew flow: opened CT-2024-004's renew dialog → prefilled contract number
+  "CT-2024-004-R", start date = old end date (2026-11-14), duration 12,
+  auto-computed end (2027-11-14), monthly fee carried over (2190) → submitted
+  → API returned 201; renewals API now shows 2 COMPLETED, 0 upcoming; new
+  contract CT-2024-004-R created, old CT-2024-004 marked RENEWED. ✓
+- Dashboard after renewal: renewal tiles show 0 upcoming / 0 overdue /
+  2 completed; "Recent activity" feed shows "Site Admin created a renewal"
+  (plus earlier payment + branch creations). ✓
+- Mobile (390×844): renewals view renders with tabbed UI + tiles, no layout
+  breakage. ✓
+- `bun run lint` clean.
+
+## Bugs fixed during this round
+- Runtime ReferenceError "cn is not defined" in `dashboard.tsx` `RenewalTile`
+  — I used `cn()` in the new RenewalTile component but forgot to import it.
+  Added `import { cn } from "@/lib/utils"`.
+- JSX parse error in `renewals.tsx`: `<TAB_META[k].icon ... />` is not valid
+  JSX (computed member access as a component tag). Fixed by extracting
+  `const Icon = TAB_META[k].icon;` then `<Icon ... />`.
+
+## Unresolved issues / risks + next-phase recommendations
+- Phase 09 (Excel import), Phase 11 (attachments/cloud storage),
+  Phase 16 (notifications), and Phase 17 (production hardening) remain open.
+- Recommended priority for the next round: Phase 09 (Excel import — reuses
+  the already-installed `xlsx` library; high user value for bulk
+  contract/service ingestion) then Phase 11 (attachments — needs a storage
+  abstraction; for the sandbox we can stub a local-file storage service
+  behind the same interface).
+- Minor: the renewal warning window (30 days) is currently hardcoded in
+  `src/lib/renewals.ts` (`DEFAULT_WARNING_DAYS`). A future round could make
+  it company-configurable via the Settings view.
+- The dashboard "Recent activity" feed currently shows raw audit entries;
+  a future enhancement could group consecutive same-entity actions and add
+  deep links to the affected record.

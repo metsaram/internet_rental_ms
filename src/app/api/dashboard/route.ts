@@ -11,7 +11,7 @@ export async function GET() {
     const cid = user.companyId;
   const now = new Date();
 
-  const [branches, shops, services, providers, plans, contractsRaw, invoicesRaw, paymentsRaw] =
+  const [branches, shops, services, providers, plans, contractsRaw, invoicesRaw, paymentsRaw, renewalsRaw, recentAudit] =
     await Promise.all([
       db.branch.count({ where: { companyId: cid } }),
       db.shop.count({ where: { companyId: cid } }),
@@ -38,6 +38,18 @@ export async function GET() {
       }),
       db.payment.findMany({
         where: { companyId: cid, status: "COMPLETED" },
+      }),
+      db.contractRenewal.findMany({
+        where: { companyId: cid },
+        include: {
+          oldContract: { select: { contractNumber: true, endDate: true, service: { select: { serviceCode: true, branch: { select: { name: true } } } } } },
+        },
+      }),
+      db.auditLog.findMany({
+        where: { companyId: cid },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: { actor: { select: { name: true, email: true } } },
       }),
     ]);
 
@@ -174,6 +186,28 @@ export async function GET() {
       }))
       .sort((a, b) => Number(b.expectedMonthly) - Number(a.expectedMonthly)),
     renewals,
+    renewalSummary: (() => {
+      let upcoming = 0;
+      let overdue = 0;
+      let completed = 0;
+      for (const r of renewalsRaw) {
+        if (r.status === "COMPLETED") { completed += 1; continue; }
+        const d = Math.floor(
+          (new Date(r.oldContract.endDate).getTime() - now.getTime()) / 86400000
+        );
+        if (d < 0) overdue += 1;
+        else upcoming += 1;
+      }
+      return { upcoming, overdue, completed, total: renewalsRaw.length };
+    })(),
+    recentActivity: recentAudit.map((a) => ({
+      id: a.id,
+      action: a.action,
+      entityType: a.entityType,
+      entityId: a.entityId,
+      actor: a.actor ? a.actor.name ?? a.actor.email : "system",
+      createdAt: a.createdAt,
+    })),
   });
   } catch (err) {
     return errorResponse(err);

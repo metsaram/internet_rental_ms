@@ -167,16 +167,17 @@ async function main() {
   );
 
   // Services ---------------------------------------------------------------
-  const serviceDefs: Array<{ branchIdx: number; shopIdx?: number; pIdx: number; planIdx: number; code: string; acct: string; addr: string; ip?: string; ipType?: any; user?: string; status?: any }> = [
-    { branchIdx: 0, shopIdx: 0, pIdx: 0, planIdx: 0, code: "SVC-0001", acct: "AIS-100001", addr: "Sukhumvit, Shop A1", ip: "10.0.1.5", ipType: "STATIC", user: "ais_user_001", status: "ACTIVE" },
-    { branchIdx: 0, shopIdx: 1, pIdx: 0, planIdx: 1, code: "SVC-0002", acct: "AIS-100002", addr: "Sukhumvit, Kiosk B2", ip: "10.0.1.6", ipType: "STATIC", user: "ais_user_002", status: "ACTIVE" },
-    { branchIdx: 1, shopIdx: 2, pIdx: 1, planIdx: 3, code: "SVC-0003", acct: "TRUE-200001", addr: "Silom, Office 01", ip: "10.0.2.5", ipType: "STATIC", user: "true_user_001", status: "ACTIVE" },
-    { branchIdx: 1, shopIdx: 3, pIdx: 1, planIdx: 4, code: "SVC-0004", acct: "TRUE-200002", addr: "Silom, Restaurant 02", ipType: "DYNAMIC", status: "ACTIVE" },
-    { branchIdx: 2, shopIdx: 4, pIdx: 2, planIdx: 5, code: "SVC-0005", acct: "3BB-300001", addr: "Nimman, Shop 01", ipType: "DYNAMIC", status: "ACTIVE" },
-    { branchIdx: 3, shopIdx: 5, pIdx: 3, planIdx: 6, code: "SVC-0006", acct: "TOT-400001", addr: "Patong, Shop 01", ipType: "CGNAT", status: "ACTIVE" },
-    // a branch-only service (no shop)
-    { branchIdx: 0, pIdx: 0, planIdx: 2, code: "SVC-0007", acct: "AIS-100007", addr: "Sukhumvit, Branch backbone", ip: "10.0.1.1", ipType: "STATIC", user: "ais_admin_007", status: "ACTIVE" },
-    { branchIdx: 1, pIdx: 2, planIdx: 5, code: "SVC-0008", acct: "3BB-300008", addr: "Silom, backup line", ipType: "DYNAMIC", status: "SUSPENDED" },
+  const serviceDefs: Array<{ branchIdx: number; shopIdx?: number; pIdx: number; planIdx: number; code: string; acct: string; addr: string; ip?: string; ipType?: any; user?: string; status?: any; circuitRole?: any }> = [
+    { branchIdx: 0, shopIdx: 0, pIdx: 0, planIdx: 0, code: "SVC-0001", acct: "AIS-100001", addr: "Sukhumvit, Shop A1", ip: "10.0.1.5", ipType: "STATIC", user: "ais_user_001", status: "ACTIVE", circuitRole: "PRIMARY" },
+    { branchIdx: 0, shopIdx: 1, pIdx: 0, planIdx: 1, code: "SVC-0002", acct: "AIS-100002", addr: "Sukhumvit, Kiosk B2", ip: "10.0.1.6", ipType: "STATIC", user: "ais_user_002", status: "ACTIVE", circuitRole: "STANDALONE" },
+    { branchIdx: 1, shopIdx: 2, pIdx: 1, planIdx: 3, code: "SVC-0003", acct: "TRUE-200001", addr: "Silom, Office 01", ip: "10.0.2.5", ipType: "STATIC", user: "true_user_001", status: "ACTIVE", circuitRole: "PRIMARY" },
+    { branchIdx: 1, shopIdx: 3, pIdx: 1, planIdx: 4, code: "SVC-0004", acct: "TRUE-200002", addr: "Silom, Restaurant 02", ipType: "DYNAMIC", status: "ACTIVE", circuitRole: "STANDALONE" },
+    { branchIdx: 2, shopIdx: 4, pIdx: 2, planIdx: 5, code: "SVC-0005", acct: "3BB-300001", addr: "Nimman, Shop 01", ipType: "DYNAMIC", status: "ACTIVE", circuitRole: "STANDALONE" },
+    { branchIdx: 3, shopIdx: 5, pIdx: 3, planIdx: 6, code: "SVC-0006", acct: "TOT-400001", addr: "Patong, Shop 01", ipType: "CGNAT", status: "ACTIVE", circuitRole: "STANDALONE" },
+    // a branch-only service (no shop) — primary backbone
+    { branchIdx: 0, pIdx: 0, planIdx: 2, code: "SVC-0007", acct: "AIS-100007", addr: "Sukhumvit, Branch backbone", ip: "10.0.1.1", ipType: "STATIC", user: "ais_admin_007", status: "ACTIVE", circuitRole: "PRIMARY" },
+    // backup line (suspended) for Silom — provides redundancy for SVC-0003
+    { branchIdx: 1, pIdx: 2, planIdx: 5, code: "SVC-0008", acct: "3BB-300008", addr: "Silom, backup line", ipType: "DYNAMIC", status: "SUSPENDED", circuitRole: "BACKUP" },
   ];
   const services = await Promise.all(
     serviceDefs.map((s) =>
@@ -196,6 +197,7 @@ async function main() {
           ipType: s.ipType ?? "DYNAMIC",
           username: s.user ?? null,
           status: s.status ?? "PENDING",
+          circuitRole: s.circuitRole ?? "STANDALONE",
           installedAt: monthsAgo(6),
         },
       })
@@ -437,6 +439,51 @@ async function main() {
       paymentId: "seed-pay-2",
       invoiceId: inv3.id,
       amount: new Prisma.Decimal(payment3Partial),
+    },
+  });
+
+  // Outage incidents (Phase 6) ----------------------------------------------
+  // A resolved outage on SVC-0001 (3 hours downtime last month)
+  const svc1 = services.find((s) => s.serviceCode === "SVC-0001")!;
+  const svc3 = services.find((s) => s.serviceCode === "SVC-0003")!;
+  const outageStart = monthsAgo(1);
+  outageStart.setHours(outageStart.getHours() + 10); // mid-day
+  const outageEnd = new Date(outageStart);
+  outageEnd.setHours(outageEnd.getHours() + 3); // 3 hours later
+
+  await prisma.outageIncident.upsert({
+    where: { id: "seed-outage-1" },
+    update: {},
+    create: {
+      id: "seed-outage-1",
+      companyId: company.id,
+      serviceId: svc1.id,
+      type: "OUTAGE",
+      status: "RESOLVED",
+      startTime: outageStart,
+      endTime: outageEnd,
+      downtimeMinutes: 180,
+      notes: "Complete loss of connectivity. AIS technician dispatched, fiber splice repaired.",
+      reportedById: staff.id,
+      resolvedById: admin.id,
+    },
+  });
+
+  // An ongoing degraded incident on SVC-0003
+  const ongoingStart = new Date();
+  ongoingStart.setHours(ongoingStart.getHours() - 2); // 2 hours ago
+  await prisma.outageIncident.upsert({
+    where: { id: "seed-outage-2" },
+    update: {},
+    create: {
+      id: "seed-outage-2",
+      companyId: company.id,
+      serviceId: svc3.id,
+      type: "DEGRADED",
+      status: "ONGOING",
+      startTime: ongoingStart,
+      notes: "Degraded throughput (reported ~20% of expected bandwidth). True ticket #T-5521 open.",
+      reportedById: staff.id,
     },
   });
 

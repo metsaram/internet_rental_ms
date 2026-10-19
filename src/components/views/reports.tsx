@@ -13,6 +13,8 @@ import {
   Receipt,
   CreditCard,
   Scale,
+  Gauge,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -129,6 +131,85 @@ type VarianceReport = {
   };
 };
 
+type CostPerMbpsRow = {
+  id: string;
+  serviceCode: string;
+  branch: string;
+  shop: string;
+  provider: { name: string; code: string } | null;
+  plan: string;
+  bandwidthDown: number;
+  bandwidthUp: number;
+  connectionType: string;
+  monthlyFee: number;
+  currency: string;
+  costPerMbps: number;
+  hasContract: boolean;
+};
+
+type CostPerMbpsReport = {
+  rows: CostPerMbpsRow[];
+  summary: {
+    currency: string;
+    totalServices: number;
+    excludedNoPlan: number;
+    byProvider: Array<{
+      provider: string;
+      code: string;
+      count: number;
+      avgCostPerMbps: number;
+      totalBandwidth: number;
+      totalCost: number;
+      currency: string;
+    }>;
+  };
+};
+
+type RedundancyRow = {
+  key: string;
+  shop: { name: string; code: string } | null;
+  branch: { name: string; code: string };
+  totalCircuits: number;
+  activeCircuits: number;
+  classification: "REDUNDANT" | "SINGLE" | "NONE" | "UNKNOWN";
+  hasPrimary: boolean;
+  hasBackup: boolean;
+  providerDiversity: number;
+  sameProviderCircuits: boolean;
+  circuits: Array<{
+    id: string;
+    serviceCode: string;
+    provider: { name: string; code: string } | null;
+    plan: string;
+    bandwidth: number | null;
+    status: string;
+    circuitRole: string;
+  }>;
+};
+
+type RedundancyReport = {
+  rows: RedundancyRow[];
+  summary: { total: number; redundant: number; single: number; none: number; sameProviderRisk: number };
+};
+
+type AvailabilityRow = {
+  id: string;
+  serviceCode: string;
+  branch: string;
+  shop: string;
+  provider: string;
+  status: string;
+  circuitRole: string;
+  avgAvailability: number;
+  totalDowntimeMinutes: number;
+  monthly: Array<{ label: string; downtimeMinutes: number; availability: number }>;
+};
+
+type AvailabilityReport = {
+  months: string[];
+  rows: AvailabilityRow[];
+};
+
 export function ReportsView() {
   const { data: session } = useSession();
   const currency = (session?.user as any)?.companyCurrency ?? "THB";
@@ -157,6 +238,18 @@ export function ReportsView() {
   const { data: variance, isLoading: varianceLoading } = useQuery<VarianceReport>({
     queryKey: ["variance"],
     queryFn: () => api<VarianceReport>("/api/reports/variance"),
+  });
+  const { data: costPerMbps } = useQuery<CostPerMbpsReport>({
+    queryKey: ["cost-per-mbps"],
+    queryFn: () => api<CostPerMbpsReport>("/api/reports/cost-per-mbps"),
+  });
+  const { data: redundancy } = useQuery<RedundancyReport>({
+    queryKey: ["redundancy"],
+    queryFn: () => api<RedundancyReport>("/api/reports/redundancy"),
+  });
+  const { data: availability } = useQuery<AvailabilityReport>({
+    queryKey: ["availability"],
+    queryFn: () => api<AvailabilityReport>("/api/reports/availability?months=3"),
   });
   const { data: audit = [] } = useQuery<Audit[]>({
     queryKey: ["audit"],
@@ -483,6 +576,124 @@ export function ReportsView() {
               ])}
             empty="No contracts with invoiced data"
           />
+        </CardContent>
+      </Card>
+
+      {/* Cost per Mbps (Phase 7) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Gauge className="size-4 text-primary" />
+            Cost per Mbps
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Monthly recurring cost ÷ download bandwidth — a procurement comparison signal
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {costPerMbps && costPerMbps.summary.byProvider.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 border-b pb-3 sm:grid-cols-4">
+              {costPerMbps.summary.byProvider.slice(0, 4).map((p) => (
+                <Stat key={p.code} label={p.provider} value={formatMoney(p.avgCostPerMbps, p.currency) + "/Mbps"} tone={p.avgCostPerMbps > 5 ? "text-amber-600" : "text-emerald-600"} />
+              ))}
+            </div>
+          )}
+          <ReportTable
+            headers={["Service", "Provider", "Plan", "↓ Mbps", "Monthly", "Cost/Mbps"]}
+            rows={(costPerMbps?.rows ?? []).map((r) => [
+              r.serviceCode,
+              r.provider?.name ?? "—",
+              r.plan,
+              String(r.bandwidthDown),
+              formatMoney(r.monthlyFee, r.currency),
+              <span key="cpm" className={cn("font-medium tabular-nums", r.costPerMbps > 5 ? "text-amber-600" : "text-emerald-600")}>
+                {formatMoney(r.costPerMbps, r.currency)}
+              </span>,
+            ])}
+            empty="No services with plan data"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Connectivity redundancy (Phase 5) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Network className="size-4 text-primary" />
+            Connectivity redundancy matrix
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Per-shop circuit classification — flags single-circuit risk and same-provider circuits
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {redundancy && (
+            <div className="grid grid-cols-4 gap-3 border-b pb-3">
+              <Stat label="Redundant" value={String(redundancy.summary.redundant)} tone="text-emerald-600" />
+              <Stat label="Single circuit" value={String(redundancy.summary.single)} tone="text-amber-600" />
+              <Stat label="No active" value={String(redundancy.summary.none)} tone="text-rose-600" />
+              <Stat label="Same-provider risk" value={String(redundancy.summary.sameProviderRisk)} tone="text-amber-600" />
+            </div>
+          )}
+          <ReportTable
+            headers={["Shop / Branch", "Active", "Classification", "Providers", "Circuits"]}
+            rows={(redundancy?.rows ?? []).map((r) => [
+              r.shop?.name ?? r.branch.name,
+              String(r.activeCircuits),
+              <span key="cls" className={cn(
+                "font-medium",
+                r.classification === "REDUNDANT" ? "text-emerald-600" :
+                r.classification === "SINGLE" ? "text-amber-600" : "text-rose-600"
+              )}>
+                {r.classification}
+              </span>,
+              String(r.providerDiversity),
+              r.circuits.map((c) => `${c.serviceCode}(${c.circuitRole.toLowerCase()})`).join(", "),
+            ])}
+            empty="No services found"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Availability / SLA (Phase 6) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Activity className="size-4 text-primary" />
+            Monthly availability & SLA
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Availability % = (1 − downtime / service minutes) × 100 — last 3 months. Estimates only; credit eligibility requires contract terms.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {availability && availability.rows.length > 0 && (
+            <ReportTable
+              headers={["Service", "Provider", ...availability.months, "Avg %", "Downtime"]}
+              rows={availability.rows.map((r) => [
+                r.serviceCode,
+                r.provider,
+                ...r.monthly.map((m) => (
+                  <span key={m.label} className={cn(
+                    "tabular-nums",
+                    m.availability >= 99.5 ? "text-emerald-600" :
+                    m.availability >= 99.0 ? "text-amber-600" : "text-rose-600"
+                  )}>
+                    {m.availability.toFixed(2)}%
+                  </span>
+                )),
+                <span key="avg" className={cn(
+                  "font-bold tabular-nums",
+                  r.avgAvailability >= 99.5 ? "text-emerald-600" :
+                  r.avgAvailability >= 99.0 ? "text-amber-600" : "text-rose-600"
+                )}>
+                  {r.avgAvailability.toFixed(2)}%
+                </span>,
+                `${r.totalDowntimeMinutes}m`,
+              ])}
+              empty="No availability data"
+            />
+          )}
         </CardContent>
       </Card>
 

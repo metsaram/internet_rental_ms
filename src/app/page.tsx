@@ -44,6 +44,9 @@ const ImportView = React.lazy(() =>
 const NotificationsView = React.lazy(() =>
   import("@/components/views/notifications").then((m) => ({ default: m.NotificationsView }))
 );
+const OutagesView = React.lazy(() =>
+  import("@/components/views/outages").then((m) => ({ default: m.OutagesView }))
+);
 const ReportsView = React.lazy(() =>
   import("@/components/views/reports").then((m) => ({ default: m.ReportsView }))
 );
@@ -63,6 +66,7 @@ const VALID_VIEWS: ViewKey[] = [
   "renewals",
   "import",
   "notifications",
+  "outages",
   "reports",
   "settings",
 ];
@@ -79,6 +83,7 @@ const VIEW_COMPONENTS: Record<ViewKey, React.LazyExoticComponent<React.Component
   renewals: RenewalsView,
   import: ImportView,
   notifications: NotificationsView,
+  outages: OutagesView,
   reports: ReportsView,
   settings: SettingsView,
 };

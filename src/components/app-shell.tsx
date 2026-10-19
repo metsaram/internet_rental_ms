@@ -25,6 +25,7 @@ import {
   RefreshCw,
   Upload,
   Bell,
+  Zap,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useQuery } from "@tanstack/react-query";
@@ -59,6 +60,7 @@ export type ViewKey =
   | "renewals"
   | "import"
   | "notifications"
+  | "outages"
   | "reports"
   | "settings";
 
@@ -79,6 +81,7 @@ const NAV: Array<{
   { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
   { key: "import", label: "Excel Import", icon: Upload, group: "Operations" },
   { key: "notifications", label: "Notifications", icon: Bell, group: "Insights" },
+  { key: "outages", label: "Outages", icon: Zap, group: "Insights" },
   { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
   { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
 ];

@@ -42,6 +42,7 @@ model Company {
   payments  Payment[]
   attachments Attachment[]
   notifications Notification[]
+  outages OutageIncident[]
   auditLogs AuditLog[]
   importJobs ImportJob[]
 
@@ -73,6 +74,8 @@ model User {
   renewalsAuthored ContractRenewal[] @relation("RenewalAuthor")
   attachments  Attachment[] @relation("AttachmentAuthor")
   notifications Notification[]
+  outagesReported OutageIncident[] @relation("OutageReporter")
+  outagesResolved OutageIncident[] @relation("OutageResolver")
   auditLogs    AuditLog[] @relation("AuditActor")
   importJobs   ImportJob[]
 
@@ -234,6 +237,12 @@ enum ServiceStatus {
   PENDING
 }
 
+enum CircuitRole {
+  PRIMARY
+  BACKUP
+  STANDALONE
+}
+
 model InternetService {
   id                String         @id @default(cuid())
   companyId         String
@@ -248,6 +257,7 @@ model InternetService {
   ipType            IPType         @default(DYNAMIC)
   username          String?        // ISP account username (treat as sensitive)
   status            ServiceStatus @default(PENDING)
+  circuitRole       CircuitRole    @default(STANDALONE) // Phase 5: PRIMARY/BACKUP/STANDALONE
   installedAt       DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -258,12 +268,58 @@ model InternetService {
   provider  InternetProvider  @relation(fields: [providerId], references: [id], onDelete: Restrict)
   plan      InternetPlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
   contracts InternetContract[]
+  outages   OutageIncident[]
 
   @@unique([companyId, serviceCode])
   @@index([companyId, branchId])
   @@index([companyId, shopId])
   @@index([companyId, providerId])
   @@map("internet_services")
+}
+
+// ---------------------------------------------------------------------------
+// Outage incidents (Phase 6) — circuit-level downtime tracking for SLA
+// ---------------------------------------------------------------------------
+
+enum OutageType {
+  OUTAGE
+  DEGRADED
+  MAINTENANCE
+  EQUIPMENT_FAILURE
+  PROVIDER_ISSUE
+  OTHER
+}
+
+enum OutageStatus {
+  ONGOING
+  RESOLVED
+  CANCELLED
+}
+
+model OutageIncident {
+  id           String       @id @default(cuid())
+  companyId    String
+  serviceId    String
+  type         OutageType   @default(OUTAGE)
+  status       OutageStatus @default(ONGOING)
+  startTime    DateTime
+  endTime      DateTime?
+  downtimeMinutes Int?      // computed on resolve; null while ongoing
+  notes        String?
+  reportedById String
+  resolvedById String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  service   InternetService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  reportedBy User           @relation("OutageReporter", fields: [reportedById], references: [id], onDelete: Cascade)
+  resolvedBy User?          @relation("OutageResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, serviceId])
+  @@index([companyId, status])
+  @@index([companyId, startTime])
+  @@map("outage_incidents")
 }
 
 enum ContractStatus {

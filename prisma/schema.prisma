@@ -1,14 +1,14 @@
 // Internet Rental Management System
-// SQLite adapter (sandbox). Decimal is stored as text by Prisma on SQLite,
-// preserving precision for money. Enums are stored as text.
+// Supabase-hosted PostgreSQL is the primary database.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider  = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------

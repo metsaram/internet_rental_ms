@@ -8,7 +8,7 @@ contracts, invoices, and renewals.
 
 - **Framework**: Next.js 16 (App Router, Turbopack)
 - **Language**: TypeScript 5 (strict)
-- **Database**: Prisma ORM (SQLite in dev; PostgreSQL-ready for production)
+- **Database**: Prisma ORM with Supabase-hosted PostgreSQL
 - **Auth**: NextAuth.js v4 (credentials provider, JWT sessions, scrypt-hashed passwords)
 - **UI**: Tailwind CSS 4 + shadcn/ui (New York) + Lucide icons + Framer Motion
 - **State**: TanStack Query (server) + React state (client)
@@ -50,7 +50,7 @@ contracts, invoices, and renewals.
 ### Prerequisites
 
 - Node.js 18+ / Bun
-- A PostgreSQL database (or SQLite for local dev)
+- A Supabase project with a PostgreSQL database
 
 ### Installation
 
@@ -58,12 +58,16 @@ contracts, invoices, and renewals.
 # Install dependencies
 bun install
 
-# Copy env and set values
-cp .env.example .env
-# Edit .env: set DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL
+# Copy env and set values (PowerShell)
+Copy-Item .env.example .env
+# Set DATABASE_URL and DIRECT_URL from Supabase Project Settings → Database
+# Set NEXTAUTH_SECRET to a long random value
 
-# Push schema + seed demo data
-bun run db:push
+# Generate Prisma Client and apply the checked-in PostgreSQL migrations
+bun run db:generate
+bun run db:deploy
+
+# Seed demo data
 bun run db:seed
 
 # Start dev server
@@ -77,15 +81,61 @@ Open [http://localhost:3000](http://localhost:3000) and sign in with:
 | Admin | admin@netrent.local    | admin12345  |
 | Staff | staff@netrent.local    | staff12345  |
 
+### Supabase database setup
+
+1. Create a Supabase project and open **Project Settings → Database → Connection
+   string**.
+2. Set `DATABASE_URL` to the **Transaction pooler** connection string (port
+   `6543`) for deployments that need pooled connections. Keep `pgbouncer=true`,
+   `connection_limit=1`, and `sslmode=require` in the query string. For local
+   development, the **Direct connection** string can be used for both
+   `DATABASE_URL` and `DIRECT_URL`.
+3. Set `DIRECT_URL` to the **Direct connection** string for Prisma migrations.
+   If the direct host is not reachable from your network (for example, an
+   IPv4-only network), use Supabase's **Session pooler** connection on port
+   `5432` instead.
+4. URL-encode special characters in the database password. Keep both database
+   URLs and `NEXTAUTH_SECRET` server-side; do not use Supabase `service_role`
+   keys in the browser.
+5. Run `bun run db:generate`, then `bun run db:deploy` to apply the checked-in
+   initial schema migration. Use `bun run db:migrate` to create migrations
+   during development; commit generated migration files before deploying.
+6. Whenever schema changes are introduced, generate a migration file in
+   `db/yyyy-mm-dd/table_name/` containing:
+   - SQL or Prisma migration script
+   - Clear description of changes (columns, constraints, indexes)
+   Ensure naming convention strictly matches `table_name` and `yyyy-mm-dd` format.
+7. To copy the existing `db/custom.db` records, first back up that file and
+   confirm the new Supabase database is empty. Run
+   `bun run scripts/migrate-sqlite-to-supabase.mjs --dry-run` to validate and
+   count the source records, then run `bun run db:migrate-sqlite`. Set
+   `SQLITE_SOURCE_PATH` if the SQLite file is elsewhere. The transfer runs in
+   one transaction, preserves IDs, and refuses a non-empty target. Do not run
+   `bun run db:seed` before this transfer.
+
+Prisma is the source of truth for the application schema and connects directly
+to Supabase PostgreSQL; a Supabase JavaScript client or browser database key is
+not required. Applying the schema migration alone does not copy SQLite rows;
+run the explicit transfer step above before using the Supabase database if
+existing records must be retained.
+
+The existing SQLite file has no `outage_incidents` table; that new PostgreSQL
+table will start empty. Attachment metadata is copied, but any files referenced
+by attachment storage keys must be moved to the configured file/object storage
+separately.
+
 ### Available Scripts
 
 | Script              | Description                          |
 |---------------------|--------------------------------------|
 | `bun run dev`       | Start dev server (port 3000)        |
 | `bun run lint`      | Run ESLint                           |
-| `bun run db:push`   | Push Prisma schema to database       |
-| `bun run db:seed`   | Seed demo data (idempotent)          |
-| `bun run db:generate`| Regenerate Prisma Client            |
+| `bun run db:push`    | Push schema directly during development |
+| `bun run db:migrate` | Create/apply a development migration    |
+| `bun run db:deploy`  | Apply checked-in Prisma migrations      |
+| `bun run db:migrate-sqlite` | Copy SQLite records to an empty PostgreSQL database |
+| `bun run db:seed`    | Seed demo data (idempotent)             |
+| `bun run db:generate`| Regenerate Prisma Client                |
 
 ## Architecture
 

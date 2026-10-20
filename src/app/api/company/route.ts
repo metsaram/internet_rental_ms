@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireUser, parseJsonBody, HttpError, errorResponse } from "@/lib/session";
+import { requireUser, requireAdmin, parseJsonBody, HttpError, errorResponse } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
 
 export async function GET() {

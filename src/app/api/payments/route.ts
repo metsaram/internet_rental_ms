@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       companyId: user.companyId,
       ...(status !== "ALL" ? { status } : {}),
       ...(search
-        ? { OR: [{ reference: { contains: search } }, { notes: { contains: search } }] }
+        ? { OR: [{ reference: { contains: search, mode: "insensitive" } }, { notes: { contains: search, mode: "insensitive" } }] }
         : {}),
     };
 

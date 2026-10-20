@@ -38,8 +38,8 @@ export async function GET(req: Request) {
       ...(search
         ? {
             OR: [
-              { contractNumber: { contains: search } },
-              { service: { serviceCode: { contains: search } } },
+              { contractNumber: { contains: search, mode: "insensitive" } },
+              { service: { serviceCode: { contains: search, mode: "insensitive" } } },
             ],
           }
         : {}),

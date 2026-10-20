@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       companyId: user.companyId,
       ...(status !== "ALL" ? { status } : {}),
       ...(provider ? { providerId: provider } : {}),
-      ...(search ? { name: { contains: search } } : {}),
+      ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
     };
 
     const rows = await db.internetPlan.findMany({

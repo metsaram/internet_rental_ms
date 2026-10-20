@@ -39,9 +39,9 @@ export async function GET(req: Request) {
       ...(search
         ? {
             OR: [
-              { serviceCode: { contains: search } },
-              { accountId: { contains: search } },
-              { installationAddress: { contains: search } },
+              { serviceCode: { contains: search, mode: "insensitive" } },
+              { accountId: { contains: search, mode: "insensitive" } },
+              { installationAddress: { contains: search, mode: "insensitive" } },
             ],
           }
         : {}),

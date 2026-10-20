@@ -37,10 +37,10 @@ export async function GET(req: Request) {
           ...(search
             ? {
                 OR: [
-                  { code: { contains: search } },
-                  { name: { contains: search } },
-                  { city: { contains: search } },
-                  { manager: { contains: search } },
+                  { code: { contains: search, mode: "insensitive" } },
+                  { name: { contains: search, mode: "insensitive" } },
+                  { city: { contains: search, mode: "insensitive" } },
+                  { manager: { contains: search, mode: "insensitive" } },
                 ],
               }
             : {}),
@@ -69,9 +69,9 @@ export async function GET(req: Request) {
           ...(search
             ? {
                 OR: [
-                  { code: { contains: search } },
-                  { name: { contains: search } },
-                  { contactPerson: { contains: search } },
+                  { code: { contains: search, mode: "insensitive" } },
+                  { name: { contains: search, mode: "insensitive" } },
+                  { contactPerson: { contains: search, mode: "insensitive" } },
                 ],
               }
             : {}),
@@ -104,9 +104,9 @@ export async function GET(req: Request) {
           ...(search
             ? {
                 OR: [
-                  { serviceCode: { contains: search } },
-                  { accountId: { contains: search } },
-                  { installationAddress: { contains: search } },
+                  { serviceCode: { contains: search, mode: "insensitive" } },
+                  { accountId: { contains: search, mode: "insensitive" } },
+                  { installationAddress: { contains: search, mode: "insensitive" } },
                 ],
               }
             : {}),
@@ -143,8 +143,8 @@ export async function GET(req: Request) {
           ...(search
             ? {
                 OR: [
-                  { contractNumber: { contains: search } },
-                  { service: { serviceCode: { contains: search } } },
+                  { contractNumber: { contains: search, mode: "insensitive" } },
+                  { service: { serviceCode: { contains: search, mode: "insensitive" } } },
                 ],
               }
             : {}),
@@ -199,8 +199,8 @@ export async function GET(req: Request) {
           ...(search
             ? {
                 OR: [
-                  { invoiceNumber: { contains: search } },
-                  { contract: { contractNumber: { contains: search } } },
+                  { invoiceNumber: { contains: search, mode: "insensitive" } },
+                  { contract: { contractNumber: { contains: search, mode: "insensitive" } } },
                 ],
               }
             : {}),
@@ -247,7 +247,7 @@ export async function GET(req: Request) {
           companyId: user.companyId,
           ...(status !== "ALL" ? { status } : {}),
           ...(search
-            ? { OR: [{ reference: { contains: search } }, { notes: { contains: search } }] }
+            ? { OR: [{ reference: { contains: search, mode: "insensitive" } }, { notes: { contains: search, mode: "insensitive" } }] }
             : {}),
         },
         include: {

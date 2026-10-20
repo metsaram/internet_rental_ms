@@ -35,10 +35,10 @@ export async function GET(req: Request) {
       ...(search
         ? {
             OR: [
-              { code: { contains: search } },
-              { name: { contains: search } },
-              { city: { contains: search } },
-              { manager: { contains: search } },
+              { code: { contains: search, mode: "insensitive" } },
+              { name: { contains: search, mode: "insensitive" } },
+              { city: { contains: search, mode: "insensitive" } },
+              { manager: { contains: search, mode: "insensitive" } },
             ],
           }
         : {}),

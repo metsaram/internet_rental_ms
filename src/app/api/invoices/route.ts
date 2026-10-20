@@ -41,8 +41,8 @@ export async function GET(req: Request) {
       ...(search
         ? {
             OR: [
-              { invoiceNumber: { contains: search } },
-              { contract: { contractNumber: { contains: search } } },
+              { invoiceNumber: { contains: search, mode: "insensitive" } },
+              { contract: { contractNumber: { contains: search, mode: "insensitive" } } },
             ],
           }
         : {}),

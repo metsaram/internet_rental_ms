@@ -85,6 +85,16 @@ Every create/update/delete must call `writeAudit()` with actor/company/action/
 entityType/entityId + redacted before/after. Use `redactSensitive()` to strip
 passwords, tokens, ISP usernames from audit payloads.
 
+### Rule 7: Database Migration Files & Changelogs
+
+When a task involves schema changes:
+- Always generate a migration file in:
+  `db/yyyy-mm-dd/table_name/`
+- The migration file must include:
+  - SQL or Prisma migration script
+  - Clear description of changes (columns, constraints, indexes)
+- Ensure naming convention matches `table_name` and the `yyyy-mm-dd` timestamp format.
+
 ---
 
 ## 3. Directory Structure
@@ -621,7 +631,79 @@ const [value, setValue] = React.useState("none"); // "none" = null
 - Configure a real email provider for email notifications (currently in-app
   only).
 
+## 13. AI Agent Workflow & Task Log
+
+### Workflow Protocol (5-Step RAG + Updates)
+
+All AI agents working on NetRent must follow the strict 5-step Retrieval-Augmented Generation (RAG) workflow:
+
+1. **Retrieval**
+   - Always search and retrieve the most relevant context from project documents (`README.md`, `AGENTS.md`, `AI_AGENT_GUIDE.md`, and `docs/`).
+   - Use vector/keyword search to pull chunks that match the query and assemble into a working knowledge base before generating output.
+
+2. **Generation**
+   - Produce requested output (code, config, documentation, explanation) using retrieved context.
+   - Ensure correctness by applying validation (linting, schema checks, test cases).
+   - Never hallucinate APIs or structures — rely on retrieved docs.
+
+3. **Database Migration**
+   - When a task involves schema changes, always generate a migration file in:
+     `db/yyyy-mm-dd/table_name/`
+   - File must include:
+     - SQL or Prisma migration script
+     - Clear description of changes (columns, constraints, indexes)
+   - Ensure naming convention matches `table_name` and the `yyyy-mm-dd` timestamp format.
+
+4. **Documentation Update**
+   - Always update the `docs/` folder after completing a task:
+     - `docs/overview/` → Update `project.md`, `architecture.md`, or `tech_stack.md` if scope/stack changes.
+     - `docs/guides/` → Update `ai_agent_guide.md`, `developer_guide.md`, or `api_guide.md` if workflows or APIs change.
+     - `docs/migrations/yyyy-mm-dd/` → Add a migration doc explaining schema changes alongside the SQL/Prisma file.
+     - `docs/changelog/yyyy-mm.md` → Append a monthly summary of changes.
+     - `docs/task_logs/yyyy-mm-dd.md` → Append detailed task log entries.
+   - Summarize the change in 2–3 sentences for quick reference.
+
+5. **Feedback Loop**
+   - Present the result and updated doc summary to the user.
+   - Store embeddings of new content so future retrieval includes updated knowledge.
+   - If validation fails, retry generation with adjusted parameters.
+
+**Golden Rule**: Every task must leave the documentation and database migrations more complete than before. No task is considered finished until both the `db/` and `docs/` folders are updated.
+
+---
+
+### Task Log
+
+#### [2026-10-20T21:57:30+07:00] Legacy Documentation Audit
+- **Task description**: Audit repository for legacy documentation, historical prompt packs, monolithic logs, and obsolete environment notes.
+- **Context used**: `docs-implementation-plan/`, `worklog.md`, `agents/`, `AI_AGENT_GUIDE.md`, `git status`.
+- **Output generated**: Comprehensive assessment of legacy docs identifying `docs-implementation-plan/` (23 phase prompt files), monolithic `worklog.md` (1,060 lines), and ephemeral subagent prompt files in `agents/`.
+- **Timestamp**: 2026-10-20T21:57:30+07:00
+- **Status**: Completed
+
+#### [2026-10-20T21:54:40+07:00] Establish Standardized docs/ Documentation Architecture & 5-Step RAG Protocol
+- **Task description**: Formally establish the comprehensive `docs/` hierarchy (`overview/`, `guides/`, `changelog/`, `task_logs/`, `migrations/`), update AI agent workflow to 5 steps including Database Migrations and Documentation Updates, and implement the Golden Rule.
+- **Context used**: `AI_AGENT_GUIDE.md`, `README.md`, `worklog.md`, user prompt requirements.
+- **Output generated**: Created structured documents under `docs/` (`overview/project.md`, `overview/architecture.md`, `overview/tech_stack.md`, `guides/ai_agent_guide.md`, `guides/developer_guide.md`, `guides/api_guide.md`, `changelog/2026-10.md`, `task_logs/2026-10-20.md`) and updated Section 13 in `AI_AGENT_GUIDE.md`.
+- **Timestamp**: 2026-10-20T21:54:40+07:00
+- **Status**: Completed
+
+#### [2026-10-20T21:50:30+07:00] Add Database Migration Protocol & File Conventions
+- **Task description**: Integrate database migration policy into agent guidelines requiring migration files in `db/yyyy-mm-dd/table_name/` with scripts and change descriptions.
+- **Context used**: `AI_AGENT_GUIDE.md`, `README.md`, user prompt.
+- **Output generated**: Added Rule 7 to Section 2, updated Section 13 workflow specifications, and added developer workflow notes in `README.md`.
+- **Timestamp**: 2026-10-20T21:50:30+07:00
+- **Status**: Completed
+
+#### [2026-10-20T21:48:30+07:00] Protocol Initialization & Workspace Verification
+- **Task description**: Initialize and verify RAG operational workflow, check documentation status across `README.md`, `AGENTS.md`, and `AI_AGENT_GUIDE.md`, and establish the standardized Task Log.
+- **Context used**: `README.md`, `AGENTS.md`, `AI_AGENT_GUIDE.md`, `worklog.md`.
+- **Output generated**: Section 13 added to `AI_AGENT_GUIDE.md` defining the agent workflow and logging structure.
+- **Timestamp**: 2026-10-20T21:48:30+07:00
+- **Status**: Completed
+
 ---
 
 *This document is the single source of truth for AI agents working on NetRent.
 Keep it updated when adding new modules, API routes, or patterns.*
+

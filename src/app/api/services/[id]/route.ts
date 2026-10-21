@@ -17,6 +17,8 @@ const updateSchema = z.object({
   planId: z.string().nullable().optional(),
   serviceCode: z.string().min(1).max(64).optional(),
   accountId: z.string().max(64).optional().nullable(),
+  customerId: z.string().max(64).optional().nullable(),
+  ispServiceId: z.string().max(64).optional().nullable(),
   installationAddress: z.string().max(255).optional().nullable(),
   ipAddress: z.string().max(45).optional().nullable(),
   ipType: z.enum(["STATIC","DYNAMIC","CGNAT"]).optional(),
@@ -101,6 +103,8 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.planId !== undefined) data.plan = body.planId ? { connect: { id: body.planId } } : { disconnect: true };
     if (body.serviceCode) data.serviceCode = body.serviceCode;
     if (body.accountId !== undefined) data.accountId = body.accountId;
+    if (body.customerId !== undefined) data.customerId = body.customerId;
+    if (body.ispServiceId !== undefined) data.ispServiceId = body.ispServiceId;
     if (body.installationAddress !== undefined) data.installationAddress = body.installationAddress;
     if (body.ipAddress !== undefined) data.ipAddress = body.ipAddress;
     if (body.ipType) data.ipType = body.ipType;
@@ -115,8 +119,8 @@ export async function PATCH(req: Request, { params }: Params) {
       action: "UPDATE",
       entityType: "InternetService",
       entityId: id,
-      before: redactSensitive({ serviceCode: existing.serviceCode, status: existing.status, username: existing.username }),
-      after: redactSensitive({ serviceCode: updated.serviceCode, status: updated.status, username: updated.username }),
+      before: redactSensitive({ serviceCode: existing.serviceCode, customerId: existing.customerId, ispServiceId: existing.ispServiceId, status: existing.status, username: existing.username }),
+      after: redactSensitive({ serviceCode: updated.serviceCode, customerId: updated.customerId, ispServiceId: updated.ispServiceId, status: updated.status, username: updated.username }),
     });
     return NextResponse.json({ id: updated.id });
   } catch (err) {

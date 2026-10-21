@@ -252,6 +252,8 @@ model InternetService {
   planId            String?
   serviceCode       String
   accountId         String?
+  customerId        String?        // Customer ID (CID) with ISP (for billing/payments)
+  ispServiceId      String?        // Service ID (SID) with ISP (for technical troubleshooting)
   installationAddress String?
   ipAddress         String?
   ipType            IPType         @default(DYNAMIC)

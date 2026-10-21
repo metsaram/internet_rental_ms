@@ -103,7 +103,8 @@ export default function Home() {
   // Sync the active view with the URL hash so deep links / back button work.
   React.useEffect(() => {
     const apply = () => {
-      const h = window.location.hash.replace("#", "") as ViewKey;
+      const raw = window.location.hash.replace("#", "");
+      const h = raw.split("?")[0] as ViewKey;
       setView(VALID_VIEWS.includes(h) ? h : "dashboard");
     };
     apply();

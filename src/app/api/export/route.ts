@@ -106,6 +106,8 @@ export async function GET(req: Request) {
                 OR: [
                   { serviceCode: { contains: search, mode: "insensitive" } },
                   { accountId: { contains: search, mode: "insensitive" } },
+                  { customerId: { contains: search, mode: "insensitive" } },
+                  { ispServiceId: { contains: search, mode: "insensitive" } },
                   { installationAddress: { contains: search, mode: "insensitive" } },
                 ],
               }
@@ -122,6 +124,8 @@ export async function GET(req: Request) {
       // Sensitive username is deliberately excluded from exports.
       rows = data.map((s) => ({
         "Service code": s.serviceCode,
+        "Customer ID (CID)": s.customerId ?? "",
+        "Service ID (SID)": s.ispServiceId ?? "",
         "Account ID": s.accountId ?? "",
         Branch: s.branch?.code ?? "",
         Shop: s.shop?.code ?? "",

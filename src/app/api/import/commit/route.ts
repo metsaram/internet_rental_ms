@@ -48,20 +48,35 @@ export async function POST(req: Request) {
     const entityType = body.entityType as ImportEntityType;
     const fields = getFields(entityType);
 
-    // Pre-fetch master data for reference normalization (by code).
-    const [branches, providers, services, plans, existingContracts, existingServices] =
-      await Promise.all([
+    // Pre-fetch master data for reference normalization (by code) based on entityType.
+    let branches: Array<{ id: string; code: string }> = [];
+    let providers: Array<{ id: string; code: string }> = [];
+    let services: Array<{ id: string; serviceCode: string }> = [];
+    let plans: Array<{ id: string; name: string; providerId: string }> = [];
+    let shops: Array<{ id: string; code: string; branchId: string }> = [];
+    let existingContracts: Array<{ contractNumber: string }> = [];
+    let existingServices: Array<{ serviceCode: string }> = [];
+
+    if (entityType === "service") {
+      [branches, providers, plans, shops, existingServices] = await Promise.all([
         db.branch.findMany({ where: { companyId: user.companyId }, select: { id: true, code: true } }),
         db.internetProvider.findMany({ where: { companyId: user.companyId }, select: { id: true, code: true } }),
-        db.internetService.findMany({ where: { companyId: user.companyId }, select: { id: true, serviceCode: true } }),
         db.internetPlan.findMany({ where: { companyId: user.companyId }, select: { id: true, name: true, providerId: true } }),
-        db.internetContract.findMany({ where: { companyId: user.companyId }, select: { contractNumber: true } }),
+        db.shop.findMany({ where: { companyId: user.companyId }, select: { id: true, code: true, branchId: true } }),
         db.internetService.findMany({ where: { companyId: user.companyId }, select: { serviceCode: true } }),
       ]);
+    } else {
+      [services, existingContracts] = await Promise.all([
+        db.internetService.findMany({ where: { companyId: user.companyId }, select: { id: true, serviceCode: true } }),
+        db.internetContract.findMany({ where: { companyId: user.companyId }, select: { contractNumber: true } }),
+      ]);
+    }
+
     const branchByCode = new Map(branches.map((b) => [b.code.toUpperCase(), b.id]));
     const providerByCode = new Map(providers.map((p) => [p.code.toUpperCase(), p.id]));
     const serviceByCode = new Map(services.map((s) => [s.serviceCode.toUpperCase(), s.id]));
     const planByKey = new Map(plans.map((p) => [`${p.providerId}:${p.name.toUpperCase()}`, p.id]));
+    const shopByCode = new Map(shops.map((s) => [s.code.toUpperCase(), s]));
     const existingContractNums = new Set(existingContracts.map((c) => c.contractNumber.toUpperCase()));
     const existingServiceCodes = new Set(existingServices.map((s) => s.serviceCode.toUpperCase()));
 
@@ -185,10 +200,8 @@ export async function POST(req: Request) {
         // optional shopCode — resolved to a shop in that branch
         let shopId: string | null = null;
         if (coerced.shopCode) {
-          const shop = await db.shop.findFirst({
-            where: { companyId: user.companyId, code: String(coerced.shopCode) },
-            select: { id: true, branchId: true },
-          });
+          const shopCodeStr = String(coerced.shopCode).trim().toUpperCase();
+          const shop = shopByCode.get(shopCodeStr);
           if (!shop) errors.push(`Shop "${coerced.shopCode}" not found`);
           else if (branchId && shop.branchId !== branchId) errors.push(`Shop "${coerced.shopCode}" does not belong to branch "${coerced.branchCode}"`);
           else shopId = shop?.id ?? null;
@@ -220,11 +233,12 @@ export async function POST(req: Request) {
             planId,
             serviceCode: String(coerced.serviceCode),
             accountId: (coerced.accountId as string) ?? null,
-            installationAddress: null,
+            customerId: (coerced.customerId as string) ?? null,
+            ispServiceId: (coerced.ispServiceId as string) ?? null,
+            installationAddress: (coerced.installationAddress as string) ?? null,
             ipAddress: (coerced.ipAddress as string) ?? null,
             ipType: (coerced.ipType as any) ?? "DYNAMIC",
             status: (coerced.status as any) ?? "PENDING",
-            createdById: undefined as any,
           });
         }
       }
@@ -270,15 +284,10 @@ export async function POST(req: Request) {
         const res = await tx.internetContract.createMany({ data: validContracts });
         imported = res.count;
       } else if (entityType === "service" && validServices.length > 0) {
-        // createMany doesn't support nested createdById; set it via map.
-        const withAuthor = validServices.map((s) => ({
-          ...s,
-          createdById: user.id,
-        })) as any;
         // createMany for services: username is null (never import credentials).
         const res = await tx.internetService.createMany({
-          data: withAuthor.map((s: any) => ({ ...s, username: null, installedAt: null })),
-        } as any);
+          data: validServices.map((s) => ({ ...s, username: null, installedAt: null })),
+        });
         imported = res.count;
       }
 

@@ -56,3 +56,4 @@ server.log
 internet_rental_ms.code-workspace
 /scripts
 .env
+bun.lock

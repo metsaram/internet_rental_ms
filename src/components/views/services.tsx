@@ -26,6 +26,8 @@ type Service = {
   id: string;
   serviceCode: string;
   accountId: string | null;
+  customerId: string | null;
+  ispServiceId: string | null;
   installationAddress: string | null;
   ipAddress: string | null;
   ipType: string;
@@ -45,20 +47,28 @@ const STATUS_OPTS = [
   { value: "TERMINATED", label: "Terminated" },
 ] as const;
 
+const SORT_OPTS = [
+  { value: "newest", label: "Newest first" },
+  { value: "code", label: "Service code (A-Z)" },
+  { value: "oldest", label: "Oldest first" },
+] as const;
+
 export function ServicesView() {
   const qc = useQueryClient();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
+  const [sort, setSort] = React.useState<string>("newest");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Service | null>(null);
   const [deleting, setDeleting] = React.useState<Service | null>(null);
 
   const { data: services = [], isLoading } = useQuery<Service[]>({
-    queryKey: ["services", search, statusFilter],
+    queryKey: ["services", search, statusFilter, sort],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (search) qs.set("search", search);
       if (statusFilter !== "ALL") qs.set("status", statusFilter);
+      if (sort) qs.set("sort", sort);
       return api<Service[]>(`/api/services?${qs.toString()}`);
     },
   });
@@ -71,7 +81,21 @@ export function ServicesView() {
     if (!search) return services;
     const s = search.toLowerCase();
     return services.filter((sv) =>
-      [sv.serviceCode, sv.accountId, sv.installationAddress, sv.branch?.name].some((v) => v?.toLowerCase().includes(s))
+      [
+        sv.serviceCode,
+        sv.accountId,
+        sv.customerId,
+        sv.ispServiceId,
+        sv.installationAddress,
+        sv.ipAddress,
+        sv.branch?.name,
+        sv.branch?.code,
+        sv.shop?.name,
+        sv.shop?.code,
+        sv.provider?.name,
+        sv.provider?.code,
+        sv.plan?.name,
+      ].some((v) => v?.toLowerCase().includes(s))
     );
   }, [services, search]);
 
@@ -101,7 +125,32 @@ export function ServicesView() {
   };
 
   const columns: DataTableColumn<Service>[] = [
-    { key: "code", header: "Service code", cell: (s) => (<div><div className="font-medium">{s.serviceCode}</div><div className="text-[11px] text-muted-foreground">{s.accountId ?? "—"}</div></div>) },
+    {
+      key: "code",
+      header: "Service code",
+      cell: (s) => (
+        <div>
+          <div className="font-medium">{s.serviceCode}</div>
+          <div className="text-[11px] text-muted-foreground">{s.accountId ? `Acct: ${s.accountId}` : "—"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "ispCheck",
+      header: "ISP Info (CID / SID)",
+      cell: (s) => (
+        <div className="text-xs space-y-0.5 min-w-[130px]">
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-[10px] text-muted-foreground bg-muted/80 px-1 py-0.5 rounded border border-border/40">CID</span>
+            <span className="font-mono text-xs">{s.customerId || "—"}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-semibold text-[10px] text-muted-foreground bg-muted/80 px-1 py-0.5 rounded border border-border/40">SID</span>
+            <span className="font-mono text-xs">{s.ispServiceId || "—"}</span>
+          </div>
+        </div>
+      ),
+    },
     { key: "branch", header: "Branch / Shop", hideOnMobile: true, cell: (s) => (<div className="text-sm"><div>{s.branch?.name ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.shop?.name ?? "—"}</div></div>) },
     { key: "provider", header: "Provider / Plan", hideOnMobile: true, cell: (s) => (<div className="text-sm"><div>{s.provider?.name ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.plan?.name ?? "—"}</div></div>) },
     { key: "ip", header: "IP", hideOnMobile: true, cell: (s) => (<div className="text-sm"><div className="tabular-nums">{s.ipAddress ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.ipType}</div></div>) },
@@ -130,9 +179,25 @@ export function ServicesView() {
         rows={filtered}
         rowKey={(s) => s.id}
         loading={isLoading}
+        pageSize={25}
         emptyMessage="No services match your filters."
-        search={{ value: search, onChange: setSearch, placeholder: "Search services..." }}
-        toolbar={<FilterSelect value={statusFilter as any} onChange={(v) => setStatusFilter(v as string)} options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label }))} placeholder="Status" />}
+        search={{ value: search, onChange: setSearch, placeholder: "Search services, CID, SID, branch, shop, provider, IP..." }}
+        toolbar={
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterSelect
+              value={statusFilter as any}
+              onChange={(v) => setStatusFilter(v as string)}
+              options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label }))}
+              placeholder="Status"
+            />
+            <FilterSelect
+              value={sort as any}
+              onChange={(v) => setSort(v as string)}
+              options={SORT_OPTS.map((s) => ({ value: s.value, label: s.label }))}
+              placeholder="Sort"
+            />
+          </div>
+        }
       />
       <ServiceForm
         open={dialogOpen}
@@ -179,6 +244,8 @@ function ServiceForm({
   const [planId, setPlanId] = React.useState<string>("none");
   const [serviceCode, setServiceCode] = React.useState("");
   const [accountId, setAccountId] = React.useState("");
+  const [customerId, setCustomerId] = React.useState("");
+  const [ispServiceId, setIspServiceId] = React.useState("");
   const [installationAddress, setInstallationAddress] = React.useState("");
   const [ipAddress, setIpAddress] = React.useState("");
   const [ipType, setIpType] = React.useState("DYNAMIC");
@@ -196,6 +263,8 @@ function ServiceForm({
       setPlanId(editing.plan?.id ?? "none");
       setServiceCode(editing.serviceCode);
       setAccountId(editing.accountId ?? "");
+      setCustomerId(editing.customerId ?? "");
+      setIspServiceId(editing.ispServiceId ?? "");
       setInstallationAddress(editing.installationAddress ?? "");
       setIpAddress(editing.ipAddress ?? "");
       setIpType(editing.ipType);
@@ -205,7 +274,7 @@ function ServiceForm({
     } else {
       setBranchId(""); setShopId("none"); setProviderId(""); setPlanId("none");
       setServiceCode(`SVC-${Math.floor(1000 + Math.random() * 9000)}`);
-      setAccountId(""); setInstallationAddress(""); setIpAddress("");
+      setAccountId(""); setCustomerId(""); setIspServiceId(""); setInstallationAddress(""); setIpAddress("");
       setIpType("DYNAMIC"); setUsername(""); setStatus("PENDING"); setInstalledAt("");
     }
     setError(null);
@@ -222,6 +291,7 @@ function ServiceForm({
     await onSubmit({
       branchId, shopId: shopId === "none" ? null : shopId, providerId, planId: planId === "none" ? null : planId,
       serviceCode: serviceCode.trim(), accountId: accountId || null,
+      customerId: customerId || null, ispServiceId: ispServiceId || null,
       installationAddress: installationAddress || null, ipAddress: ipAddress || null,
       ipType, username: username || null, status, installedAt: installedAt || null,
     });
@@ -266,6 +336,14 @@ function ServiceForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Service code" required><Input value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} /></Field>
           <Field label="ISP account ID"><Input value={accountId} onChange={(e) => setAccountId(e.target.value)} /></Field>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Customer ID (CID)" hint="For ISP billing & payment checks">
+            <Input value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="e.g. CID-00129384" />
+          </Field>
+          <Field label="Service ID (SID)" hint="For ISP problem resolution & NOC checks">
+            <Input value={ispServiceId} onChange={(e) => setIspServiceId(e.target.value)} placeholder="e.g. SID-99381022" />
+          </Field>
         </div>
         <Field label="Installation address"><Input value={installationAddress} onChange={(e) => setInstallationAddress(e.target.value)} /></Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

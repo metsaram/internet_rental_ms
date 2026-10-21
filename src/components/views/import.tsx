@@ -14,6 +14,11 @@ import {
   History,
   Loader2,
   RefreshCw,
+  Building2,
+  Store,
+  Wifi,
+  Database,
+  Layers,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -50,6 +55,47 @@ type PreviewResponse = {
   headers: Array<{ index: number; label: string }>;
   autoMap: Record<string, { header: string; target: string | null }>;
   sampleRows: Array<Array<{ header: string; value: unknown }>>;
+  rows?: unknown[][];
+};
+
+type ValidationIssue = {
+  row: number;
+  field: string;
+  fieldLabel: string;
+  value: unknown;
+  message: string;
+  suggestion?: string;
+  severity: "error" | "warning";
+};
+
+type FieldValidationStat = {
+  key: string;
+  label: string;
+  required: boolean;
+  mapped: boolean;
+  mappedHeader: string | null;
+  status: "valid" | "invalid" | "unmapped" | "warning";
+  matchedCount: number;
+  totalTested: number;
+  unmatchedValues: string[];
+  message: string;
+  availableOptions?: string[];
+};
+
+type ValidationResponse = {
+  valid: boolean;
+  totalRows: number;
+  validRowsCount: number;
+  invalidRowsCount: number;
+  missingRequiredFields: Array<{ key: string; label: string }>;
+  fieldStats: Record<string, FieldValidationStat>;
+  issues: ValidationIssue[];
+  realMasterData: {
+    branches: Array<{ code: string; name: string }>;
+    shops: Array<{ code: string; name: string; branchCode?: string }>;
+    providers: Array<{ code: string; name: string }>;
+    services: Array<{ serviceCode: string }>;
+  };
 };
 
 type ImportJob = {
@@ -92,12 +138,63 @@ export function ImportView() {
   const [committing, setCommitting] = React.useState(false);
   const [result, setResult] = React.useState<CommitResult | null>(null);
   const [uploading, setUploading] = React.useState(false);
+  const [validation, setValidation] = React.useState<ValidationResponse | null>(null);
+  const [validating, setValidating] = React.useState(false);
+  const [sideTab, setSideTab] = React.useState<"validation" | "masterData" | "sample">("validation");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data: jobs = [], isLoading: jobsLoading } = useQuery<ImportJob[]>({
     queryKey: ["import-jobs"],
     queryFn: () => api<ImportJob[]>("/api/import/jobs"),
   });
+
+  // Debounced live validation whenever columnMap, defaultFreeMonths, or entityType changes
+  React.useEffect(() => {
+    if (step !== "mapping" || !preview) {
+      setValidation(null);
+      return;
+    }
+
+    let active = true;
+    const timer = setTimeout(async () => {
+      setValidating(true);
+      try {
+        const rowsToValidate =
+          preview.rows && preview.rows.length > 0
+            ? preview.rows
+            : preview.sampleRows.map((sr) => sr.map((c) => c.value));
+
+        const res = await fetch("/api/import/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            entityType,
+            headers: preview.headers.map((h) => h.label),
+            rows: rowsToValidate,
+            columnMap,
+            defaultFreeMonths,
+          }),
+        });
+        const data = await res.json();
+        if (active) {
+          if (res.ok) {
+            setValidation(data);
+          } else {
+            console.error("Validation error:", data?.error);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to run validation:", err);
+      } finally {
+        if (active) setValidating(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [step, preview, columnMap, defaultFreeMonths, entityType]);
 
   const onFileSelected = async (file: File) => {
     setUploading(true);
@@ -134,10 +231,10 @@ export function ImportView() {
     if (!preview) return;
     setCommitting(true);
     try {
-      // Re-read the full file rows from the preview — but preview only returned
-      // 8 sample rows. For a real import we'd re-parse; here we commit the
-      // sample rows the user reviewed (the demo workflow).
-      const fullRows = preview.sampleRows.map((sr) => sr.map((c) => c.value));
+      const fullRows =
+        preview.rows && preview.rows.length > 0
+          ? preview.rows
+          : preview.sampleRows.map((sr) => sr.map((c) => c.value));
       const res = await api<CommitResult>("/api/import/commit", {
         method: "POST",
         body: JSON.stringify({
@@ -168,6 +265,7 @@ export function ImportView() {
     setStep("upload");
     setPreview(null);
     setResult(null);
+    setValidation(null);
     setColumnMap({});
   };
 
@@ -319,92 +417,417 @@ export function ImportView() {
             </CardHeader>
           </Card>
 
+          {/* Real Database Validation Status Banner */}
+          {validating && (
+            <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
+              <Loader2 className="size-4 animate-spin shrink-0" />
+              <span>Validating mapped fields against live database records (branches, shops, providers)...</span>
+            </div>
+          )}
+
+          {!validating && validation && (
+            validation.valid ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-300">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <div>
+                    <p className="font-semibold text-xs tracking-tight">Database validation passed</p>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400/90">
+                      All {validation.validRowsCount} rows verified against live database records. Branch codes, shop codes, and providers exist.
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-emerald-600 text-white text-[11px] hover:bg-emerald-600">
+                  {validation.validRowsCount} / {validation.totalRows} valid rows
+                </Badge>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-900 dark:text-rose-200 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="size-5 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+                    <div>
+                      <p className="font-semibold text-xs">
+                        Validation found {validation.issues.length} issue{validation.issues.length > 1 ? "s" : ""} across {validation.invalidRowsCount} row{validation.invalidRowsCount > 1 ? "s" : ""}
+                      </p>
+                      <p className="text-xs text-rose-800 dark:text-rose-300/90">
+                        Some spreadsheet values do not match existing records in your company database (e.g. invalid branch or shop codes).
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {validation.missingRequiredFields.length > 0 && (
+                      <Badge variant="destructive" className="text-[10px]">
+                        {validation.missingRequiredFields.length} missing required field{validation.missingRequiredFields.length > 1 ? "s" : ""}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="border-rose-300 text-rose-700 dark:text-rose-300 text-[10px]">
+                      {validation.invalidRowsCount} invalid rows
+                    </Badge>
+                  </div>
+                </div>
+
+                {validation.missingRequiredFields.length > 0 && (
+                  <div className="text-xs text-rose-700 dark:text-rose-300 bg-rose-500/10 rounded px-2.5 py-1.5">
+                    <span className="font-medium">Missing required mappings: </span>
+                    {validation.missingRequiredFields.map((f) => f.label).join(", ")}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
             {/* Column mapping */}
             <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-sm">Map columns</CardTitle>
                 <CardDescription className="text-xs">
-                  Match each spreadsheet header to a target field. Auto-matched where possible.
+                  Match each spreadsheet header to a target field. Live validation checks whether values match real database records.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-3">
                 {preview.headers.map((h) => {
                   const matched = Object.entries(columnMap).find(([, label]) => label === h.label)?.[0];
+                  const stat = matched ? validation?.fieldStats?.[matched] : undefined;
+
                   return (
-                    <div key={h.index} className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{h.label}</p>
-                        <p className="text-[10px] text-muted-foreground">column {h.index + 1}</p>
+                    <div
+                      key={h.index}
+                      className={cn(
+                        "rounded-lg border px-3 py-2.5 transition space-y-1.5",
+                        stat?.status === "invalid"
+                          ? "border-rose-500/40 bg-rose-500/5"
+                          : stat?.status === "valid" && matched
+                          ? "border-emerald-500/30 bg-emerald-500/5"
+                          : "border-border bg-muted/20"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{h.label}</p>
+                          <p className="text-[10px] text-muted-foreground">column {h.index + 1}</p>
+                        </div>
+                        <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+                        <Select
+                          value={matched ?? "none"}
+                          onValueChange={(target) => {
+                            setColumnMap((prev) => {
+                              const next = { ...prev };
+                              for (const [k, v] of Object.entries(next)) {
+                                if (v === h.label) delete next[k];
+                              }
+                              if (target !== "none") next[target] = h.label;
+                              return next;
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-52 text-xs">
+                            <SelectValue placeholder="Ignore" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— ignore —</SelectItem>
+                            {fields.map((f) => (
+                              <SelectItem key={f.key} value={f.key}>
+                                {f.label}{f.required ? " *" : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
-                      <Select
-                        value={matched ?? "none"}
-                        onValueChange={(target) => {
-                          setColumnMap((prev) => {
-                            const next = { ...prev };
-                            // remove any existing mapping to this header
-                            for (const [k, v] of Object.entries(next)) {
-                              if (v === h.label) delete next[k];
-                            }
-                            if (target !== "none") next[target] = h.label;
-                            return next;
-                          });
-                        }}
-                      >
-                        <SelectTrigger className="h-8 w-48 text-xs"><SelectValue placeholder="Ignore" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">— ignore —</SelectItem>
-                          {fields.map((f) => (
-                            <SelectItem key={f.key} value={f.key}>{f.label}{f.required ? " *" : ""}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+
+                      {/* Real DB validation feedback for this field */}
+                      {matched && stat && (
+                        <div className="pt-1 border-t border-border/40 flex flex-col gap-0.5 text-[11px]">
+                          {stat.status === "valid" ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-medium">
+                              <CheckCircle2 className="size-3.5 shrink-0" />
+                              {stat.message}
+                            </span>
+                          ) : stat.status === "invalid" ? (
+                            <div className="space-y-0.5 text-rose-600 dark:text-rose-400">
+                              <span className="flex items-center gap-1.5 font-medium">
+                                <XCircle className="size-3.5 shrink-0" />
+                                {stat.message}
+                              </span>
+                              {stat.availableOptions && stat.availableOptions.length > 0 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  Valid in DB: {stat.availableOptions.slice(0, 4).join(", ")}
+                                  {stat.availableOptions.length > 4 ? ` (+${stat.availableOptions.length - 4} more)` : ""}
+                                </p>
+                              )}
+                            </div>
+                          ) : stat.status === "warning" ? (
+                            <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
+                              <AlertTriangle className="size-3.5 shrink-0" />
+                              {stat.message}
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </CardContent>
             </Card>
 
-            {/* Sample preview + options */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Sample rows</CardTitle>
-                <CardDescription className="text-xs">First {preview.sampleRows.length} rows</CardDescription>
+            {/* Right sidebar: Validation issues / Real Master Data / Sample preview */}
+            <Card className="flex flex-col">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm">Inspection</CardTitle>
+                  <div className="flex items-center gap-1 rounded-md bg-muted p-0.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSideTab("validation")}
+                      className={cn(
+                        "rounded px-2 py-1 font-medium transition",
+                        sideTab === "validation"
+                          ? "bg-background text-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Issues ({validation?.issues.length ?? 0})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSideTab("masterData")}
+                      className={cn(
+                        "rounded px-2 py-1 font-medium transition",
+                        sideTab === "masterData"
+                          ? "bg-background text-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Real Data
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSideTab("sample")}
+                      className={cn(
+                        "rounded px-2 py-1 font-medium transition",
+                        sideTab === "sample"
+                          ? "bg-background text-foreground shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Sample
+                    </button>
+                  </div>
+                </div>
+                <CardDescription className="text-xs">
+                  {sideTab === "validation"
+                    ? "Live database validation issues"
+                    : sideTab === "masterData"
+                    ? "Available master data records in your company DB"
+                    : `First ${preview.sampleRows.length} rows`}
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
+
+              <CardContent className="space-y-3 flex-1 flex flex-col">
                 {entityType === "contract" && (
                   <Field label="Default free months" hint="Used when the column is blank">
-                    <Input type="number" min={0} max={120} value={defaultFreeMonths} onChange={(e) => setDefaultFreeMonths(Number(e.target.value))} className="h-8" />
+                    <Input
+                      type="number"
+                      min={0}
+                      max={120}
+                      value={defaultFreeMonths}
+                      onChange={(e) => setDefaultFreeMonths(Number(e.target.value))}
+                      className="h-8"
+                    />
                   </Field>
                 )}
-                <div className="max-h-64 space-y-1.5 overflow-y-auto rounded-lg border bg-muted/20 p-2">
-                  {preview.sampleRows.map((row, i) => (
-                    <div key={i} className="rounded border bg-card p-2 text-[11px]">
-                      <p className="mb-1 font-semibold text-muted-foreground">Row {i + 2}</p>
-                      <div className="grid grid-cols-1 gap-0.5">
-                        {row.slice(0, 4).map((c, j) => (
-                          <div key={j} className="flex justify-between gap-2">
-                            <span className="truncate text-muted-foreground">{c.header}:</span>
-                            <span className="truncate font-medium">{c.value === null ? "—" : String(c.value)}</span>
+
+                {/* Tab: Validation Issues */}
+                {sideTab === "validation" && (
+                  <div className="flex-1 max-h-[420px] overflow-y-auto space-y-2 pr-1">
+                    {(!validation?.issues || validation.issues.length === 0) ? (
+                      <div className="flex flex-col items-center justify-center p-6 text-center text-muted-foreground space-y-2">
+                        <CheckCircle2 className="size-8 text-emerald-500" />
+                        <p className="text-xs font-medium text-foreground">No validation issues</p>
+                        <p className="text-[11px]">All checked fields match real database records.</p>
+                      </div>
+                    ) : (
+                      validation.issues.map((issue, idx) => (
+                        <div
+                          key={idx}
+                          className={cn(
+                            "rounded-lg border p-2.5 text-xs space-y-1",
+                            issue.severity === "error"
+                              ? "border-rose-500/30 bg-rose-500/5 text-rose-950 dark:text-rose-200"
+                              : "border-amber-500/30 bg-amber-500/5 text-amber-950 dark:text-amber-200"
+                          )}
+                        >
+                          <div className="flex items-center justify-between font-semibold">
+                            <span className="flex items-center gap-1.5">
+                              {issue.severity === "error" ? (
+                                <XCircle className="size-3.5 text-rose-500" />
+                              ) : (
+                                <AlertTriangle className="size-3.5 text-amber-500" />
+                              )}
+                              Row {issue.row} · {issue.fieldLabel}
+                            </span>
+                            <Badge variant="outline" className="text-[9px] uppercase px-1 py-0">
+                              {issue.severity}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] font-medium">{issue.message}</p>
+                          {issue.suggestion && (
+                            <p className="text-[10px] text-muted-foreground italic">
+                              Hint: {issue.suggestion}
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* Tab: Real Master Data */}
+                {sideTab === "masterData" && (
+                  <div className="flex-1 max-h-[420px] overflow-y-auto space-y-3 pr-1 text-xs">
+                    {/* Branches */}
+                    <div className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-muted-foreground font-semibold text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                          <Building2 className="size-3.5 text-primary" /> Branches
+                        </span>
+                        <span>{validation?.realMasterData.branches.length ?? 0}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {validation?.realMasterData.branches.map((b) => (
+                          <span
+                            key={b.code}
+                            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]"
+                            title={b.name}
+                          >
+                            <span className="font-bold">{b.code}</span>
+                            <span className="text-muted-foreground">({b.name})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Shops */}
+                    <div className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-muted-foreground font-semibold text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                          <Store className="size-3.5 text-primary" /> Shops
+                        </span>
+                        <span>{validation?.realMasterData.shops.length ?? 0}</span>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto space-y-1">
+                        {validation?.realMasterData.shops.map((s) => (
+                          <div key={s.code} className="flex items-center justify-between text-[10px] rounded bg-muted/60 px-1.5 py-0.5">
+                            <span className="font-mono font-bold">{s.code}</span>
+                            <span className="text-muted-foreground truncate max-w-[120px]">{s.name}</span>
+                            {s.branchCode && (
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 font-mono">
+                                {s.branchCode}
+                              </Badge>
+                            )}
                           </div>
                         ))}
                       </div>
                     </div>
-                  ))}
-                </div>
+
+                    {/* Providers */}
+                    <div className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-muted-foreground font-semibold text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                          <Wifi className="size-3.5 text-primary" /> Providers
+                        </span>
+                        <span>{validation?.realMasterData.providers.length ?? 0}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {validation?.realMasterData.providers.map((p) => (
+                          <span
+                            key={p.code}
+                            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]"
+                            title={p.name}
+                          >
+                            <span className="font-bold">{p.code}</span>
+                            <span className="text-muted-foreground">({p.name})</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Services (if contracts) */}
+                    {entityType === "contract" && (
+                      <div className="rounded-lg border bg-card p-2.5 space-y-1.5">
+                        <div className="flex items-center justify-between text-muted-foreground font-semibold text-[11px]">
+                          <span className="flex items-center gap-1.5">
+                            <Database className="size-3.5 text-primary" /> Existing Services
+                          </span>
+                          <span>{validation?.realMasterData.services.length ?? 0}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {validation?.realMasterData.services.slice(0, 15).map((s) => (
+                            <span
+                              key={s.serviceCode}
+                              className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-bold"
+                            >
+                              {s.serviceCode}
+                            </span>
+                          ))}
+                          {(validation?.realMasterData.services.length ?? 0) > 15 && (
+                            <span className="text-[10px] text-muted-foreground self-center">
+                              +{(validation?.realMasterData.services.length ?? 0) - 15} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab: Sample rows */}
+                {sideTab === "sample" && (
+                  <div className="flex-1 max-h-[420px] overflow-y-auto space-y-1.5 pr-1">
+                    {preview.sampleRows.map((row, i) => (
+                      <div key={i} className="rounded border bg-card p-2 text-[11px]">
+                        <p className="mb-1 font-semibold text-muted-foreground">Row {i + 2}</p>
+                        <div className="grid grid-cols-1 gap-0.5">
+                          {row.slice(0, 4).map((c, j) => (
+                            <div key={j} className="flex justify-between gap-2">
+                              <span className="truncate text-muted-foreground">{c.header}:</span>
+                              <span className="truncate font-medium">{c.value === null ? "—" : String(c.value)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={reset}><ArrowLeft className="size-4" /> Cancel</Button>
-            <Button
-              onClick={() => setStep("review")}
-              disabled={Object.keys(columnMap).length === 0}
-            >
-              Review <ArrowRight className="size-4" />
-            </Button>
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              {validation && !validation.valid && (
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="size-4 shrink-0" />
+                  {validation.invalidRowsCount} of {validation.totalRows} row(s) contain database validation issues.
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={reset}>
+                <ArrowLeft className="size-4" /> Cancel
+              </Button>
+              <Button
+                onClick={() => setStep("review")}
+                disabled={
+                  Object.keys(columnMap).length === 0 ||
+                  validating ||
+                  (validation?.missingRequiredFields && validation.missingRequiredFields.length > 0)
+                }
+              >
+                Review <ArrowRight className="size-4" />
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -430,8 +853,25 @@ export function ImportView() {
               <Stat label="Entity" value={entityType === "contract" ? "Contracts" : "Services"} />
               <Stat label="Rows" value={String(preview.totalRows)} />
               <Stat label="Mapped fields" value={String(Object.keys(columnMap).length)} />
-              <Stat label="Worksheet" value={preview.worksheet} />
+              <Stat
+                label="Valid Rows"
+                value={validation ? `${validation.validRowsCount} / ${validation.totalRows}` : String(preview.totalRows)}
+                tone={validation && !validation.valid ? "text-amber-600" : "text-emerald-600"}
+              />
             </div>
+
+            {validation && !validation.valid && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                <div className="flex items-center gap-2 font-semibold">
+                  <AlertTriangle className="size-4 text-amber-600" />
+                  <span>Warning: {validation.issues.length} database validation issue(s) detected</span>
+                </div>
+                <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                  Import will fail or skip rows that do not have valid foreign keys in the database.
+                </p>
+              </div>
+            )}
+
             <div className="rounded-lg border bg-muted/20 p-3">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Field mapping

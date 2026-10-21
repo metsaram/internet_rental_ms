@@ -78,6 +78,7 @@ export async function POST(req: Request) {
       headers: headerRow.map((h, i) => ({ index: i, label: h })),
       autoMap,
       sampleRows,
+      rows: dataRows,
     });
   } catch (err) {
     return errorResponse(err);

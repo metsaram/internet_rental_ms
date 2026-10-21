@@ -17,6 +17,8 @@ const createSchema = z.object({
   planId: z.string().nullable().optional(),
   serviceCode: z.string().min(1).max(64),
   accountId: z.string().max(64).optional().nullable(),
+  customerId: z.string().max(64).optional().nullable(),
+  ispServiceId: z.string().max(64).optional().nullable(),
   installationAddress: z.string().max(255).optional().nullable(),
   ipAddress: z.string().max(45).optional().nullable(),
   ipType: z.enum(["STATIC","DYNAMIC","CGNAT"]).default("DYNAMIC"),
@@ -29,23 +31,41 @@ export async function GET(req: Request) {
   try {
     const user = await requireUser();
     const url = new URL(req.url);
-    const search = url.searchParams.get("search")?.toLowerCase() ?? "";
+    const search = url.searchParams.get("search")?.trim() ?? "";
     const status = url.searchParams.get("status") ?? "ALL";
     const min = url.searchParams.get("min") === "true";
+    const sort = url.searchParams.get("sort") ?? "newest";
 
     const where: Prisma.InternetServiceWhereInput = {
       companyId: user.companyId,
-      ...(status !== "ALL" ? { status } : {}),
+      ...(status !== "ALL" ? { status: status as any } : {}),
       ...(search
         ? {
             OR: [
               { serviceCode: { contains: search, mode: "insensitive" } },
               { accountId: { contains: search, mode: "insensitive" } },
+              { customerId: { contains: search, mode: "insensitive" } },
+              { ispServiceId: { contains: search, mode: "insensitive" } },
               { installationAddress: { contains: search, mode: "insensitive" } },
+              { ipAddress: { contains: search, mode: "insensitive" } },
+              { branch: { name: { contains: search, mode: "insensitive" } } },
+              { branch: { code: { contains: search, mode: "insensitive" } } },
+              { shop: { name: { contains: search, mode: "insensitive" } } },
+              { shop: { code: { contains: search, mode: "insensitive" } } },
+              { provider: { name: { contains: search, mode: "insensitive" } } },
+              { provider: { code: { contains: search, mode: "insensitive" } } },
+              { plan: { name: { contains: search, mode: "insensitive" } } },
             ],
           }
         : {}),
     };
+
+    const orderBy: Prisma.InternetServiceOrderByWithRelationInput =
+      sort === "code"
+        ? { serviceCode: "asc" }
+        : sort === "oldest"
+        ? { createdAt: "asc" }
+        : { createdAt: "desc" };
 
     const rows = await db.internetService.findMany({
       where,
@@ -55,7 +75,7 @@ export async function GET(req: Request) {
         provider: { select: { id: true, name: true, code: true } },
         plan: { select: { id: true, name: true } },
       },
-      orderBy: { serviceCode: "asc" },
+      orderBy,
       take: 500,
     });
 
@@ -64,6 +84,8 @@ export async function GET(req: Request) {
         rows.map((r) => ({
           id: r.id,
           serviceCode: r.serviceCode,
+          customerId: r.customerId,
+          ispServiceId: r.ispServiceId,
           branch: r.branch,
           shop: r.shop,
           provider: r.provider,
@@ -77,6 +99,8 @@ export async function GET(req: Request) {
         id: r.id,
         serviceCode: r.serviceCode,
         accountId: r.accountId,
+        customerId: r.customerId,
+        ispServiceId: r.ispServiceId,
         installationAddress: r.installationAddress,
         ipAddress: r.ipAddress,
         ipType: r.ipType,
@@ -133,6 +157,8 @@ export async function POST(req: Request) {
         planId: body.planId ?? null,
         serviceCode: body.serviceCode,
         accountId: body.accountId ?? null,
+        customerId: body.customerId ?? null,
+        ispServiceId: body.ispServiceId ?? null,
         installationAddress: body.installationAddress ?? null,
         ipAddress: body.ipAddress ?? null,
         ipType: body.ipType,

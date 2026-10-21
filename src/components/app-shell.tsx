@@ -93,7 +93,8 @@ function useHashView(): [ViewKey, (v: ViewKey) => void] {
 
   React.useEffect(() => {
     const apply = () => {
-      const h = window.location.hash.replace("#", "") as ViewKey;
+      const raw = window.location.hash.replace("#", "");
+      const h = raw.split("?")[0] as ViewKey;
       const valid = NAV.map((n) => n.key);
       if (h && valid.includes(h)) setView(h);
       else setView("dashboard");

@@ -81,7 +81,7 @@ const STATUS_OPTS = [
 
 export function ContractsView() {
   const { data: session } = useSession();
-  const currency = (session?.user as any)?.companyCurrency ?? "THB";
+  const currency = (session?.user as any)?.companyCurrency ?? "USD";
   const qc = useQueryClient();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");

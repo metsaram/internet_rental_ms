@@ -24,7 +24,7 @@ model Company {
   city      String?
   phone     String?
   email     String?
-  currency  String   @default("THB")
+  currency  String   @default("USD")
   status    String   @default("ACTIVE") // ACTIVE | INACTIVE
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -205,7 +205,7 @@ model InternetPlan {
   bandwidthUpMbps     Int
   connectionType      ConnectionType  @default(FIBER)
   catalogMonthlyPrice Decimal         @default(0)
-  currency            String          @default("THB")
+  currency            String          @default("USD")
   status              String          @default("ACTIVE")
   description         String?
   createdAt           DateTime        @default(now())
@@ -347,7 +347,7 @@ model InternetContract {
   durationMonths  Int
   freeMonths      Int            @default(0)
   monthlyFee      Decimal        @default(0)
-  currency        String         @default("THB")
+  currency        String         @default("USD")
   billingCycle    BillingCycle   @default(MONTHLY)
   status          ContractStatus @default(DRAFT)
   notes           String?
@@ -452,7 +452,7 @@ model Invoice {
   tax              Decimal       @default(0)
   discount         Decimal       @default(0)
   total            Decimal       @default(0)
-  currency         String        @default("THB")
+  currency         String        @default("USD")
   status           InvoiceStatus @default(DRAFT)
   dueDate         DateTime?
   notes            String?
@@ -477,7 +477,7 @@ model Payment {
   companyId   String
   paymentDate DateTime       @default(now())
   amount      Decimal        @default(0)
-  currency    String         @default("THB")
+  currency    String         @default("USD")
   method      PaymentMethod  @default(BANK_TRANSFER)
   reference   String?
   status      PaymentStatus  @default(COMPLETED)

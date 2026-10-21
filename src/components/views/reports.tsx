@@ -212,7 +212,7 @@ type AvailabilityReport = {
 
 export function ReportsView() {
   const { data: session } = useSession();
-  const currency = (session?.user as any)?.companyCurrency ?? "THB";
+  const currency = (session?.user as any)?.companyCurrency ?? "USD";
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
   const { data: dash, isLoading: dashLoading } = useQuery<Dash>({

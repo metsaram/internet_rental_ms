@@ -6,7 +6,6 @@ import { format, formatDistanceToNow, parseISO, isValid } from "date-fns";
 
 /** Money formatter per currency. */
 const currencySymbols: Record<string, string> = {
-  THB: "฿",
   USD: "$",
   EUR: "€",
   GBP: "£",
@@ -16,11 +15,15 @@ const currencySymbols: Record<string, string> = {
   MYR: "RM",
 };
 
-export function formatMoney(amount: number | string | null | undefined, currency = "THB"): string {
+export function formatMoney(
+  amount: number | string | { toString(): string } | null | undefined,
+  currency = "USD"
+): string {
   if (amount === null || amount === undefined) return "—";
-  const n = typeof amount === "string" ? Number(amount) : amount;
+  const n = typeof amount === "number" ? amount : Number(amount.toString());
   if (Number.isNaN(n)) return "—";
-  const sym = currencySymbols[currency] ?? "";
+  const targetCurrency = (!currency || currency === "THB") ? "USD" : currency;
+  const sym = currencySymbols[targetCurrency] ?? "$";
   const formatted = n.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

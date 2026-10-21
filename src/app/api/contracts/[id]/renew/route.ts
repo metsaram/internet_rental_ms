@@ -17,7 +17,7 @@ const renewSchema = z.object({
   durationMonths: z.number().int().min(1).max(120),
   freeMonths: z.number().int().min(0).max(120).default(0),
   monthlyFee: z.number().nonnegative(),
-  currency: z.string().min(3).max(3).default("THB"),
+  currency: z.string().min(3).max(3).default("USD"),
   billingCycle: z.enum(["MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL"]).default("MONTHLY"),
   notes: z.string().optional().nullable(),
 });

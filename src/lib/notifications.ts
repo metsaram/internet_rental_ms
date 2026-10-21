@@ -87,7 +87,7 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
         userId,
         type: "INVOICE_OVERDUE",
         title: `Invoice overdue: ${inv.invoiceNumber}`,
-        message: `Invoice ${inv.invoiceNumber} is ${Math.abs(daysToDue)} days past due. Outstanding: ฿${outstanding.toFixed(2)}.`,
+        message: `Invoice ${inv.invoiceNumber} is ${Math.abs(daysToDue)} days past due. Outstanding: $${outstanding.toFixed(2)}.`,
         entityType: "Invoice",
         entityId: inv.id,
       }).then((n) => n && created.push({ id: n.id, type: "INVOICE_OVERDUE", title: n.title }));
@@ -97,7 +97,7 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
         userId,
         type: "INVOICE_DUE_SOON",
         title: `Invoice due in ${daysToDue}d: ${inv.invoiceNumber}`,
-        message: `Invoice ${inv.invoiceNumber} is due on ${due.toISOString().slice(0, 10)}. Outstanding: ฿${outstanding.toFixed(2)}.`,
+        message: `Invoice ${inv.invoiceNumber} is due on ${due.toISOString().slice(0, 10)}. Outstanding: $${outstanding.toFixed(2)}.`,
         entityType: "Invoice",
         entityId: inv.id,
       }).then((n) => n && created.push({ id: n.id, type: "INVOICE_DUE_SOON", title: n.title }));

@@ -117,7 +117,7 @@ export async function POST(req: Request) {
         bandwidthUpMbps: body.bandwidthUpMbps,
         connectionType: body.connectionType,
         catalogMonthlyPrice: new Prisma.Decimal(body.catalogMonthlyPrice),
-        currency: body.currency ?? user.companyCurrency ?? "THB",
+        currency: body.currency ?? user.companyCurrency ?? "USD",
         status: body.status,
         description: body.description ?? null,
       },

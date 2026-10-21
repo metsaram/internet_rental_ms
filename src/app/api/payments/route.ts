@@ -20,7 +20,7 @@ const allocationSchema = z.object({
 const createSchema = z.object({
   paymentDate: z.string().min(1),
   amount: z.number().nonnegative(),
-  currency: z.string().min(3).max(3).default("THB"),
+  currency: z.string().min(3).max(3).default("USD"),
   method: z.enum(["BANK_TRANSFER", "CASH", "CARD", "CHEQUE", "ONLINE", "OTHER"]).default("BANK_TRANSFER"),
   reference: z.string().max(128).optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
         const outstanding = outstandingBalance(inv, inv.allocations);
         const alloc = body.allocations.filter((a) => a.invoiceId === inv.id).reduce((s, a) => s + a.amount, 0);
         if (new Decimal(alloc).gt(outstanding)) {
-          throw new HttpError(400, `Allocation for ${inv.invoiceNumber} (฿${alloc}) exceeds outstanding balance (฿${outstanding})`);
+          throw new HttpError(400, `Allocation for ${inv.invoiceNumber} ($${alloc}) exceeds outstanding balance ($${outstanding})`);
         }
       }
     }

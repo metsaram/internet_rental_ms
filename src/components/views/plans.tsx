@@ -68,7 +68,7 @@ const CONNECTION_OPTS = [
 
 export function PlansView() {
   const { data: session } = useSession();
-  const currency = (session?.user as any)?.companyCurrency ?? "THB";
+  const currency = (session?.user as any)?.companyCurrency ?? "USD";
   const qc = useQueryClient();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");

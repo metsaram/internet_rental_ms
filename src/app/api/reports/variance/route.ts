@@ -70,7 +70,7 @@ export async function GET() {
       };
     });
 
-    // Summary: sum across the same currency (all demo data is THB).
+    // Summary: sum across the same currency (all demo data is USD).
     const summary = rows.reduce(
       (acc, r) => {
         acc.scheduled = acc.scheduled.plus(r.scheduledTotal);

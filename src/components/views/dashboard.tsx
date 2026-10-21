@@ -100,7 +100,7 @@ const CHART_COLORS = [
 
 export function DashboardView() {
   const { data: session } = useSession();
-  const currency = (session?.user as any)?.companyCurrency ?? "THB";
+  const currency = (session?.user as any)?.companyCurrency ?? "USD";
   const company = (session?.user as any)?.companyName ?? "Your company";
 
   const { data, isLoading, isError, refetch } = useQuery<Dash>({

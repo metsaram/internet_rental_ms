@@ -22,7 +22,7 @@ const createSchema = z.object({
   tax: z.number().nonnegative().default(0),
   discount: z.number().nonnegative().default(0),
   total: z.number().nonnegative().default(0),
-  currency: z.string().min(3).max(3).default("THB"),
+  currency: z.string().min(3).max(3).default("USD"),
   status: z.enum(["DRAFT", "ISSUED", "PAID", "OVERDUE", "PARTIAL"]).default("DRAFT"),
   dueDate: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),

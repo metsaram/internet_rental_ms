@@ -232,7 +232,7 @@ When a task involves schema changes:
   dates, number strings with commas, enum uppercasing).
 
 ### `format.ts` — Client-safe formatters (NO Prisma imports)
-- `formatMoney(amount, currency)` → `"฿1,234.50"` (currency symbols per ISO).
+- `formatMoney(amount, currency)` → `"$1,234.50"` (currency symbols per ISO).
 - `formatNumber(n)` → `"1,234"`.
 - `formatDate(date, pattern?)` → `"Oct 14, 2026"`.
 - `formatDateTime(date)` → `"Oct 14, 2026 · 3:45 PM"`.

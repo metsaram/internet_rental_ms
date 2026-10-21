@@ -32,7 +32,7 @@ function monthsFromNow(m: number): Date {
 async function main() {
   const company = await prisma.company.upsert({
     where: { code: "ACME" },
-    update: {},
+    update: { currency: "USD" },
     create: {
       code: "ACME",
       name: "Acme Retail Holdings",
@@ -41,7 +41,7 @@ async function main() {
       city: "Bangkok",
       phone: "+66 2 123 4567",
       email: "ops@acme.example",
-      currency: "THB",
+      currency: "USD",
       status: "ACTIVE",
     },
   });
@@ -149,7 +149,7 @@ async function main() {
     planDefs.map((p) =>
       prisma.internetPlan.upsert({
         where: { companyId_providerId_name: { companyId: company.id, providerId: providers[p.pIdx].id, name: p.name } },
-        update: {},
+        update: { currency: "USD" },
         create: {
           companyId: company.id,
           providerId: providers[p.pIdx].id,
@@ -158,7 +158,7 @@ async function main() {
           bandwidthUpMbps: p.up,
           connectionType: p.type,
           catalogMonthlyPrice: new Prisma.Decimal(p.price),
-          currency: "THB",
+          currency: "USD",
           status: "ACTIVE",
           description: p.desc ?? null,
         },
@@ -230,7 +230,7 @@ async function main() {
       end.setMonth(end.getMonth() + c.duration);
       return prisma.internetContract.upsert({
         where: { companyId_contractNumber: { companyId: company.id, contractNumber: c.num } },
-        update: {},
+        update: { currency: "USD" },
         create: {
           companyId: company.id,
           serviceId: services[c.sIdx].id,
@@ -240,7 +240,7 @@ async function main() {
           durationMonths: c.duration,
           freeMonths: c.free,
           monthlyFee: new Prisma.Decimal(c.fee),
-          currency: "THB",
+          currency: "USD",
           billingCycle: c.cycle ?? "MONTHLY",
           status: c.status ?? "DRAFT",
           createdById: admin.id,
@@ -256,7 +256,7 @@ async function main() {
   const newRenewed = contracts.find((c) => c.contractNumber === "CT-2024-006R")!;
   await prisma.contractRenewal.upsert({
     where: { oldContractId: oldRenewed.id },
-    update: {},
+    update: { newCurrency: "USD" },
     create: {
       companyId: company.id,
       oldContractId: oldRenewed.id,
@@ -273,7 +273,7 @@ async function main() {
       newCurrency: newRenewed.currency,
       newDurationMonths: newRenewed.durationMonths,
       newFreeMonths: newRenewed.freeMonths,
-      notes: "Seed: completed renewal (old ฿690 → new ฿750, added 1 free month).",
+      notes: "Seed: completed renewal (old $690 → new $750, added 1 free month).",
       createdById: admin.id,
     },
   });
@@ -361,7 +361,7 @@ async function main() {
       periodEnd.setMonth(periodEnd.getMonth() + inv.periodMonths);
       return prisma.invoice.upsert({
         where: { id: inv.id },
-        update: {},
+        update: { currency: "USD" },
         create: {
           id: inv.id,
           companyId: company.id,
@@ -374,7 +374,7 @@ async function main() {
           tax: new Prisma.Decimal(inv.tax),
           discount: new Prisma.Decimal(0),
           total: new Prisma.Decimal(total),
-          currency: "THB",
+          currency: "USD",
           status: inv.status,
           dueDate,
           notes: "Seeded demo invoice",
@@ -392,13 +392,13 @@ async function main() {
 
   await prisma.payment.upsert({
     where: { id: "seed-pay-1" },
-    update: {},
+    update: { currency: "USD" },
     create: {
       id: "seed-pay-1",
       companyId: company.id,
       paymentDate: monthsAgo(4),
       amount: new Prisma.Decimal(payment1Total),
-      currency: "THB",
+      currency: "USD",
       method: "BANK_TRANSFER",
       reference: "BANK-TR-0001",
       status: "COMPLETED",
@@ -418,13 +418,13 @@ async function main() {
 
   await prisma.payment.upsert({
     where: { id: "seed-pay-2" },
-    update: {},
+    update: { currency: "USD" },
     create: {
       id: "seed-pay-2",
       companyId: company.id,
       paymentDate: monthsAgo(0),
       amount: new Prisma.Decimal(payment3Partial),
-      currency: "THB",
+      currency: "USD",
       method: "CARD",
       reference: "CARD-0002",
       status: "COMPLETED",

@@ -430,7 +430,7 @@ function RenewDialog({
   const [duration, setDuration] = React.useState(12);
   const [freeMonths, setFreeMonths] = React.useState(0);
   const [monthlyFee, setMonthlyFee] = React.useState(0);
-  const [currency, setCurrency] = React.useState("THB");
+  const [currency, setCurrency] = React.useState("USD");
   const [billingCycle, setBillingCycle] = React.useState("MONTHLY");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -444,7 +444,7 @@ function RenewDialog({
     setDuration(oldC.durationMonths);
     setFreeMonths(0);
     setMonthlyFee(Number(oldC.monthlyFee));
-    setCurrency(oldC.currency);
+    setCurrency(oldC.currency && oldC.currency !== "THB" ? oldC.currency : "USD");
     setBillingCycle("MONTHLY");
     setNotes(renewal.notes ?? "");
     setError(null);

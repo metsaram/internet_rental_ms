@@ -5,6 +5,7 @@ import { verifyPassword } from "@/lib/password";
 import { rateLimit } from "@/lib/rate-limit";
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET ?? "netrent-production-jwt-secret-key-32charslong!",
   session: {
     strategy: "jwt",
     maxAge: 60 * 60 * 12, // 12h

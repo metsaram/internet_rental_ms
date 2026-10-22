@@ -558,7 +558,7 @@ function ContractForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Contract number" required>
-            <Input value={contractNumber} onChange={(e) => setContractNumber(e.target.value)} />
+            <Input isCode value={contractNumber} onChange={(e) => setContractNumber(e.target.value)} />
           </Field>
           <Field label="Status">
             <Select value={status} onValueChange={setStatus}>

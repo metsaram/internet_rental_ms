@@ -6,6 +6,8 @@
  * spreadsheet headers → target fields and validate each row before writing.
  */
 
+import { GlobalValidator } from "@/lib/global-validator";
+
 export type ImportEntityType = "contract" | "service";
 
 export interface ImportField {
@@ -117,11 +119,25 @@ export interface ValidatedRow {
 }
 
 /** Coerce a raw cell value to the target type, returning null if invalid. */
-export function coerceValue(raw: unknown, type: ImportField["type"]): { value: unknown; error?: string } {
+export function coerceValue(
+  raw: unknown,
+  type: ImportField["type"],
+  fieldKey?: string
+): { value: unknown; error?: string } {
   if (raw === null || raw === undefined || raw === "") return { value: null };
   switch (type) {
-    case "string":
-      return { value: String(raw).trim() };
+    case "string": {
+      const s = String(raw).trim();
+      // Apply UPPERCASE and symbol blocking only where text field is used for code!
+      if (fieldKey && GlobalValidator.isCodeField(fieldKey)) {
+        const validation = GlobalValidator.validate(s);
+        if (!validation.isValid) {
+          return { value: null, error: validation.error };
+        }
+        return { value: validation.value };
+      }
+      return { value: s };
+    }
     case "number": {
       const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[, ]/g, ""));
       if (Number.isNaN(n)) return { value: null, error: `not a number: ${raw}` };
@@ -141,7 +157,7 @@ export function coerceValue(raw: unknown, type: ImportField["type"]): { value: u
       return { value: parsed };
     }
     case "enum": {
-      const s = String(raw).trim().toUpperCase();
+      const s = GlobalValidator.sanitize(raw);
       return { value: s };
     }
   }

@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions, type AppSession } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { GlobalValidator, ValidationError } from "@/lib/global-validator";
 
 export type Role = "ADMIN" | "STAFF";
 
@@ -56,9 +57,23 @@ export class HttpError extends Error {
 
 /** Standard JSON error response. */
 export function errorResponse(err: unknown) {
-  if (err instanceof HttpError) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: err.status,
+  if (
+    err instanceof HttpError ||
+    err instanceof ValidationError ||
+    (err && typeof err === "object" && "status" in err && typeof (err as any).status === "number")
+  ) {
+    return new Response(JSON.stringify({ error: (err as any).message }), {
+      status: (err as any).status,
+      headers: { "content-type": "application/json" },
+    });
+  }
+  if (err && typeof err === "object" && "name" in err && (err as any).name === "ZodError") {
+    const issues = (err as any).issues || [];
+    const msg =
+      issues.map((i: any) => `${i.path?.join(".") || "field"}: ${i.message}`).join(", ") ||
+      "Validation failed";
+    return new Response(JSON.stringify({ error: msg }), {
+      status: 400,
       headers: { "content-type": "application/json" },
     });
   }
@@ -69,13 +84,27 @@ export function errorResponse(err: unknown) {
   );
 }
 
-/** Parse JSON body from a Request, with size guard. */
-export async function parseJsonBody<T = unknown>(req: Request): Promise<T> {
+/** Parse JSON body from a Request, enforcing the global validator. */
+export async function parseJsonBody<T = unknown>(
+  req: Request,
+  options?: {
+    skipValidation?: boolean;
+    allowSpaces?: boolean;
+    strict?: boolean;
+  }
+): Promise<T> {
+  let raw: T;
   try {
-    return (await req.json()) as T;
+    raw = (await req.json()) as T;
   } catch {
     throw new HttpError(400, "Invalid JSON body");
   }
+
+  if (options?.skipValidation || !raw || typeof raw !== "object") {
+    return raw;
+  }
+
+  return GlobalValidator.processApiPayload(raw, options) as T;
 }
 
 /**

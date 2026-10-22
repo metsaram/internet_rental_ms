@@ -130,7 +130,7 @@ export async function POST(req: Request) {
           coerced[f.key] = null;
           continue;
         }
-        const { value, error } = coerceValue(raw, f.type);
+        const { value, error } = coerceValue(raw, f.type, f.key);
         if (error) {
           errors.push(`${f.label}: ${error}`);
           continue;

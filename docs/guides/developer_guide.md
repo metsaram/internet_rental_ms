@@ -69,3 +69,19 @@ Always import from `@/lib/format`:
 import { formatMoney, formatDate } from "@/lib/format";
 ```
 Never import `@prisma/client` inside client component files.
+
+#### 5. Global Input Validator (Code Fields Only)
+The centralized Global Validator (`@/lib/global-validator` or `@/lib/validation`) enforces uppercase conversion and special character prevention **specifically on text fields used for codes**:
+- **Rule (Code Fields)**:
+  1. Converts code inputs to **UPPERCASE**.
+  2. Blocks all special characters by default.
+  3. Allows only `_` (underscore) and `-` (hyphen) as exceptions.
+  4. Enforces a **maximum length of 100 characters**.
+- **Non-Code Fields**: General text inputs (`name`, `address`, `city`, `manager`, `phone`, `notes`, `description`, etc.) accept standard casing, spaces, and punctuation without restriction.
+- **Code Field Identification**: Recognizes `code`, `serviceCode`, `branchCode`, `shopCode`, `providerCode`, `companyCode`, `contractNumber`, `invoiceNumber`, `reference`, `customerId`, `ispServiceId`, `accountId`, or inputs marked with `isCode`.
+- **UI Layer**: `<Input isCode />` in `@/components/ui/input` enforces `maxLength={100}`, converts code inputs to uppercase, blocks disallowed keystrokes on typing, sanitizes on paste/change, and adds uppercase typography. Regular `<Input />` operates as a standard text input.
+- **API Layer**: `parseJsonBody()` in `@/lib/session` normalizes and validates code fields in incoming payloads, rejecting code exceeding 100 characters or containing disallowed special characters with 400 `ValidationError`, while preserving non-code fields.
+- **Database Layer**: Prisma Client extension in `@/lib/db` intercepts `create`, `update`, `upsert`, `createMany`, and `updateMany` queries to sanitize, truncate to 100 chars, and uppercase code fields prior to persistence.
+- **Import Layer**: `coerceValue()` in `@/lib/import-fields` enforces uppercase, 100-character max length, and validation on spreadsheet cells matching code fields.
+
+

@@ -394,7 +394,7 @@ function BranchForm({
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Code" required>
-            <Input value={code} onChange={(e) => setCode(e.target.value)} />
+            <Input isCode value={code} onChange={(e) => setCode(e.target.value)} />
           </Field>
           <Field label="Name" required>
             <Input value={name} onChange={(e) => setName(e.target.value)} />

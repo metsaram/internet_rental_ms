@@ -520,7 +520,7 @@ function InvoiceForm({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Invoice number" required>
-            <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+            <Input isCode value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
           </Field>
           <Field label="Status">
             <Select value={status} onValueChange={setStatus}>
@@ -857,7 +857,7 @@ function RecordPaymentDialog({
             </Select>
           </Field>
           <Field label="Reference">
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bank slip / card last 4" />
+            <Input isCode value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bank slip / card last 4" />
           </Field>
         </div>
         <Field label="Notes">

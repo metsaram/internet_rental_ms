@@ -334,15 +334,15 @@ function ServiceForm({
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Service code" required><Input value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} /></Field>
-          <Field label="ISP account ID"><Input value={accountId} onChange={(e) => setAccountId(e.target.value)} /></Field>
+          <Field label="Service code" required><Input isCode value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} /></Field>
+          <Field label="ISP account ID"><Input isCode value={accountId} onChange={(e) => setAccountId(e.target.value)} /></Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Customer ID (CID)" hint="For ISP billing & payment checks">
-            <Input value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="e.g. CID-00129384" />
+            <Input isCode value={customerId} onChange={(e) => setCustomerId(e.target.value)} placeholder="e.g. CID-00129384" />
           </Field>
           <Field label="Service ID (SID)" hint="For ISP problem resolution & NOC checks">
-            <Input value={ispServiceId} onChange={(e) => setIspServiceId(e.target.value)} placeholder="e.g. SID-99381022" />
+            <Input isCode value={ispServiceId} onChange={(e) => setIspServiceId(e.target.value)} placeholder="e.g. SID-99381022" />
           </Field>
         </div>
         <Field label="Installation address"><Input value={installationAddress} onChange={(e) => setInstallationAddress(e.target.value)} /></Field>

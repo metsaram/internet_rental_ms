@@ -47,6 +47,8 @@ import { toast } from "sonner";
 import { CommandPalette } from "@/components/shared/command-palette";
 import { ShortcutsHelp, useShortcutsHelp } from "@/components/shared/shortcuts-help";
 import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
+import { useIdleTimeout } from "@/hooks/use-idle-timeout";
+import { IdleTimeoutModal } from "@/components/shared/idle-timeout-modal";
 
 export type ViewKey =
   | "dashboard"
@@ -70,21 +72,21 @@ const NAV: Array<{
   icon: React.ComponentType<{ className?: string }>;
   group: string;
 }> = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "Overview" },
-  { key: "branches", label: "Branches", icon: Building2, group: "Organization" },
-  { key: "shops", label: "Shops", icon: Store, group: "Organization" },
-  { key: "providers", label: "Providers", icon: Wifi, group: "Catalog" },
-  { key: "plans", label: "Plans", icon: Package, group: "Catalog" },
-  { key: "services", label: "Internet Services", icon: Network, group: "Operations" },
-  { key: "contracts", label: "Contracts", icon: FileText, group: "Operations" },
-  { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Operations" },
-  { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
-  { key: "import", label: "Excel Import", icon: Upload, group: "Operations" },
-  { key: "notifications", label: "Notifications", icon: Bell, group: "Insights" },
-  { key: "outages", label: "Outages", icon: Zap, group: "Insights" },
-  { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
-  { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
-];
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "Overview" },
+    { key: "branches", label: "Branches", icon: Building2, group: "Organization" },
+    { key: "shops", label: "Shops", icon: Store, group: "Organization" },
+    { key: "providers", label: "Providers", icon: Wifi, group: "Catalog" },
+    { key: "plans", label: "Plans", icon: Package, group: "Catalog" },
+    { key: "services", label: "Internet Services", icon: Network, group: "Operations" },
+    { key: "contracts", label: "Contracts", icon: FileText, group: "Operations" },
+    { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Operations" },
+    { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
+    { key: "import", label: "Excel Import", icon: Upload, group: "Operations" },
+    { key: "notifications", label: "Notifications", icon: Bell, group: "Insights" },
+    { key: "outages", label: "Outages", icon: Zap, group: "Insights" },
+    { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
+    { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
+  ];
 
 function useHashView(): [ViewKey, (v: ViewKey) => void] {
   const [view, setView] = React.useState<ViewKey>("dashboard");
@@ -131,6 +133,16 @@ export function AppShell({
   const [mounted, setMounted] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useShortcutsHelp();
+  const {
+    isWarningOpen,
+    remainingSeconds,
+    idleTimeMs,
+    warningTimeMs,
+    resetIdleTimer,
+    logoutNow,
+  } = useIdleTimeout({
+    enabled: status === "authenticated",
+  });
 
   // Poll notifications unread count for the header bell badge.
   const { data: notifData } = useQuery<{ unreadCount: number }>({
@@ -155,12 +167,12 @@ export function AppShell({
 
   const user = session?.user as
     | {
-        name?: string | null;
-        email?: string | null;
-        role?: string;
-        companyName?: string;
-        companyCode?: string;
-      }
+      name?: string | null;
+      email?: string | null;
+      role?: string;
+      companyName?: string;
+      companyCode?: string;
+    }
     | undefined;
 
   const grouped = React.useMemo(() => {
@@ -378,7 +390,7 @@ export function AppShell({
                 <DropdownMenuItem
                   onSelect={async () => {
                     await signOut({ redirect: false });
-                    toast.success("Signed out");
+                    //toast.success("Signed out");
                   }}
                 >
                   <LogOut className="size-4" />
@@ -418,6 +430,14 @@ export function AppShell({
       />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       <ShortcutsHelp open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <IdleTimeoutModal
+        open={isWarningOpen}
+        remainingSeconds={remainingSeconds}
+        idleTimeMs={idleTimeMs}
+        warningTimeMs={warningTimeMs}
+        onStaySignedIn={resetIdleTimer}
+        onLogoutNow={logoutNow}
+      />
     </div>
   );
 }

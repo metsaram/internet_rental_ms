@@ -193,7 +193,7 @@ export function CommandPalette({
             onSelect={async () => {
               onOpenChange(false);
               await signOut({ redirect: false });
-              toast.success("Signed out");
+              //toast.success("Signed out");
             }}
             className="gap-2 text-rose-600"
           >

@@ -8,12 +8,11 @@ import { ViewTransition } from "@/components/shared/view-transition";
 import type { ViewKey } from "@/components/app-shell";
 import { Loader2 } from "lucide-react";
 
-// Phase 19 polish — Lazy-load views for code-splitting.
+import { DashboardView } from "@/components/views/dashboard";
+
+// Phase 19 polish — Lazy-load secondary views for code-splitting.
 // Each view is loaded on-demand only when the user navigates to it, reducing
 // the initial bundle size. The Dashboard is eagerly loaded (default view).
-const DashboardView = React.lazy(() =>
-  import("@/components/views/dashboard").then((m) => ({ default: m.DashboardView }))
-);
 const BranchesView = React.lazy(() =>
   import("@/components/views/branches").then((m) => ({ default: m.BranchesView }))
 );
@@ -71,7 +70,7 @@ const VALID_VIEWS: ViewKey[] = [
   "settings",
 ];
 
-const VIEW_COMPONENTS: Record<ViewKey, React.LazyExoticComponent<React.ComponentType>> = {
+const VIEW_COMPONENTS: Record<ViewKey, React.ComponentType> = {
   dashboard: DashboardView,
   branches: BranchesView,
   shops: ShopsView,
@@ -113,11 +112,7 @@ export default function Home() {
   }, []);
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div className="min-h-screen bg-background" />;
   }
 
   if (!session) {
@@ -129,9 +124,13 @@ export default function Home() {
   return (
     <AppShell>
       <ViewTransition viewKey={view}>
-        <React.Suspense fallback={<ViewLoader />}>
-          <ActiveView />
-        </React.Suspense>
+        {view === "dashboard" ? (
+          <DashboardView />
+        ) : (
+          <React.Suspense fallback={<ViewLoader />}>
+            <ActiveView />
+          </React.Suspense>
+        )}
       </ViewTransition>
     </AppShell>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Network, Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ const DEMO = [
 export function LoginScreen() {
   const router = useRouter();
   const params = useSearchParams();
+  const { update } = useSession();
   const [email, setEmail] = React.useState("admin@netrent.local");
   const [password, setPassword] = React.useState("admin12345");
   const [loading, setLoading] = React.useState(false);
@@ -50,8 +51,8 @@ export function LoginScreen() {
         return;
       }
       toast.success("Welcome back!");
+      await update();
       router.refresh();
-      setTimeout(() => window.location.reload(), 200);
     } finally {
       setLoading(false);
     }

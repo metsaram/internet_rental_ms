@@ -194,7 +194,6 @@ export function CommandPalette({
               onOpenChange(false);
               await signOut({ redirect: false });
               toast.success("Signed out");
-              setTimeout(() => window.location.reload(), 400);
             }}
             className="gap-2 text-rose-600"
           >

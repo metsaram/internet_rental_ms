@@ -122,7 +122,7 @@ export async function POST(req: Request) {
         data: {
           companyId: user.companyId,
           paymentDate: new Date(body.paymentDate),
-          amount: new Prisma.Decimal(body.amount),
+          amount: body.amount,
           currency: body.currency,
           method: body.method,
           reference: body.reference ?? null,
@@ -136,7 +136,7 @@ export async function POST(req: Request) {
           data: {
             paymentId: payment.id,
             invoiceId: a.invoiceId,
-            amount: new Prisma.Decimal(a.amount),
+            amount: a.amount,
           },
         });
       }

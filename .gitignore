@@ -47,7 +47,7 @@ local-*
 *.log
 dev.log
 dev.out.log
-test
+!test/
 prompt
 
 server.log
@@ -57,3 +57,8 @@ internet_rental_ms.code-workspace
 /scripts
 .env
 bun.lock
+
+/playwright-report/
+/test-results/
+/test
+/tests

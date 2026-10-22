@@ -393,33 +393,35 @@ function BranchForm({
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Code" required>
-            <Input isCode value={code} onChange={(e) => setCode(e.target.value)} />
+          <Field label="Code" htmlFor="branch-code" required>
+            <Input id="branch-code" isCode value={code} onChange={(e) => setCode(e.target.value)} />
           </Field>
-          <Field label="Name" required>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <Field label="Name" htmlFor="branch-name" required>
+            <Input id="branch-name" value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
         </div>
-        <Field label="Address">
-          <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+        <Field label="Address" htmlFor="branch-address">
+          <Input id="branch-address" value={address} onChange={(e) => setAddress(e.target.value)} />
         </Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="City">
-            <Input value={city} onChange={(e) => setCity(e.target.value)} />
+          <Field label="City" htmlFor="branch-city">
+            <Input id="branch-city" value={city} onChange={(e) => setCity(e.target.value)} />
           </Field>
-          <Field label="Manager">
+          <Field label="Manager" htmlFor="branch-manager">
             <Input
+              id="branch-manager"
               value={manager}
               onChange={(e) => setManager(e.target.value)}
             />
           </Field>
-          <Field label="Phone">
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <Field label="Phone" htmlFor="branch-phone">
+            <Input id="branch-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Email">
+          <Field label="Email" htmlFor="branch-email">
             <Input
+              id="branch-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

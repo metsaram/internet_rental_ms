@@ -104,6 +104,7 @@ export function Field({
   required,
   children,
   className,
+  htmlFor,
 }: {
   label: string;
   hint?: React.ReactNode;
@@ -111,10 +112,16 @@ export function Field({
   required?: boolean;
   children: React.ReactNode;
   className?: string;
+  htmlFor?: string;
 }) {
+  const childId = htmlFor ?? (React.isValidElement(children) ? (children.props as any)?.id : undefined);
+
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label className="text-xs font-medium text-foreground flex items-center gap-1">
+      <label
+        htmlFor={childId}
+        className="text-xs font-medium text-foreground flex items-center gap-1"
+      >
         {label}
         {required ? <span className="text-rose-500">*</span> : null}
       </label>

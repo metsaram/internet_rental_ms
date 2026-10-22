@@ -24,3 +24,13 @@
 - **Spreadsheet Processing**: SheetJS (`xlsx`) for tabular import and export
 - **Reverse Proxy / Local Gateway**: Caddyfile (Port 81 → 3000 mapping)
 - **Rate Limiting**: Token-bucket in-memory rate limiter with auto-cleanup
+
+## Testing & Quality Assurance
+- **Test Framework & Runner**: Vitest (v5+)
+- **DOM Environment**: JSDOM
+- **Component Testing**: `@testing-library/react` (React 19 support)
+- **Custom DOM Matchers**: `@testing-library/jest-dom`
+- **Simulated Interactions**: `@testing-library/user-event`
+- **Coverage Engine**: `@vitest/coverage-v8` (V8 code coverage provider)
+- **Component Verification Policy**: Mandatory automated test verification for all newly added UI, view, and shared components
+

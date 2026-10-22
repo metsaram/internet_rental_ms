@@ -11,6 +11,7 @@ Every AI agent operating in the NetRent repository must strictly execute the fol
 2. **Generation**
    - Produce requested output (code, config, documentation, explanation) based strictly on retrieved facts.
    - Enforce correctness via validation (linting, TypeScript compiler, schema checks).
+   - **Mandatory Component Test Verification**: Every newly generated UI or shared component must include a verifying test file (`*.test.tsx`) with Vitest, `@testing-library/react`, and `@testing-library/jest-dom`. Validate with `bun run test:run`.
    - Never hallucinate APIs or structures.
 
 3. **Database Migration**
@@ -49,3 +50,5 @@ Every AI agent operating in the NetRent repository must strictly execute the fol
 4. **Dev Server Restart on Schema Change**: Turbopack caches the generated client; restart `bun run dev` after `prisma db push` / `prisma generate`.
 5. **Mandatory Company Scope**: Guard all route handlers with `requireUser()` or `requireAdmin()` from `@/lib/session` and scope all queries by `user.companyId`.
 6. **Audit All Mutations**: Call `writeAudit()` on every create/update/delete operation with sensitive field redaction.
+7. **Mandatory Component Test Verification**: Every new component added to the codebase must be accompanied by a verifying test suite (`*.test.tsx`) asserting proper rendering, user interactions, and DOM state using Vitest, React Testing Library, and jest-dom.
+

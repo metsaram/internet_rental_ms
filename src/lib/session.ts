@@ -78,8 +78,9 @@ export function errorResponse(err: unknown) {
     });
   }
   console.error("[api] unhandled error:", err);
+  const detail = err instanceof Error ? err.message : String(err);
   return new Response(
-    JSON.stringify({ error: "Internal server error" }),
+    JSON.stringify({ error: detail || "Internal server error" }),
     { status: 500, headers: { "content-type": "application/json" } }
   );
 }

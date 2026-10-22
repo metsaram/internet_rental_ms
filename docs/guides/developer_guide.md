@@ -31,6 +31,14 @@ bun run dev
 |---|---|---|
 | Dev Server | `bun run dev` | Runs Next.js with Turbopack on port 3000 |
 | Lint | `bun run lint` | Runs ESLint checks |
+| Test (Interactive) | `bun run test` | Runs Vitest in interactive watch mode |
+| Test (Single Run) | `bun run test:run` | Runs all unit/component test suites once |
+| Test (Coverage) | `bun run test:coverage` | Runs tests and generates V8 code coverage report |
+| E2E Tests | `bun run test:e2e` | Runs all Playwright E2E tests headless |
+| E2E UI Mode | `bun run test:e2e:ui` | Interactive Playwright test runner UI |
+| E2E Headed | `bun run test:e2e:headed` | Runs tests in a visible browser window |
+| E2E Debug | `bun run test:e2e:debug` | Runs tests in Playwright Inspector debug mode |
+| E2E Report | `bun run test:e2e:report` | Serves HTML test report with traces & screenshots |
 | DB Push | `bun run db:push` | Pushes Prisma schema directly to DB |
 | DB Migrate | `bun run db:migrate` | Runs development migrations |
 | DB Deploy | `bun run db:deploy` | Applies checked-in production migrations |
@@ -83,5 +91,65 @@ The centralized Global Validator (`@/lib/global-validator` or `@/lib/validation`
 - **API Layer**: `parseJsonBody()` in `@/lib/session` normalizes and validates code fields in incoming payloads, rejecting code exceeding 100 characters or containing disallowed special characters with 400 `ValidationError`, while preserving non-code fields.
 - **Database Layer**: Prisma Client extension in `@/lib/db` intercepts `create`, `update`, `upsert`, `createMany`, and `updateMany` queries to sanitize, truncate to 100 chars, and uppercase code fields prior to persistence.
 - **Import Layer**: `coerceValue()` in `@/lib/import-fields` enforces uppercase, 100-character max length, and validation on spreadsheet cells matching code fields.
+
+#### 6. Mandatory Component Test Verification
+Every newly added UI, view, or shared component **MUST** be accompanied by a dedicated test file to guarantee correctness and prevent regressions.
+
+- **Test Framework**: Vitest with `@testing-library/react`, `@testing-library/jest-dom`, and `@testing-library/user-event`.
+- **Test File Location**: Either co-located adjacent to the component (`[component-name].test.tsx`) or inside `test/` (`test/[component-name].test.tsx`).
+- **Required Verification**:
+  1. **Rendering**: Component mounts cleanly into JSDOM without runtime errors or uncaught exceptions.
+  2. **Props & States**: Prop variations, loading/empty states, and conditional UI branches render as expected.
+  3. **User Events**: Clicks, typing, form submissions, and dialog triggers fire their intended callbacks (use `userEvent.setup()`).
+  4. **Accessibility & Assertions**: Use `@testing-library/jest-dom` assertions such as `.toBeInTheDocument()`, `.toHaveAttribute()`, `.toHaveTextContent()`, and accessible queries like `screen.getByRole()`.
+- **Example Component Test Template**:
+  ```tsx
+  import { describe, it, expect, vi } from 'vitest';
+  import { render, screen } from '@testing-library/react';
+  import userEvent from '@testing-library/user-event';
+  import { MyComponent } from '@/components/shared/my-component';
+
+  describe('MyComponent', () => {
+    it('renders with default props and handles interaction', async () => {
+      const user = userEvent.setup();
+      const handleClick = vi.fn();
+
+      render(<MyComponent label="Submit" onClick={handleClick} />);
+
+      const button = screen.getByRole('button', { name: /submit/i });
+      expect(button).toBeInTheDocument();
+
+      await user.click(button);
+      expect(handleClick).toHaveBeenCalledTimes(1);
+    });
+  });
+  ```
+- **Validation**: Run `bun run test:run` locally before submitting any pull request or finishing any task.
+
+#### 7. Playwright E2E Testing Workflow
+Production end-to-end tests are located in `tests/` and cover critical paths:
+- **Test Suites**:
+  - `tests/smoke/`: API health endpoint, 404 page, brand layout, and shell navigation.
+  - `tests/auth/`: Login form validation, error states, session persistence, and logout.
+  - `tests/dashboard/`: KPI cards, status metrics, charts, and data refreshes.
+  - `tests/tenants/`: Branch/Tenant CRUD operations with code validation.
+  - `tests/invoices/`: Invoice creation, automated calculations (Subtotal + Tax - Discount), and history inspection.
+  - `tests/payments/`: Payment rules validation and recording with balance recalculation.
+  - `tests/visual/`: Visual regression screenshot testing (`toHaveScreenshot()`).
+- **Best Practices**:
+  - **Preferred Selectors**: Use `page.getByRole(...)`, `page.getByLabel(...)`, and `page.getByText(...)`. Avoid fragile CSS classes.
+  - **Navigation**: Always specify `{ waitUntil: 'domcontentloaded' }` on `page.goto()`.
+  - **Form Accessibility**: Ensure dialog fields have explicit `htmlFor` and matching child input `id` attributes.
+  - **Updating Visual Baselines**:
+    ```bash
+    bun run test:e2e -- --update-snapshots
+    ```
+  - **Debugging Tests**:
+    ```bash
+    bun run test:e2e:ui      # Interactive UI mode
+    bun run test:e2e:debug   # Step-by-step inspector
+    bun run test:e2e:report  # Open HTML test report
+    ```
+
 
 

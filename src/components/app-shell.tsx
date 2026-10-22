@@ -379,10 +379,6 @@ export function AppShell({
                   onSelect={async () => {
                     await signOut({ redirect: false });
                     toast.success("Signed out");
-                    setTimeout(
-                      () => window.location.reload(),
-                      400
-                    );
                   }}
                 >
                   <LogOut className="size-4" />

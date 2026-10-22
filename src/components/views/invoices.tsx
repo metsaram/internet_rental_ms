@@ -472,21 +472,27 @@ function InvoiceForm({
     setError(null);
     if (!contractId) return setError("Please select a contract");
     if (!invoiceNumber.trim()) return setError("Invoice number is required");
-    await onSubmit({
-      contractId,
-      invoiceNumber: invoiceNumber.trim(),
-      invoiceDate,
-      periodStart: periodStart || null,
-      periodEnd: periodEnd || null,
-      subtotal: Number(subtotal),
-      tax: Number(tax),
-      discount: Number(discount),
-      total,
-      currency: cur,
-      status,
-      dueDate: dueDate || null,
-      notes: notes.trim() || null,
-    });
+    try {
+      await onSubmit({
+        contractId,
+        invoiceNumber: invoiceNumber.trim(),
+        invoiceDate,
+        periodStart: periodStart || null,
+        periodEnd: periodEnd || null,
+        subtotal: Number(subtotal),
+        tax: Number(tax),
+        discount: Number(discount),
+        total,
+        currency: cur,
+        status,
+        dueDate: dueDate || null,
+        notes: notes.trim() || null,
+      });
+    } catch (e) {
+      console.error("[InvoiceForm submit error]:", e);
+      setError((e as Error).message);
+      throw e;
+    }
   };
 
   return (
@@ -519,8 +525,8 @@ function InvoiceForm({
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Invoice number" required>
-            <Input isCode value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+          <Field label="Invoice number" htmlFor="inv-number" required>
+            <Input id="inv-number" isCode value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
           </Field>
           <Field label="Status">
             <Select value={status} onValueChange={setStatus}>
@@ -533,32 +539,32 @@ function InvoiceForm({
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="Invoice date" required>
-            <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+          <Field label="Invoice date" htmlFor="inv-date" required>
+            <Input id="inv-date" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
           </Field>
-          <Field label="Due date">
-            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <Field label="Due date" htmlFor="inv-due-date">
+            <Input id="inv-due-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </Field>
-          <Field label="Period start">
-            <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          <Field label="Period start" htmlFor="inv-period-start">
+            <Input id="inv-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
           </Field>
-          <Field label="Period end">
-            <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          <Field label="Period end" htmlFor="inv-period-end">
+            <Input id="inv-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
           </Field>
         </div>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="Subtotal" required>
-            <Input type="number" min={0} step="0.01" value={subtotal} onChange={(e) => setSubtotal(Number(e.target.value))} />
+          <Field label="Subtotal" htmlFor="inv-subtotal" required>
+            <Input id="inv-subtotal" type="number" min={0} step="0.01" value={subtotal} onChange={(e) => setSubtotal(Number(e.target.value))} />
           </Field>
-          <Field label="Tax / VAT">
-            <Input type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(Number(e.target.value))} />
+          <Field label="Tax / VAT" htmlFor="inv-tax">
+            <Input id="inv-tax" type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(Number(e.target.value))} />
           </Field>
-          <Field label="Discount">
-            <Input type="number" min={0} step="0.01" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
+          <Field label="Discount" htmlFor="inv-discount">
+            <Input id="inv-discount" type="number" min={0} step="0.01" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
           </Field>
-          <Field label="Currency">
-            <Input value={cur} maxLength={3} onChange={(e) => setCur(e.target.value.toUpperCase())} />
+          <Field label="Currency" htmlFor="inv-currency">
+            <Input id="inv-currency" value={cur} maxLength={3} onChange={(e) => setCur(e.target.value.toUpperCase())} />
           </Field>
         </div>
 
@@ -840,11 +846,11 @@ function RecordPaymentDialog({
           </div>
         )}
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Payment date" required>
-            <Input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+          <Field label="Payment date" htmlFor="pay-date" required>
+            <Input id="pay-date" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
           </Field>
-          <Field label="Amount" required>
-            <Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+          <Field label="Amount" htmlFor="pay-amount" required>
+            <Input id="pay-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-4">
@@ -856,12 +862,12 @@ function RecordPaymentDialog({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Reference">
-            <Input isCode value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bank slip / card last 4" />
+          <Field label="Reference" htmlFor="pay-reference">
+            <Input id="pay-reference" isCode value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bank slip / card last 4" />
           </Field>
         </div>
-        <Field label="Notes">
-          <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <Field label="Notes" htmlFor="pay-notes">
+          <Textarea id="pay-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
         {saving && <p className="text-xs text-muted-foreground">Saving...</p>}
       </div>

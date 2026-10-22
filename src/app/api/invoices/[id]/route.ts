@@ -112,10 +112,10 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.invoiceDate) data.invoiceDate = new Date(body.invoiceDate);
     if (body.periodStart !== undefined) data.periodStart = body.periodStart ? new Date(body.periodStart) : null;
     if (body.periodEnd !== undefined) data.periodEnd = body.periodEnd ? new Date(body.periodEnd) : null;
-    if (body.subtotal !== undefined) data.subtotal = new Prisma.Decimal(body.subtotal);
-    if (body.tax !== undefined) data.tax = new Prisma.Decimal(body.tax);
-    if (body.discount !== undefined) data.discount = new Prisma.Decimal(body.discount);
-    if (body.total !== undefined) data.total = new Prisma.Decimal(body.total);
+    if (body.subtotal !== undefined) data.subtotal = body.subtotal;
+    if (body.tax !== undefined) data.tax = body.tax;
+    if (body.discount !== undefined) data.discount = body.discount;
+    if (body.total !== undefined) data.total = body.total;
     if (body.currency) data.currency = body.currency;
     if (body.status) data.status = body.status;
     if (body.dueDate !== undefined) data.dueDate = body.dueDate ? new Date(body.dueDate) : null;

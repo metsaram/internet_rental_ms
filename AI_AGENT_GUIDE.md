@@ -95,6 +95,26 @@ When a task involves schema changes:
   - Clear description of changes (columns, constraints, indexes)
 - Ensure naming convention matches `table_name` and the `yyyy-mm-dd` timestamp format.
 
+### Rule 8: Mandatory Component Test Verification
+
+Every new component added to the codebase (under `src/components/**` or views) **MUST** be accompanied by a verifying test suite (`*.test.tsx`).
+- Tests must use **Vitest**, `@testing-library/react`, `@testing-library/jest-dom`, and `@testing-library/user-event`.
+- The test suite must verify:
+  1. Component renders correctly into JSDOM.
+  2. User interactions (clicks, keypresses, input changes) invoke expected handlers/callbacks.
+  3. Critical prop variations and fallback states display appropriately.
+  4. DOM assertions and accessibility roles match expectations (`toBeInTheDocument()`, `toHaveRole()`, etc.).
+- All tests must pass cleanly via `bun run test:run` before a task is considered complete.
+
+### Rule 9: Playwright E2E Testing Standards & Architecture
+
+All critical user flows (Smoke, Auth, Dashboard, CRUD operations, Invoices, Payments, Visual Regression) must be maintained and verified with Playwright E2E tests under `tests/**`.
+- **Selectors**: Prefer accessible locators (`page.getByRole(...)`, `page.getByLabel(...)`, `page.getByText(...)`). Avoid fragile CSS classes.
+- **Timing & Navigation**: Always use `{ waitUntil: 'domcontentloaded' }` when navigating via `page.goto()`. Avoid arbitrary `page.waitForTimeout()`; rely on web-first assertions like `expectToast(page, ...)`, `toBeVisible({ timeout })`, and `waitForLoading(page)`.
+- **Form Accessibility**: All dialog form fields must have explicit `htmlFor` and matching child input `id` attributes.
+- **Prisma & Decimal Handling**: In Next.js route handlers, pass numbers or string values directly to Prisma Decimal fields (`subtotal: body.subtotal`) rather than `new Prisma.Decimal()` to prevent bundler serializer errors.
+- **Execution**: Run all tests via `bun run test:e2e` (`playwright test`).
+
 ---
 
 ## 3. Directory Structure
@@ -644,6 +664,7 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 2. **Generation**
    - Produce requested output (code, config, documentation, explanation) using retrieved context.
    - Ensure correctness by applying validation (linting, schema checks, test cases).
+   - **Component Test Verification Requirement**: Every new component added to the codebase MUST include a dedicated test file (`*.test.tsx`) verifying rendering, props, and interactions using Vitest, `@testing-library/react`, and `@testing-library/jest-dom`. Validate using `bun run test:run`.
    - Never hallucinate APIs or structures — rely on retrieved docs.
 
 3. **Database Migration**
@@ -673,6 +694,20 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 ---
 
 ### Task Log
+
+#### [2026-10-22T21:45:00+07:00] Complete Playwright E2E Testing Infrastructure & Production CI/CD
+- **Task description**: Implement a complete Playwright E2E testing infrastructure for Next.js 16 + React 19 + Prisma app, including 7 test suites (Smoke, Auth, Dashboard, Tenants CRUD, Invoices, Payments, Visual Regression), helper utilities (`auth-helper.ts`, `page-helper.ts`), fixtures (`test-data.ts`), global health setup, GitHub Actions workflow (`.github/workflows/playwright.yml`), and package.json scripts.
+- **Context used**: `playwright.config.ts`, `package.json`, `.github/workflows/playwright.yml`, `tests/**`, `src/**`.
+- **Output generated**: Configured Playwright with 5 device profiles, single-worker local execution, automatic dev server startup, HTML/trace/video reporting, and visual screenshot testing. Fixed Prisma Decimal serialization in invoices/payments API handlers, enhanced `Field` form accessibility, resolved Vitest/Playwright runner collision, and verified 26/26 tests passing end-to-end.
+- **Timestamp**: 2026-10-22T21:45:00+07:00
+- **Status**: Completed
+
+#### [2026-10-22T20:35:00+07:00] Vitest Testing Infrastructure & Mandatory Component Test Verification Policy
+- **Task description**: Configure complete Vitest testing infrastructure (Vitest, coverage-v8, jsdom, React Testing Library, jest-dom, user-event, `vitest.config.ts`, `test/setup.ts`, test npm scripts) and establish mandatory policy requiring all new components to include verifying tests.
+- **Context used**: `package.json`, `vitest.config.ts`, `test/setup.ts`, `test/infrastructure.test.tsx`, `AI_AGENT_GUIDE.md`, `docs/`.
+- **Output generated**: Configured Vitest test runner with JSDOM, React plugin, V8 coverage, App Router mocks, and path aliases. Added Rule 8 in `AI_AGENT_GUIDE.md` and updated `docs/guides/developer_guide.md`, `docs/guides/ai_agent_guide.md`, `docs/overview/tech_stack.md`, `docs/changelog/2026-10.md`, and `docs/task_logs/2026-10-22.md`.
+- **Timestamp**: 2026-10-22T20:35:00+07:00
+- **Status**: Completed
 
 #### [2026-10-20T21:57:30+07:00] Legacy Documentation Audit
 - **Task description**: Audit repository for legacy documentation, historical prompt packs, monolithic logs, and obsolete environment notes.

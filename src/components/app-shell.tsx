@@ -84,7 +84,8 @@ const NAV: Array<{
     { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
     { key: "import", label: "Excel Import", icon: Upload, group: "Operations" },
     { key: "notifications", label: "Notifications", icon: Bell, group: "Insights" },
-    { key: "outages", label: "Outages", icon: Zap, group: "Insights" },
+    // Temporarily disabled until MikroTik API integration is implemented
+    // { key: "outages", label: "Outages", icon: Zap, group: "Insights" },
     { key: "reports", label: "Reports", icon: BarChart3, group: "Insights" },
     { key: "settings", label: "Settings", icon: Settings, group: "Insights" },
   ];

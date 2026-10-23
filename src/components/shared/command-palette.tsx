@@ -47,7 +47,8 @@ const NAV_ITEMS = [
   { key: "renewals", label: "Contract Renewals", icon: RefreshCw, group: "Navigate" },
   { key: "import", label: "Excel Import", icon: Upload, group: "Navigate" },
   { key: "notifications", label: "Notifications", icon: Bell, group: "Navigate" },
-  { key: "outages", label: "Outages", icon: Zap, group: "Navigate" },
+  // Temporarily disabled until MikroTik API integration is implemented
+  // { key: "outages", label: "Outages", icon: Zap, group: "Navigate" },
   { key: "reports", label: "Reports", icon: BarChart3, group: "Navigate" },
   { key: "settings", label: "Settings", icon: Settings, group: "Navigate" },
 ];

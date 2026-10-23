@@ -409,7 +409,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:py-8 lg:pb-8">
+        <main className="flex-1 px-4 py-6 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px)*0.65)] lg:px-8 lg:py-8 lg:pb-8">
           <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
         </main>
 
@@ -490,7 +490,7 @@ function SidebarFooter({
     <div
       className="border-t px-3 py-3"
       style={{
-        paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "max(0.75rem, calc(env(safe-area-inset-bottom, 0px) * 0.65))",
         paddingLeft: "max(0.75rem, env(safe-area-inset-left, 0px))",
       }}
     >

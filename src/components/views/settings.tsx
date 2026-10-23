@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Building2, ShieldCheck, UserCircle2, Save, Lock, Bell, Clock, Database, FileCheck, Activity, Plus } from "lucide-react";
+import { Building2, ShieldCheck, UserCircle2, Save, Lock, Bell, Clock, Database, FileCheck, Activity, Plus, CheckCircle2, AlertCircle, AlertTriangle, Info, Sparkles } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -255,6 +255,96 @@ export function SettingsView() {
                   redacted in lists, exports, and audit logs.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Bell className="size-4 text-primary" />
+                Toast Notifications (Sonner)
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Preview toasts with theme styling, action buttons, and responsive layout.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="toast-success-btn"
+                  className="text-xs justify-start gap-1.5 h-8"
+                  onClick={() =>
+                    toast.success("Contract renewed successfully", {
+                      description: "CNT-2026-004 extended for 12 months.",
+                    })
+                  }
+                >
+                  <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Success
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="toast-error-btn"
+                  className="text-xs justify-start gap-1.5 h-8"
+                  onClick={() =>
+                    toast.error("Payment failed", {
+                      description: "Transaction #TX-9021 declined.",
+                    })
+                  }
+                >
+                  <AlertCircle className="size-3.5 text-destructive" />
+                  Error
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="toast-warning-btn"
+                  className="text-xs justify-start gap-1.5 h-8"
+                  onClick={() =>
+                    toast.warning("Service outage warning", {
+                      description: "4 shops in Sector 7 experiencing high latency.",
+                    })
+                  }
+                >
+                  <AlertTriangle className="size-3.5 text-amber-500" />
+                  Warning
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="toast-info-btn"
+                  className="text-xs justify-start gap-1.5 h-8"
+                  onClick={() =>
+                    toast.info("Invoice generated", {
+                      description: "INV-2026-088 ready for review.",
+                    })
+                  }
+                >
+                  <Info className="size-3.5 text-blue-500" />
+                  Info
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="toast-action-btn"
+                className="w-full text-xs justify-start gap-1.5 h-8"
+                onClick={() =>
+                  toast("Contract archived", {
+                    description: "You can restore this contract anytime.",
+                    action: {
+                      label: "Undo",
+                      onClick: () => toast.success("Contract restored!"),
+                    },
+                  })
+                }
+              >
+                <Sparkles className="size-3.5 text-primary" />
+                Toast with Action
+              </Button>
             </CardContent>
           </Card>
         </div>

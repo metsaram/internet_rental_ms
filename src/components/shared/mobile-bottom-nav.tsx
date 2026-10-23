@@ -39,7 +39,7 @@ export function MobileBottomNav({
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t bg-background/95 backdrop-blur lg:hidden"
       style={{
-        paddingBottom: "max(0.25rem, env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom, 0px) * 0.65))",
         paddingLeft: "env(safe-area-inset-left, 0px)",
         paddingRight: "env(safe-area-inset-right, 0px)",
       }}
@@ -53,7 +53,7 @@ export function MobileBottomNav({
             key={item.key}
             onClick={() => onNavigate(item.key)}
             className={cn(
-              "relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors select-none touch-manipulation",
+              "relative flex flex-1 flex-col items-center justify-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors select-none touch-manipulation",
               isActive
                 ? "text-primary"
                 : "text-muted-foreground hover:text-foreground active:text-foreground"
@@ -69,7 +69,7 @@ export function MobileBottomNav({
       <button
         onClick={onMore}
         className={cn(
-          "relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors select-none touch-manipulation",
+          "relative flex flex-1 flex-col items-center justify-center gap-0.5 pt-2 pb-1 text-[10px] font-medium transition-colors select-none touch-manipulation",
           !isPrimary ? "text-primary" : "text-muted-foreground hover:text-foreground active:text-foreground"
         )}
       >

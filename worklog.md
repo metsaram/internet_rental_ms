@@ -1057,3 +1057,32 @@ Task: Print-friendly invoice template + lazy-load views for code-splitting.
   invoice template, (c) query prefetching on nav hover for instant view
   loads, or (d) a "recently viewed records" (not just views) section in the
   command palette.
+
+## Sonner Toast Configuration & Responsive Theme Integration
+
+### What was done:
+1. **Providers & Theme Synchronization (`src/app/layout.tsx` & `src/components/ui/sonner.tsx`)**:
+   - Fixed `<Toaster />` location in `src/app/layout.tsx` by placing it inside `<AppProviders>` so `useTheme()` can react dynamically to theme mode changes (`light` <-> `dark`).
+   - Configured theme resolution (`(theme === 'system' ? resolvedTheme : theme)`) to pass resolved themes directly to Sonner.
+   - Configured `closeButton` and `richColors` enabled by default.
+2. **Mobile & Web Responsive Positioning (`src/components/ui/sonner.tsx` & `src/app/globals.css`)**:
+   - Added smart mobile safe-area offsets:
+     - Top: `calc(env(safe-area-inset-top, 0px) + 4.25rem)` (clears the sticky mobile topbar and iOS dynamic island / notch).
+     - Bottom: `calc(env(safe-area-inset-bottom, 0px) + 5.5rem)` (clears the `MobileBottomNav`).
+     - Horizontal margins: `max(1rem, env(safe-area-inset-left, 0px))` so toasts never clip screen edges.
+   - Preserved desktop top-right placement with 1.25rem margins.
+3. **Emerald & Slate Color Palette Alignment & Blur Effect (`src/app/globals.css` & `src/components/ui/sonner.tsx`)**:
+   - Added custom CSS color tokens matching NetRent's brand palette for `--toast-success-*`, `--toast-error-*`, `--toast-warning-*`, and `--toast-info-*` across both `:root` and `.dark` mode with alpha channel (82%–85%).
+   - Configured `backdrop-filter: blur(16px) saturate(180%)` (and `-webkit-backdrop-filter`) for a premium frosted glass effect on all toast variants.
+   - Standard toasts use `--toast-normal-bg` with blur effect while keeping text and actions razor sharp.
+   - Typography enforced to `--font-sans` (`GeistSans`).
+4. **Compatibility & Unified Re-exports (`src/components/ui/toast.tsx`, `src/components/ui/toaster.tsx`, `src/components/ui/sonner.tsx`)**:
+   - `export { Toaster, toast }` from `@/components/ui/sonner`.
+   - Re-exported `toast` from `sonner` in `@/components/ui/toast.tsx` so any import source (`from "sonner"`, `from "@/components/ui/sonner"`, or `from "@/components/ui/toast"`) works seamlessly.
+   - Re-exported `Toaster` from `@/components/ui/sonner` in `@/components/ui/toaster.tsx`.
+5. **Interactive UI Playground (`src/components/views/settings.tsx`)**:
+   - Added an interactive "Toast Notifications (Sonner)" card in the Settings view to test Success, Error, Warning, Info, and Action toasts.
+6. **E2E Test Suite (`tests/ui/toast.spec.ts`)**:
+   - Verified on Chromium (Web desktop) and Mobile Chrome (Pixel 5 mobile device emulation).
+   - All tests passing.
+

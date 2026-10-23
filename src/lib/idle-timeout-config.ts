@@ -22,7 +22,7 @@ export interface IdleTimeoutConfiguration {
 }
 
 export const IDLE_TIMEOUT_CONFIG: IdleTimeoutConfiguration = {
-  idleTimeMs: 2 * 60 * 1000, // 2 minutes (or 15 * 60 * 1000 for 15 minutes)
+  idleTimeMs: 5 * 60 * 1000, // 2 minutes (or 15 * 60 * 1000 for 15 minutes)
   warningTimeMs: 60 * 1000,    // 1 minute warning
 };
 

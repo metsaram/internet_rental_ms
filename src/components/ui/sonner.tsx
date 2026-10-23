@@ -18,8 +18,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       offset={props.offset ?? "1.25rem"}
       mobileOffset={
         props.mobileOffset ?? {
-          top: "calc(env(safe-area-inset-top, 0px) + 4.25rem)",
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 5.5rem)",
+          top: "1rem",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) * 0.65 + 4.5rem)",
           left: "max(1rem, env(safe-area-inset-left, 0px))",
           right: "max(1rem, env(safe-area-inset-right, 0px))",
         }

@@ -290,13 +290,7 @@ export function AppShell({
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header
-          className="sticky top-0 z-30 flex items-center gap-3 border-b bg-background/85 px-4 backdrop-blur lg:px-6"
-          style={{
-            paddingTop: "env(safe-area-inset-top, 0px)",
-            minHeight: "calc(3.5rem + env(safe-area-inset-top, 0px))",
-          }}
-        >
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur lg:px-6">
           <Button
             variant="ghost"
             size="icon"
@@ -473,13 +467,7 @@ export function AppShell({
 
 function SidebarBrand({ onClose }: { onClose?: () => void }) {
   return (
-    <div
-      className="flex shrink-0 items-center gap-2 border-b px-5 py-4"
-      style={{
-        paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
-        paddingLeft: "max(1.25rem, env(safe-area-inset-left, 0px))",
-      }}
-    >
+    <div className="flex shrink-0 items-center gap-2 border-b px-5 py-4">
       <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
         <Network className="size-5" />
       </div>

@@ -245,7 +245,7 @@
 
 @media (max-width: 600px) {
   [data-sonner-toaster] {
-    --mobile-offset-top: calc(env(safe-area-inset-top, 0px) + 4.25rem);
+    --mobile-offset-top: 1rem;
     --mobile-offset-bottom: calc(env(safe-area-inset-bottom, 0px) * 0.65 + 4.5rem);
     --mobile-offset-left: max(1rem, env(safe-area-inset-left, 0px));
     --mobile-offset-right: max(1rem, env(safe-area-inset-right, 0px));

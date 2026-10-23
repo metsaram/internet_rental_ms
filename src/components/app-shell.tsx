@@ -186,12 +186,27 @@ export function AppShell({
     return Array.from(map.entries());
   }, []);
 
+  // Prevent body scroll when mobile drawer is open
+  React.useEffect(() => {
+    if (!mobileOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileOpen]);
+
   return (
     <div className="flex min-h-screen w-full bg-background text-foreground">
       {/* Sidebar (desktop) */}
-      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground">
+      <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground sticky top-0 h-screen h-dvh self-start z-20">
         <SidebarBrand />
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3 py-4 space-y-6">
           {grouped.map(([group, items]) => (
             <div key={group} className="space-y-1">
               <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
@@ -224,14 +239,20 @@ export function AppShell({
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div
+          className="fixed inset-0 z-50 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+        >
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/50 touch-none"
             onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
           />
           <aside className="absolute left-0 top-0 h-full h-dvh w-72 max-w-[85%] bg-sidebar text-sidebar-foreground flex flex-col shadow-xl">
             <SidebarBrand onClose={() => setMobileOpen(false)} />
-            <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+            <nav className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain px-3 py-4 space-y-6">
               {grouped.map(([group, items]) => (
                 <div key={group} className="space-y-1">
                   <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
@@ -453,7 +474,7 @@ export function AppShell({
 function SidebarBrand({ onClose }: { onClose?: () => void }) {
   return (
     <div
-      className="flex items-center gap-2 border-b px-5 py-4"
+      className="flex shrink-0 items-center gap-2 border-b px-5 py-4"
       style={{
         paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
         paddingLeft: "max(1.25rem, env(safe-area-inset-left, 0px))",
@@ -488,7 +509,7 @@ function SidebarFooter({
 }) {
   return (
     <div
-      className="border-t px-3 py-3"
+      className="shrink-0 border-t px-3 py-3"
       style={{
         paddingBottom: "max(0.75rem, calc(env(safe-area-inset-bottom, 0px) * 0.65))",
         paddingLeft: "max(0.75rem, env(safe-area-inset-left, 0px))",

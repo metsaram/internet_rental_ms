@@ -37,11 +37,12 @@ export function MobileBottomNav({
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t bg-background/95 backdrop-blur lg:hidden"
+      className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-border/60 bg-background/75 backdrop-blur-xl saturate-150 lg:hidden shadow-xs"
       style={{
         paddingBottom: "max(0.25rem, calc(env(safe-area-inset-bottom, 0px) * 0.65))",
         paddingLeft: "env(safe-area-inset-left, 0px)",
         paddingRight: "env(safe-area-inset-right, 0px)",
+        WebkitBackdropFilter: "blur(20px) saturate(160%)",
       }}
       aria-label="Mobile navigation"
     >

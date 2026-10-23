@@ -245,20 +245,19 @@ export function SettingsView() {
               <SecRow icon={Clock} label="Rate limiting" value="10 auth attempts / min per email" />
               <SecRow icon={FileCheck} label="Security headers" value="CSP · X-Frame-Options · HSTS" />
               <SecRow icon={Bell} label="Notifications" value="Renewal + invoice thresholds (30d/7d)" />
-              <SecRow icon={Database} label="Storage" value="Decimal money · opaque file keys" />
+              {/* <SecRow icon={Database} label="Storage" value="Decimal money · opaque file keys" /> */}
               <SecRow icon={Activity} label="Audit log" value="All mutations logged + redacted" />
-              <div className="border-t pt-2 text-[11px] text-muted-foreground">
+              {/* <div className="border-t pt-2 text-[11px] text-muted-foreground">
                 <p>
-                  Single-tenant demo covering Phases 00–17 of the
-                  implementation plan. Money uses <code>Decimal</code>
+                  Single-tenant architecture. Money uses <code>Decimal</code>
                   precision; ISP credentials are stored server-side and
                   redacted in lists, exports, and audit logs.
                 </p>
-              </div>
+              </div> */}
             </CardContent>
           </Card>
 
-          <Card>
+          {/* <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-sm">
                 <Bell className="size-4 text-primary" />
@@ -346,7 +345,7 @@ export function SettingsView() {
                 Toast with Action
               </Button>
             </CardContent>
-          </Card>
+          </Card> */}
         </div>
       </div>
 

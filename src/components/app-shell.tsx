@@ -436,7 +436,7 @@ export function AppShell({
               System
             </span>
             <span className="text-muted-foreground/70">
-              Demo build · scoped to {user?.companyCode ?? "—"} · press{" "}
+              Scoped to {user?.companyCode ?? "—"} · press{" "}
               <kbd className="rounded border bg-muted px-1 py-0.5 text-[10px] font-medium">
                 ⌘K
               </kbd>{" "}

@@ -10,27 +10,12 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { resetIdleTimeoutStorage } from "@/lib/idle-timeout-config";
 
-const DEMO = [
-  {
-    role: "Admin",
-    email: "admin@netrent.local",
-    password: "admin12345",
-    desc: "Full access: manage branches, shops, providers, plans, services, contracts, settings.",
-  },
-  {
-    role: "Staff",
-    email: "staff@netrent.local",
-    password: "staff12345",
-    desc: "Operational access: browse and update day-to-day records.",
-  },
-];
-
 export function LoginScreen() {
   const router = useRouter();
   const params = useSearchParams();
   const { update } = useSession();
-  const [email, setEmail] = React.useState("admin@netrent.local");
-  const [password, setPassword] = React.useState("admin12345");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -105,7 +90,7 @@ export function LoginScreen() {
             </ul>
           </div>
           <p className="text-xs text-primary-foreground/60">
-            © {new Date().getFullYear()} NetRent · Demo build
+            © {new Date().getFullYear()} NetRent
           </p>
         </div>
 
@@ -116,7 +101,7 @@ export function LoginScreen() {
               Sign in to your workspace
             </h1>
             <p className="text-sm text-muted-foreground">
-              Use a demo account below or your own credentials.
+              Enter your credentials to continue.
             </p>
           </div>
 
@@ -167,38 +152,6 @@ export function LoginScreen() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6 space-y-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Demo accounts
-            </p>
-            <div className="grid gap-2">
-              {DEMO.map((d) => (
-                <button
-                  key={d.role}
-                  type="button"
-                  onClick={() => {
-                    setEmail(d.email);
-                    setPassword(d.password);
-                  }}
-                  className="group rounded-lg border bg-muted/30 px-3 py-2 text-left transition hover:border-primary/40 hover:bg-muted/60"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{d.role}</span>
-                    <span className="text-[11px] text-muted-foreground group-hover:text-primary">
-                      click to fill
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {d.email} · {d.password}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground/80">
-                    {d.desc}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

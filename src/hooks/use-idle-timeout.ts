@@ -5,6 +5,9 @@ import { signOut } from "next-auth/react";
 import { toast } from "sonner";
 import {
   IDLE_TIMEOUT_CONFIG,
+  IDLE_STORAGE_KEY,
+  resetIdleTimeoutStorage,
+  clearIdleTimeoutStorage,
   formatDurationMs,
   formatTimerSeconds,
 } from "@/lib/idle-timeout-config";
@@ -19,8 +22,6 @@ export interface UseIdleTimeoutOptions {
   /** Whether the idle timer is enabled (e.g. only when authenticated) */
   enabled?: boolean;
 }
-
-const STORAGE_KEY = "netrent_last_active_timestamp";
 
 /**
  * Custom hook tracking user inactivity across tabs.
@@ -57,6 +58,9 @@ export function useIdleTimeout({
     isTimedOutRef.current = true;
     setIsWarningOpen(false);
 
+    // Clear stored timestamp so subsequent logins/sessions start clean
+    clearIdleTimeoutStorage();
+
     if (onTimeoutRef.current) {
       await onTimeoutRef.current();
     } else {
@@ -73,11 +77,7 @@ export function useIdleTimeout({
     const now = Date.now();
     lastActiveRef.current = now;
     isTimedOutRef.current = false;
-    try {
-      localStorage.setItem(STORAGE_KEY, now.toString());
-    } catch {
-      // Ignore storage access errors
-    }
+    resetIdleTimeoutStorage();
     setIsWarningOpen(false);
     setRemainingSeconds(Math.round(warningTimeMs / 1000));
   }, [warningTimeMs]);
@@ -85,6 +85,7 @@ export function useIdleTimeout({
   // Immediate logout trigger from warning modal
   const logoutNow = React.useCallback(async () => {
     setIsWarningOpen(false);
+    clearIdleTimeoutStorage();
     await handleTimeout();
   }, [handleTimeout]);
 
@@ -92,38 +93,40 @@ export function useIdleTimeout({
   React.useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
 
-    // Initialize last active from localStorage if valid and fresh, otherwise now
+    // Reset timeout and warning flags on fresh activation/mount
+    isTimedOutRef.current = false;
+    setIsWarningOpen(false);
+    setRemainingSeconds(Math.round(warningTimeMs / 1000));
+
+    // Initialize last active from localStorage if valid and fresh (< idleTimeMs), otherwise now
+    const now = Date.now();
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(IDLE_STORAGE_KEY);
       if (stored) {
         const ts = Number(stored);
-        if (!isNaN(ts) && ts > 0 && ts <= Date.now()) {
+        if (!isNaN(ts) && ts > 0 && ts <= now && now - ts < idleTimeMs) {
           lastActiveRef.current = ts;
         } else {
-          lastActiveRef.current = Date.now();
-          localStorage.setItem(STORAGE_KEY, lastActiveRef.current.toString());
+          lastActiveRef.current = now;
+          resetIdleTimeoutStorage();
         }
       } else {
-        lastActiveRef.current = Date.now();
-        localStorage.setItem(STORAGE_KEY, lastActiveRef.current.toString());
+        lastActiveRef.current = now;
+        resetIdleTimeoutStorage();
       }
     } catch {
-      lastActiveRef.current = Date.now();
+      lastActiveRef.current = now;
     }
 
     let lastThrottled = 0;
     const onUserActivity = () => {
-      const now = Date.now();
-      if (now - lastThrottled > 1000) {
-        lastThrottled = now;
+      const currentTime = Date.now();
+      if (currentTime - lastThrottled > 1000) {
+        lastThrottled = currentTime;
         // Only reset if warning modal is not currently holding user attention
         if (!isWarningOpenRef.current && !isTimedOutRef.current) {
-          lastActiveRef.current = now;
-          try {
-            localStorage.setItem(STORAGE_KEY, now.toString());
-          } catch {
-            // Ignore
-          }
+          lastActiveRef.current = currentTime;
+          resetIdleTimeoutStorage();
         }
       }
     };
@@ -143,10 +146,11 @@ export function useIdleTimeout({
 
     // Cross-tab synchronization
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY && e.newValue) {
+      if (e.key === IDLE_STORAGE_KEY && e.newValue) {
         const remoteTimestamp = Number(e.newValue);
         if (!isNaN(remoteTimestamp) && remoteTimestamp > lastActiveRef.current) {
           lastActiveRef.current = remoteTimestamp;
+          isTimedOutRef.current = false;
           setIsWarningOpen(false);
         }
       }
@@ -159,7 +163,7 @@ export function useIdleTimeout({
 
       // Check cross-tab latest active timestamp
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        const stored = localStorage.getItem(IDLE_STORAGE_KEY);
         if (stored) {
           const ts = Number(stored);
           if (!isNaN(ts) && ts > lastActiveRef.current) {

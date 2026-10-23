@@ -49,6 +49,7 @@ import { ShortcutsHelp, useShortcutsHelp } from "@/components/shared/shortcuts-h
 import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
 import { useIdleTimeout } from "@/hooks/use-idle-timeout";
 import { IdleTimeoutModal } from "@/components/shared/idle-timeout-modal";
+import { clearIdleTimeoutStorage } from "@/lib/idle-timeout-config";
 
 export type ViewKey =
   | "dashboard"
@@ -228,7 +229,7 @@ export function AppShell({
             className="absolute inset-0 bg-black/50"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="absolute left-0 top-0 h-full w-72 max-w-[85%] bg-sidebar text-sidebar-foreground flex flex-col shadow-xl">
+          <aside className="absolute left-0 top-0 h-full h-dvh w-72 max-w-[85%] bg-sidebar text-sidebar-foreground flex flex-col shadow-xl">
             <SidebarBrand onClose={() => setMobileOpen(false)} />
             <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
               {grouped.map(([group, items]) => (
@@ -268,7 +269,13 @@ export function AppShell({
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur lg:px-6">
+        <header
+          className="sticky top-0 z-30 flex items-center gap-3 border-b bg-background/85 px-4 backdrop-blur lg:px-6"
+          style={{
+            paddingTop: "env(safe-area-inset-top, 0px)",
+            minHeight: "calc(3.5rem + env(safe-area-inset-top, 0px))",
+          }}
+        >
           <Button
             variant="ghost"
             size="icon"
@@ -389,6 +396,7 @@ export function AppShell({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={async () => {
+                    clearIdleTimeoutStorage();
                     await signOut({ redirect: false });
                     //toast.success("Signed out");
                   }}
@@ -401,7 +409,7 @@ export function AppShell({
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 pb-24 lg:px-8 lg:py-8 lg:pb-8">
+        <main className="flex-1 px-4 py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:px-8 lg:py-8 lg:pb-8">
           <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
         </main>
 
@@ -444,7 +452,13 @@ export function AppShell({
 
 function SidebarBrand({ onClose }: { onClose?: () => void }) {
   return (
-    <div className="flex items-center gap-2 border-b px-5 py-4">
+    <div
+      className="flex items-center gap-2 border-b px-5 py-4"
+      style={{
+        paddingTop: "max(1rem, env(safe-area-inset-top, 0px))",
+        paddingLeft: "max(1.25rem, env(safe-area-inset-left, 0px))",
+      }}
+    >
       <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
         <Network className="size-5" />
       </div>
@@ -473,7 +487,13 @@ function SidebarFooter({
   user?: { companyName?: string; companyCode?: string; role?: string };
 }) {
   return (
-    <div className="border-t px-3 py-3">
+    <div
+      className="border-t px-3 py-3"
+      style={{
+        paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
+        paddingLeft: "max(0.75rem, env(safe-area-inset-left, 0px))",
+      }}
+    >
       <div className="flex items-center gap-2 rounded-md bg-sidebar-accent/60 px-2.5 py-2">
         <div className="flex size-7 items-center justify-center rounded-md bg-primary/15 text-primary text-[10px] font-bold">
           {user?.companyCode?.slice(0, 2) ?? "AC"}

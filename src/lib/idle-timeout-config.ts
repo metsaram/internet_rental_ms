@@ -22,7 +22,7 @@ export interface IdleTimeoutConfiguration {
 }
 
 export const IDLE_TIMEOUT_CONFIG: IdleTimeoutConfiguration = {
-  idleTimeMs: 15 * 60 * 1000, // 2 minutes (or 15 * 60 * 1000 for 15 minutes)
+  idleTimeMs: 2 * 60 * 1000, // 2 minutes (or 15 * 60 * 1000 for 15 minutes)
   warningTimeMs: 60 * 1000,    // 1 minute warning
 };
 
@@ -60,3 +60,35 @@ export function formatTimerSeconds(seconds: number): string {
   const secs = safeSeconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
+
+/**
+ * Key in localStorage used for tracking the latest active user timestamp across tabs.
+ */
+export const IDLE_STORAGE_KEY = "netrent_last_active_timestamp";
+
+/**
+ * Resets the idle timeout activity timestamp in localStorage to Date.now().
+ * Should be called upon successful re-authentication or login to ensure a fresh session.
+ */
+export function resetIdleTimeoutStorage(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(IDLE_STORAGE_KEY, Date.now().toString());
+  } catch {
+    // Ignore storage access errors
+  }
+}
+
+/**
+ * Clears the idle timeout activity timestamp from localStorage.
+ * Should be called on session expiration, timeout, or user sign out.
+ */
+export function clearIdleTimeoutStorage(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(IDLE_STORAGE_KEY);
+  } catch {
+    // Ignore storage access errors
+  }
+}
+

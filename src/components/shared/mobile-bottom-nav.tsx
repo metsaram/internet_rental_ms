@@ -38,7 +38,11 @@ export function MobileBottomNav({
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t bg-background/95 backdrop-blur lg:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      style={{
+        paddingBottom: "max(0.25rem, env(safe-area-inset-bottom, 0px))",
+        paddingLeft: "env(safe-area-inset-left, 0px)",
+        paddingRight: "env(safe-area-inset-right, 0px)",
+      }}
       aria-label="Mobile navigation"
     >
       {PRIMARY.map((item) => {
@@ -49,10 +53,10 @@ export function MobileBottomNav({
             key={item.key}
             onClick={() => onNavigate(item.key)}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
+              "relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors select-none touch-manipulation",
               isActive
                 ? "text-primary"
-                : "text-muted-foreground hover:text-foreground"
+                : "text-muted-foreground hover:text-foreground active:text-foreground"
             )}
           >
             <Icon className={cn("size-5 transition-transform", isActive && "scale-110")} />
@@ -65,8 +69,8 @@ export function MobileBottomNav({
       <button
         onClick={onMore}
         className={cn(
-          "flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors",
-          !isPrimary ? "text-primary" : "text-muted-foreground hover:text-foreground"
+          "relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-[10px] font-medium transition-colors select-none touch-manipulation",
+          !isPrimary ? "text-primary" : "text-muted-foreground hover:text-foreground active:text-foreground"
         )}
       >
         <MoreHorizontal className={cn("size-5", !isPrimary && "scale-110")} />

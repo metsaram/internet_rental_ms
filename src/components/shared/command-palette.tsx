@@ -33,6 +33,7 @@ import {
 import { useTheme } from "next-themes";
 import { signOut } from "next-auth/react";
 import { toast } from "sonner";
+import { clearIdleTimeoutStorage } from "@/lib/idle-timeout-config";
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "Navigate" },
@@ -192,6 +193,7 @@ export function CommandPalette({
             value="sign out logout"
             onSelect={async () => {
               onOpenChange(false);
+              clearIdleTimeoutStorage();
               await signOut({ redirect: false });
               //toast.success("Signed out");
             }}

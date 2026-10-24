@@ -11,7 +11,17 @@ import {
   FileText,
   Image as ImageIcon,
   File,
+  Eye,
+  ExternalLink,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +80,7 @@ export function AttachmentsPanel({
     entityType === "contract" ? "CONTRACT" : entityType === "invoice" ? "INVOICE" : "OTHER"
   );
   const [deleting, setDeleting] = React.useState<Attachment | null>(null);
+  const [previewAttachment, setPreviewAttachment] = React.useState<Attachment | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data: attachments = [], isLoading } = useQuery<Attachment[]>({
@@ -165,22 +176,64 @@ export function AttachmentsPanel({
         <ul className="space-y-1.5">
           {attachments.map((a) => {
             const Icon = iconForMime(a.mimeType);
+            const isImage = a.mimeType.startsWith("image/");
+            const isPdf = a.mimeType === "application/pdf";
+            const inlineUrl = `/api/attachments/${a.id}/download?inline=true`;
+            const downloadUrl = `/api/attachments/${a.id}/download`;
+
             return (
               <li
                 key={a.id}
                 className="flex items-center gap-2 rounded-lg border bg-card px-2.5 py-2 text-xs transition hover:bg-muted/30"
               >
-                <div className="flex size-7 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-                  <Icon className="size-3.5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <a
-                    href={`/api/attachments/${a.id}/download`}
-                    className="block truncate font-medium hover:text-primary hover:underline"
-                    title={a.fileName}
+                {isImage ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewAttachment(a)}
+                    className="group relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted focus:outline-none focus:ring-2 focus:ring-primary"
+                    title="Click to view image"
                   >
-                    {a.fileName}
-                  </a>
+                    <img
+                      src={inlineUrl}
+                      alt={a.fileName}
+                      className="size-full object-cover transition group-hover:scale-105"
+                    />
+                  </button>
+                ) : (
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
+                    <Icon className="size-3.5" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  {isImage ? (
+                    <button
+                      type="button"
+                      onClick={() => setPreviewAttachment(a)}
+                      className="block truncate text-left font-medium hover:text-primary hover:underline"
+                      title={`View ${a.fileName}`}
+                    >
+                      {a.fileName}
+                    </button>
+                  ) : isPdf ? (
+                    <a
+                      href={inlineUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block truncate font-medium hover:text-primary hover:underline"
+                      title={a.fileName}
+                    >
+                      {a.fileName}
+                    </a>
+                  ) : (
+                    <a
+                      href={downloadUrl}
+                      download={a.fileName}
+                      className="block truncate font-medium hover:text-primary hover:underline"
+                      title={a.fileName}
+                    >
+                      {a.fileName}
+                    </a>
+                  )}
                   <p className="text-[10px] text-muted-foreground">
                     {a.sizeLabel} · {a.uploadedBy?.name ?? a.uploadedBy?.email ?? "—"} · {formatRelative(a.createdAt)}
                   </p>
@@ -188,10 +241,35 @@ export function AttachmentsPanel({
                 <Badge variant="outline" className="shrink-0 text-[9px]">
                   {CATEGORY_OPTS.find((c) => c.value === a.category)?.label ?? a.category}
                 </Badge>
+                {isImage && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewAttachment(a)}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary"
+                    title="View image"
+                    aria-label="View image"
+                  >
+                    <Eye className="size-3.5" />
+                  </button>
+                )}
+                {isPdf && (
+                  <a
+                    href={inlineUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-primary"
+                    title="View PDF in new tab"
+                    aria-label="View PDF"
+                  >
+                    <Eye className="size-3.5" />
+                  </a>
+                )}
                 <a
-                  href={`/api/attachments/${a.id}/download`}
+                  href={downloadUrl}
+                  download={a.fileName}
                   className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                   aria-label="Download"
+                  title="Download file"
                 >
                   <Download className="size-3.5" />
                 </a>
@@ -199,6 +277,7 @@ export function AttachmentsPanel({
                   onClick={() => setDeleting(a)}
                   className="shrink-0 rounded p-1 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600"
                   aria-label="Delete"
+                  title="Delete file"
                 >
                   <Trash2 className="size-3.5" />
                 </button>
@@ -217,6 +296,70 @@ export function AttachmentsPanel({
         destructive
         onConfirm={() => deleting && delMut(deleting.id)}
       />
+
+      {/* Lightbox Image Preview Dialog */}
+      <Dialog
+        open={!!previewAttachment}
+        onOpenChange={(isOpen) => !isOpen && setPreviewAttachment(null)}
+      >
+        <DialogContent className="sm:max-w-2xl max-h-[92vh] flex flex-col p-4">
+          <DialogHeader className="gap-1 pb-2 border-b">
+            <DialogTitle className="flex items-center gap-2 text-base truncate">
+              <ImageIcon className="size-4 text-primary shrink-0" />
+              <span className="truncate">{previewAttachment?.fileName}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {previewAttachment?.sizeLabel} · Uploaded by{" "}
+              {previewAttachment?.uploadedBy?.name ?? previewAttachment?.uploadedBy?.email ?? "User"} ·{" "}
+              {previewAttachment && formatRelative(previewAttachment.createdAt)}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="relative flex min-h-[260px] max-h-[62vh] flex-1 items-center justify-center overflow-auto rounded-lg border bg-muted/20 p-2">
+            {previewAttachment && (
+              <img
+                src={`/api/attachments/${previewAttachment.id}/download?inline=true`}
+                alt={previewAttachment.fileName}
+                className="max-h-[58vh] w-auto max-w-full rounded object-contain shadow-sm"
+              />
+            )}
+          </div>
+
+          <DialogFooter className="flex items-center justify-between gap-2 pt-2 border-t sm:justify-between">
+            <span className="text-[11px] text-muted-foreground">
+              Category: {CATEGORY_OPTS.find((c) => c.value === previewAttachment?.category)?.label ?? previewAttachment?.category}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  previewAttachment &&
+                  window.open(`/api/attachments/${previewAttachment.id}/download?inline=true`, "_blank")
+                }
+              >
+                <ExternalLink className="size-3.5 mr-1.5" />
+                Open full in tab
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                asChild
+              >
+                <a
+                  href={`/api/attachments/${previewAttachment?.id}/download`}
+                  download={previewAttachment?.fileName}
+                >
+                  <Download className="size-3.5 mr-1.5" />
+                  Download
+                </a>
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

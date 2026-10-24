@@ -11,6 +11,10 @@ import {
   Calculator,
   Trash2,
   Printer,
+  Upload,
+  X,
+  FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
@@ -791,8 +795,11 @@ function RecordPaymentDialog({
   const [method, setMethod] = React.useState("BANK_TRANSFER");
   const [reference, setReference] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [slipFile, setSlipFile] = React.useState<File | null>(null);
+  const [slipPreview, setSlipPreview] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (invoice) {
@@ -801,9 +808,54 @@ function RecordPaymentDialog({
       setMethod("BANK_TRANSFER");
       setReference("");
       setNotes("");
+      setSlipFile(null);
+      setSlipPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
       setError(null);
     }
   }, [invoice]);
+
+  const handleSlipSelect = (file: File) => {
+    setError(null);
+    const validMimes = [
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+      "image/gif",
+      "application/pdf",
+    ];
+    if (!validMimes.includes(file.type)) {
+      setError("Please select an image (PNG, JPG, WEBP, GIF) or PDF file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File exceeds maximum allowed size of 5MB");
+      return;
+    }
+
+    setSlipPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+    });
+    setSlipFile(file);
+
+    // If reference code is currently blank, suggest reference from file name
+    if (!reference.trim()) {
+      const cleanName = file.name.replace(/\.[^/.]+$/, "").slice(0, 40);
+      setReference(`Slip-${cleanName}`);
+    }
+  };
+
+  const removeSlip = () => {
+    setSlipPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setSlipFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const submit = async () => {
     if (!invoice) return;
@@ -814,7 +866,7 @@ function RecordPaymentDialog({
     }
     setSaving(true);
     try {
-      await api("/api/payments", {
+      const res = await api<{ id: string }>("/api/payments", {
         method: "POST",
         body: JSON.stringify({
           paymentDate,
@@ -826,7 +878,27 @@ function RecordPaymentDialog({
           allocations: [{ invoiceId: invoice.id, amount }],
         }),
       });
-      toast.success("Payment recorded");
+
+      // Upload bank reference slip if selected
+      if (slipFile && res?.id) {
+        // Attach to payment
+        const fdPayment = new FormData();
+        fdPayment.append("file", slipFile);
+        fdPayment.append("entityType", "payment");
+        fdPayment.append("entityId", res.id);
+        fdPayment.append("category", "RECEIPT");
+        await fetch("/api/attachments", { method: "POST", body: fdPayment });
+
+        // Also attach to invoice so it appears in the Invoice attachments panel
+        const fdInvoice = new FormData();
+        fdInvoice.append("file", slipFile);
+        fdInvoice.append("entityType", "invoice");
+        fdInvoice.append("entityId", invoice.id);
+        fdInvoice.append("category", "RECEIPT");
+        await fetch("/api/attachments", { method: "POST", body: fdInvoice });
+      }
+
+      toast.success(slipFile ? "Payment & bank slip recorded" : "Payment recorded");
       onSaved();
     } catch (e) {
       setError((e as Error).message);
@@ -868,14 +940,99 @@ function RecordPaymentDialog({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Reference" htmlFor="pay-reference">
+          <Field label="Reference code" htmlFor="pay-reference">
             <Input id="pay-reference" isCode value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bank slip / card last 4" />
           </Field>
         </div>
+
+        {/* Bank Transaction Slip / Reference Image Upload */}
+        <Field
+          label="Bank reference slip image"
+          hint="Upload bank transaction screenshot or receipt (PNG, JPG, WEBP, PDF up to 5MB)"
+        >
+          {slipFile ? (
+            <div className="relative flex items-center gap-3 rounded-lg border bg-muted/20 p-2.5">
+              {slipPreview ? (
+                <img
+                  src={slipPreview}
+                  alt="Bank slip preview"
+                  className="size-14 rounded-md border object-cover bg-background shrink-0"
+                />
+              ) : (
+                <div className="flex size-14 items-center justify-center rounded-md border bg-background shrink-0">
+                  <FileText className="size-6 text-muted-foreground" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium text-foreground">{slipFile.name}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {(slipFile.size / 1024).toFixed(1)} KB · Ready to save with payment
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={removeSlip}
+                className="size-7 text-muted-foreground hover:text-destructive"
+                title="Remove image"
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <input
+                ref={fileInputRef}
+                id="bank-slip-file"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) handleSlipSelect(e.target.files[0]);
+                }}
+              />
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer.files?.[0]) handleSlipSelect(e.dataTransfer.files[0]);
+                }}
+                className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-input bg-muted/10 p-3 text-center transition-colors hover:bg-muted/25 hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Upload className="size-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-foreground">
+                    Upload bank transaction slip / receipt
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Drag & drop or browse image (PNG, JPG, WEBP, PDF up to 5MB)
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </Field>
+
         <Field label="Notes" htmlFor="pay-notes">
           <Textarea id="pay-notes" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
-        {saving && <p className="text-xs text-muted-foreground">Saving...</p>}
+        {saving && <p className="text-xs text-muted-foreground">Saving payment & uploading slip...</p>}
       </div>
     </FormDialog>
   );

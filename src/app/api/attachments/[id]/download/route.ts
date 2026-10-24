@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
  * rather than rendering it inline (defends against stored XSS in uploaded
  * HTML/SVG files).
  */
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(req: Request, { params }: Params) {
   try {
     const user = await requireUser();
     const { id } = await params;
@@ -21,13 +21,18 @@ export async function GET(_req: Request, { params }: Params) {
     const buf = await getFile(att.storageKey);
     if (!buf) throw new HttpError(410, "File no longer exists in storage");
 
+    const url = new URL(req.url);
+    const isInline = url.searchParams.get("inline") === "true" || url.searchParams.get("view") === "true";
+    const isSafeViewable = att.mimeType.startsWith("image/") || att.mimeType === "application/pdf";
+    const disposition = isInline && isSafeViewable ? "inline" : "attachment";
+
     return new Response(new Uint8Array(buf), {
       status: 200,
       headers: {
         "content-type": att.mimeType,
-        "content-disposition": `attachment; filename="${att.fileName.replace(/"/g, "_")}"`,
+        "content-disposition": `${disposition}; filename="${att.fileName.replace(/"/g, "_")}"`,
         "content-length": String(buf.byteLength),
-        "cache-control": "private, no-store",
+        "cache-control": isInline ? "private, max-age=3600" : "private, no-store",
       },
     });
   } catch (err) {

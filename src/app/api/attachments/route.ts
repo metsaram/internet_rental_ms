@@ -131,6 +131,11 @@ async function assertEntityOwnership(entityType: string, entityId: string, compa
       if (!b || b.companyId !== companyId) throw new HttpError(404, "Branch not found");
       break;
     }
+    case "payment": {
+      const p = await db.payment.findUnique({ where: { id: entityId }, select: { companyId: true } });
+      if (!p || p.companyId !== companyId) throw new HttpError(404, "Payment not found");
+      break;
+    }
     default:
       // For other entity types, skip strict check (the attachment is still
       // company-scoped by companyId).

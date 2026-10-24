@@ -36,7 +36,8 @@ export const metadata: Metadata = {
     "Prisma",
   ],
   icons: {
-    icon: "/logo.svg",
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
   },
 };
 

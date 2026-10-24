@@ -3,7 +3,8 @@
 import * as React from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Network, Loader2, ShieldCheck, AlertCircle } from "lucide-react";
+import Image from "next/image";
+import { Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,12 +55,19 @@ export function LoginScreen() {
       <div className="relative grid w-full max-w-5xl grid-cols-1 overflow-hidden rounded-2xl border bg-card/80 shadow-xl backdrop-blur md:grid-cols-2">
         {/* Brand panel */}
         <div className="hidden flex-col justify-between bg-primary p-10 text-primary-foreground md:flex">
-          <div className="flex items-center gap-2">
-            <div className="flex size-10 items-center justify-center rounded-lg bg-primary-foreground/15">
-              <Network className="size-5" />
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-xl bg-white p-1.5 shadow-md">
+              <Image
+                src="/logo-icon.png"
+                alt="NetRent"
+                width={32}
+                height={32}
+                className="size-8 object-contain"
+                priority
+              />
             </div>
             <div>
-              <p className="text-lg font-semibold">NetRent</p>
+              <p className="text-lg font-semibold leading-tight">NetRent</p>
               <p className="text-xs text-primary-foreground/70">
                 Internet Rental Management
               </p>
@@ -97,6 +105,21 @@ export function LoginScreen() {
         {/* Form panel */}
         <div className="p-8 sm:p-10">
           <div className="mb-6 space-y-1">
+            <div className="mb-4 flex items-center gap-2.5 md:hidden">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-emerald-500/10 p-1 ring-1 ring-emerald-500/20">
+                <Image
+                  src="/logo-icon.png"
+                  alt="NetRent"
+                  width={28}
+                  height={28}
+                  className="size-7 object-contain"
+                />
+              </div>
+              <div>
+                <p className="text-base font-semibold leading-tight">NetRent</p>
+                <p className="text-[11px] text-muted-foreground">Rental Manager</p>
+              </div>
+            </div>
             <h1 className="text-2xl font-semibold tracking-tight">
               Sign in to your workspace
             </h1>

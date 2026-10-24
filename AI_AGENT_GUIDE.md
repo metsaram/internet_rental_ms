@@ -27,13 +27,6 @@ client-side SPA shell with hash-based view switching (`#dashboard`, `#contracts`
 etc.). There are no nested App Router pages. All data/mutations go through
 `/api/*` route handlers (no server actions).
 
-### Demo credentials
-
-| Role  | Email               | Password    |
-|-------|---------------------|-------------|
-| Admin | admin@netrent.local | admin12345  |
-| Staff | staff@netrent.local | staff12345  |
-
 ---
 
 ## 2. Critical Rules (READ BEFORE CODING)

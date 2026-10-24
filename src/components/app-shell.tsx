@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Building2,
@@ -468,9 +469,16 @@ export function AppShell({
 
 function SidebarBrand({ onClose }: { onClose?: () => void }) {
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b px-5 py-4">
-      <div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-        <Network className="size-5" />
+    <div className="flex shrink-0 items-center gap-2.5 border-b px-5 py-4">
+      <div className="flex size-9 items-center justify-center rounded-lg bg-white p-1 shadow-sm ring-1 ring-border/60 dark:bg-emerald-950/40 dark:ring-emerald-500/20">
+        <Image
+          src="/logo-icon.png"
+          alt="NetRent"
+          width={28}
+          height={28}
+          className="size-7 object-contain"
+          priority
+        />
       </div>
       <div className="flex-1">
         <p className="text-sm font-semibold leading-tight">NetRent</p>

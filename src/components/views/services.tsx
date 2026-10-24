@@ -6,6 +6,7 @@ import { Plus, Pencil, KeyRound } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -354,7 +355,7 @@ function ServiceForm({
               <SelectContent><SelectItem value="STATIC">Static</SelectItem><SelectItem value="DYNAMIC">Dynamic</SelectItem><SelectItem value="CGNAT">CGNAT</SelectItem></SelectContent>
             </Select>
           </Field>
-          <Field label="Installed date"><Input type="date" value={installedAt} onChange={(e) => setInstalledAt(e.target.value)} /></Field>
+          <Field label="Installed date"><DatePicker value={installedAt} onChange={setInstalledAt} placeholder="Select date" /></Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="ISP username (sensitive)" hint="Stored server-side; never returned in lists"><Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder={editing?.hasCredentials ? "•••• (enter new to replace)" : ""} /></Field>

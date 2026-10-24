@@ -16,6 +16,7 @@ import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -538,18 +539,23 @@ function InvoiceForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {/* Invoice & Due Dates */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Invoice date" htmlFor="inv-date" required>
-            <Input id="inv-date" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+            <DatePicker id="inv-date" value={invoiceDate} onChange={setInvoiceDate} placeholder="Select date" />
           </Field>
-          <Field label="Due date" htmlFor="inv-due-date">
-            <Input id="inv-due-date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+          <Field label="Due date" htmlFor="inv-due-date" hint="Payment deadline">
+            <DatePicker id="inv-due-date" value={dueDate} onChange={setDueDate} placeholder="Select due date" />
           </Field>
-          <Field label="Period start" htmlFor="inv-period-start">
-            <Input id="inv-period-start" type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+        </div>
+
+        {/* Service / Billing Period */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Period start" htmlFor="inv-period-start" hint="Billing coverage start">
+            <DatePicker id="inv-period-start" value={periodStart} onChange={setPeriodStart} placeholder="Select start date" />
           </Field>
-          <Field label="Period end" htmlFor="inv-period-end">
-            <Input id="inv-period-end" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          <Field label="Period end" htmlFor="inv-period-end" hint="Billing coverage end">
+            <DatePicker id="inv-period-end" value={periodEnd} onChange={setPeriodEnd} placeholder="Select end date" />
           </Field>
         </div>
 
@@ -847,7 +853,7 @@ function RecordPaymentDialog({
         )}
         <div className="grid grid-cols-2 gap-4">
           <Field label="Payment date" htmlFor="pay-date" required>
-            <Input id="pay-date" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
+            <DatePicker id="pay-date" value={paymentDate} onChange={setPaymentDate} placeholder="Payment date" />
           </Field>
           <Field label="Amount" htmlFor="pay-amount" required>
             <Input id="pay-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />

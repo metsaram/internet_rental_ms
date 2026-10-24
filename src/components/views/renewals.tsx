@@ -15,6 +15,7 @@ import {
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -538,7 +539,7 @@ function RenewDialog({
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Field label="Start date" required>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <DatePicker value={startDate} onChange={setStartDate} placeholder="Select start date" />
           </Field>
           <Field label="Duration (mo)" required>
             <Input type="number" min={1} max={120} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
@@ -547,7 +548,7 @@ function RenewDialog({
             <Input type="number" min={0} max={120} value={freeMonths} onChange={(e) => setFreeMonths(Number(e.target.value))} />
           </Field>
           <Field label="End date" hint="Auto-computed">
-            <Input type="date" value={endDate} disabled className="bg-muted/40" />
+            <DatePicker value={endDate} disabled className="bg-muted/40" />
           </Field>
         </div>
 

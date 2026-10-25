@@ -422,9 +422,9 @@ function InvoiceForm({
   const [invoiceDate, setInvoiceDate] = React.useState("");
   const [periodStart, setPeriodStart] = React.useState("");
   const [periodEnd, setPeriodEnd] = React.useState("");
-  const [subtotal, setSubtotal] = React.useState(0);
-  const [tax, setTax] = React.useState(0);
-  const [discount, setDiscount] = React.useState(0);
+  const [subtotal, setSubtotal] = React.useState<number | string>(0);
+  const [tax, setTax] = React.useState<number | string>(0);
+  const [discount, setDiscount] = React.useState<number | string>(0);
   const [cur, setCur] = React.useState(currency);
   const [status, setStatus] = React.useState("DRAFT");
   const [dueDate, setDueDate] = React.useState("");
@@ -473,8 +473,22 @@ function InvoiceForm({
     }
   };
 
+  const isFormValid = Boolean(
+    contractId?.trim() &&
+    invoiceNumber?.trim() &&
+    invoiceDate?.trim() &&
+    subtotal !== "" &&
+    subtotal !== null &&
+    subtotal !== undefined &&
+    !isNaN(Number(subtotal)) &&
+    Number(subtotal) >= 0 &&
+    (tax === "" || (!isNaN(Number(tax)) && Number(tax) >= 0)) &&
+    (discount === "" || (!isNaN(Number(discount)) && Number(discount) >= 0))
+  );
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!contractId) return setError("Please select a contract");
     if (!invoiceNumber.trim()) return setError("Invoice number is required");
     try {
@@ -484,9 +498,9 @@ function InvoiceForm({
         invoiceDate,
         periodStart: periodStart || null,
         periodEnd: periodEnd || null,
-        subtotal: Number(subtotal),
-        tax: Number(tax),
-        discount: Number(discount),
+        subtotal: Number(subtotal || 0),
+        tax: Number(tax || 0),
+        discount: Number(discount || 0),
         total,
         currency: cur,
         status,
@@ -507,6 +521,7 @@ function InvoiceForm({
       title={isEdit ? `Edit invoice ${editing?.invoiceNumber}` : "New invoice"}
       description="Bill a contract for a period. Total = subtotal + tax − discount. Catalog plan prices don't bind here — set the real billed amount."
       submitText={isEdit ? "Save changes" : "Create invoice"}
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >
@@ -565,13 +580,13 @@ function InvoiceForm({
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Field label="Subtotal" htmlFor="inv-subtotal" required>
-            <Input id="inv-subtotal" type="number" min={0} step="0.01" value={subtotal} onChange={(e) => setSubtotal(Number(e.target.value))} />
+            <Input id="inv-subtotal" type="number" min={0} step="0.01" value={subtotal} onChange={(e) => setSubtotal(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
           <Field label="Tax / VAT" htmlFor="inv-tax">
-            <Input id="inv-tax" type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(Number(e.target.value))} />
+            <Input id="inv-tax" type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
           <Field label="Discount" htmlFor="inv-discount">
-            <Input id="inv-discount" type="number" min={0} step="0.01" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
+            <Input id="inv-discount" type="number" min={0} step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
           <Field label="Currency" htmlFor="inv-currency">
             <Input id="inv-currency" value={cur} maxLength={3} onChange={(e) => setCur(e.target.value.toUpperCase())} />
@@ -783,7 +798,9 @@ function Preview({ label, value }: { label: string; value: string }) {
 // ---------------------------------------------------------------------------
 
 function RecordPaymentDialog({
-  invoice, onClose, onSaved,
+  invoice,
+  onClose,
+  onSaved,
 }: {
   invoice: Invoice | null;
   onClose: () => void;
@@ -791,7 +808,7 @@ function RecordPaymentDialog({
 }) {
   const open = !!invoice;
   const [paymentDate, setPaymentDate] = React.useState(new Date().toISOString().slice(0, 10));
-  const [amount, setAmount] = React.useState(0);
+  const [amount, setAmount] = React.useState<number | string>(0);
   const [method, setMethod] = React.useState("BANK_TRANSFER");
   const [reference, setReference] = React.useState("");
   const [notes, setNotes] = React.useState("");
@@ -857,25 +874,36 @@ function RecordPaymentDialog({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const isFormValid = Boolean(
+    paymentDate?.trim() &&
+    amount !== "" &&
+    amount !== null &&
+    amount !== undefined &&
+    !isNaN(Number(amount)) &&
+    Number(amount) > 0
+  );
+
   const submit = async () => {
-    if (!invoice) return;
+    if (!invoice || !isFormValid) return;
     setError(null);
-    if (amount <= 0) return setError("Amount must be positive");
-    if (amount > Number(invoice.outstanding)) {
+    const numAmount = Number(amount);
+    if (numAmount <= 0) return setError("Amount must be positive");
+    if (numAmount > Number(invoice.outstanding)) {
       return setError(`Amount exceeds outstanding balance (${formatMoney(invoice.outstanding, invoice.currency)})`);
     }
+
     setSaving(true);
     try {
       const res = await api<{ id: string }>("/api/payments", {
         method: "POST",
         body: JSON.stringify({
           paymentDate,
-          amount,
+          amount: numAmount,
           currency: invoice.currency,
           method,
           reference: reference || null,
           notes: notes || null,
-          allocations: [{ invoiceId: invoice.id, amount }],
+          allocations: [{ invoiceId: invoice.id, amount: numAmount }],
         }),
       });
 
@@ -914,6 +942,7 @@ function RecordPaymentDialog({
       title={`Record payment — ${invoice?.invoiceNumber ?? ""}`}
       description={`Outstanding: ${invoice ? formatMoney(invoice.outstanding, invoice.currency) : ""}. The payment is allocated to this invoice; outstanding balances recalculate automatically.`}
       submitText="Record payment"
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="md"
     >
@@ -928,7 +957,7 @@ function RecordPaymentDialog({
             <DatePicker id="pay-date" value={paymentDate} onChange={setPaymentDate} placeholder="Payment date" />
           </Field>
           <Field label="Amount" htmlFor="pay-amount" required>
-            <Input id="pay-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
+            <Input id="pay-amount" type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-4">

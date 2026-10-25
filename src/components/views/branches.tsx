@@ -359,8 +359,11 @@ function BranchForm({
     setError(null);
   }, [open, editing]);
 
+  const isFormValid = Boolean(code?.trim() && name?.trim());
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!code.trim()) return setError("Branch code is required");
     if (!name.trim()) return setError("Branch name is required");
     const payload: Record<string, unknown> = {
@@ -383,6 +386,7 @@ function BranchForm({
       title={isEdit ? `Edit branch ${editing?.code}` : "New branch"}
       description="A branch is a physical location. Branches host shops and internet services."
       submitText={isEdit ? "Save changes" : "Create branch"}
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >

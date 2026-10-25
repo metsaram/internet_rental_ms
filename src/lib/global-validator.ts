@@ -262,6 +262,16 @@ export class GlobalValidator {
   }
 
   /**
+   * Checks if a value is a plain JavaScript object (e.g. { ... }),
+   * excluding class instances like Prisma.Decimal, Date, Buffer, etc.
+   */
+  static isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (value === null || typeof value !== "object") return false;
+    const proto = Object.getPrototypeOf(value);
+    return proto === null || proto === Object.prototype;
+  }
+
+  /**
    * Validates and normalizes an API payload object:
    * - Only applies uppercase and special character blocking where field is used for code!
    * - Non-code fields (name, address, city, notes, phone, etc.) are passed through untouched.
@@ -275,6 +285,9 @@ export class GlobalValidator {
       return payload.map((item) =>
         GlobalValidator.processApiPayload(item, options)
       ) as unknown as T;
+    }
+    if (!GlobalValidator.isPlainObject(payload)) {
+      return payload;
     }
 
     const result: Record<string, unknown> = {};
@@ -296,7 +309,7 @@ export class GlobalValidator {
           );
         }
         result[key] = validation.value;
-      } else if (value && typeof value === "object" && !(value instanceof Date)) {
+      } else if (value && typeof value === "object" && GlobalValidator.isPlainObject(value)) {
         result[key] = GlobalValidator.processApiPayload(value, options);
       } else {
         result[key] = value;
@@ -309,6 +322,7 @@ export class GlobalValidator {
    * Sanitizes and validates data before writing to the database:
    * - Enforces UPPERCASE and special character sanitization ONLY where field is used for code!
    * - Non-code text fields (name, address, notes, manager, etc.) retain their original text.
+   * - Preserves Decimal instances, Dates, and class prototypes.
    */
   static sanitizeAndValidateDbInput<T>(data: T, _model?: string): T {
     if (!data || typeof data !== "object") return data;
@@ -316,6 +330,9 @@ export class GlobalValidator {
       return data.map((item) =>
         GlobalValidator.sanitizeAndValidateDbInput(item, _model)
       ) as unknown as T;
+    }
+    if (!GlobalValidator.isPlainObject(data)) {
+      return data;
     }
 
     const result: Record<string, unknown> = {};
@@ -328,7 +345,7 @@ export class GlobalValidator {
       // Only enforce uppercase & special character sanitization where field is used for code!
       if (GlobalValidator.isCodeField(key) && typeof value === "string") {
         result[key] = GlobalValidator.sanitize(value);
-      } else if (value && typeof value === "object" && !(value instanceof Date)) {
+      } else if (value && typeof value === "object" && GlobalValidator.isPlainObject(value)) {
         result[key] = GlobalValidator.sanitizeAndValidateDbInput(value, _model);
       } else {
         result[key] = value;

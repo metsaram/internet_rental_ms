@@ -59,6 +59,15 @@ function shouldEnforceCodeValidation(
   return false;
 }
 
+/**
+ * Strips unnecessary leading zeros from a number string (e.g. "05" -> "5", "00" -> "0", "-05" -> "-5"),
+ * while preserving valid decimals like "0.", "0.5", "0.05", and "-0.5".
+ */
+function stripLeadingZeros(val: string): string {
+  if (!val) return val;
+  return val.replace(/^(-?)0+(?=\d)/, (_, sign) => sign);
+}
+
 function Input({
   className,
   type,
@@ -70,9 +79,14 @@ function Input({
   maxLength,
   name,
   id,
+  value,
+  defaultValue,
   onChange,
   onKeyDown,
   onPaste,
+  onFocus,
+  onBlur,
+  onDoubleClick,
   ...props
 }: InputProps) {
   const isEnabled = shouldEnforceCodeValidation(
@@ -83,6 +97,28 @@ function Input({
     name,
     id
   );
+
+  const isNumberType = type === "number";
+  const isControlled = value !== undefined;
+
+  const [isFocused, setIsFocused] = React.useState(false);
+  const [focusedValue, setFocusedValue] = React.useState<string | null>(null);
+
+  const prevValueRef = React.useRef(value);
+  React.useEffect(() => {
+    if (isNumberType && isFocused) {
+      if (value !== prevValueRef.current) {
+        // If external prop changed while focused to something other than the empty -> 0 transition,
+        // sync focusedValue
+        if (!(focusedValue === "" && value === 0)) {
+          if (String(value ?? "") !== focusedValue) {
+            setFocusedValue(value !== undefined && value !== null ? String(value) : "");
+          }
+        }
+      }
+    }
+    prevValueRef.current = value;
+  }, [value, isNumberType, isFocused, focusedValue]);
 
   const effectiveMaxLength = isEnabled
     ? (maxLength ?? MAX_CODE_LENGTH)
@@ -96,6 +132,74 @@ function Input({
     }),
     [allowSpaces, allowedExceptions, effectiveMaxLength]
   );
+
+  const handleDoubleClick = (e: React.MouseEvent<HTMLInputElement>) => {
+    const target = e.currentTarget;
+    try {
+      target.select();
+      if (typeof window !== "undefined") {
+        window.requestAnimationFrame(() => {
+          try {
+            target.select();
+          } catch {
+            // Ignore if selection is restricted
+          }
+        });
+      }
+    } catch {
+      // Ignore if selection is unsupported by browser
+    }
+    onDoubleClick?.(e);
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (isNumberType) {
+      setIsFocused(true);
+      const initialVal = isControlled
+        ? (value !== null && value !== undefined ? String(value) : "")
+        : e.target.value;
+      setFocusedValue(initialVal);
+    }
+    onFocus?.(e);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    if (isNumberType) {
+      const raw = (isControlled && focusedValue !== null ? focusedValue : e.target.value).trim();
+      // If user cleared the input and left it empty / non-numeric, reset to "0" only when user leaves the input
+      if (raw === "" || isNaN(Number(raw))) {
+        e.target.value = "0";
+        setFocusedValue("0");
+        if (onChange) {
+          const syntheticEvent = {
+            ...e,
+            type: "change",
+            target: e.target,
+            currentTarget: e.currentTarget,
+          } as unknown as React.ChangeEvent<HTMLInputElement>;
+          onChange(syntheticEvent);
+        }
+      } else {
+        const normalized = stripLeadingZeros(raw);
+        if (normalized !== raw) {
+          e.target.value = normalized;
+          setFocusedValue(normalized);
+          if (onChange) {
+            const syntheticEvent = {
+              ...e,
+              type: "change",
+              target: e.target,
+              currentTarget: e.currentTarget,
+            } as unknown as React.ChangeEvent<HTMLInputElement>;
+            onChange(syntheticEvent);
+          }
+        }
+      }
+      setIsFocused(false);
+      setFocusedValue(null);
+    }
+    onBlur?.(e);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (isEnabled && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -169,8 +273,27 @@ function Input({
       }
       e.target.value = sanitized;
     }
+
+    if (isNumberType) {
+      const rawVal = e.target.value;
+      const normalized = stripLeadingZeros(rawVal);
+      if (normalized !== rawVal) {
+        e.target.value = normalized;
+      }
+      setFocusedValue(normalized);
+    }
+
     onChange?.(e);
   };
+
+  const valueProps: { value?: string | number | readonly string[]; defaultValue?: string | number | readonly string[] } = {};
+  if (isControlled) {
+    valueProps.value = isNumberType && isFocused && focusedValue !== null
+      ? focusedValue
+      : (value ?? "");
+  } else if (defaultValue !== undefined) {
+    valueProps.defaultValue = defaultValue;
+  }
 
   return (
     <input
@@ -189,6 +312,10 @@ function Input({
       onChange={handleChange}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onDoubleClick={handleDoubleClick}
+      {...valueProps}
       {...props}
     />
   )

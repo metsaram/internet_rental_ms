@@ -465,8 +465,11 @@ function ShopForm({
     setError(null);
   }, [open, editing]);
 
+  const isFormValid = Boolean(branchId?.trim() && code?.trim() && name?.trim());
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!branchId) return setError("Select a branch");
     if (!code.trim()) return setError("Shop code is required");
     if (!name.trim()) return setError("Shop name is required");
@@ -491,6 +494,7 @@ function ShopForm({
       title={isEdit ? `Edit shop ${editing?.code}` : "New shop"}
       description="A shop is a unit located within a branch (e.g. tenant space, kiosk, office)."
       submitText={isEdit ? "Save changes" : "Create shop"}
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >

@@ -380,8 +380,11 @@ function ProviderForm({
     setError(null);
   }, [open, editing]);
 
+  const isFormValid = Boolean(code?.trim() && name?.trim());
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!code.trim()) return setError("Provider code is required");
     if (!name.trim()) return setError("Provider name is required");
     const payload: Record<string, unknown> = {
@@ -404,6 +407,7 @@ function ProviderForm({
       title={isEdit ? `Edit provider ${editing?.code}` : "New provider"}
       description="An Internet service provider. Catalog plans are defined per provider; installed services reference the provider."
       submitText={isEdit ? "Save changes" : "Create provider"}
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >

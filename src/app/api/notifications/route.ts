@@ -12,14 +12,24 @@ import { generateNotifications } from "@/lib/notifications";
  * fresh without a separate cron job. This is acceptable for a demo with a
  * small dataset.
  */
+const lastGeneratedMap = new Map<string, number>();
+
 export async function GET(req: Request) {
   try {
     const user = await requireUser();
     const url = new URL(req.url);
     const unreadOnly = url.searchParams.get("unreadOnly") === "true";
 
-    // Refresh notifications (idempotent).
-    await generateNotifications({ companyId: user.companyId, userId: user.id });
+    // Refresh notifications (idempotent, throttled to at most once every 60s).
+    const lastRun = lastGeneratedMap.get(user.companyId) ?? 0;
+    if (Date.now() - lastRun > 60_000) {
+      lastGeneratedMap.set(user.companyId, Date.now());
+      try {
+        await generateNotifications({ companyId: user.companyId, userId: user.id });
+      } catch (genErr) {
+        console.warn("[notifications] Background generation skipped/failed:", genErr);
+      }
+    }
 
     const where: Record<string, unknown> = {
       companyId: user.companyId,

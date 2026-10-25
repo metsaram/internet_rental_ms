@@ -589,9 +589,9 @@ function ContractForm({
   const [serviceId, setServiceId] = React.useState("");
   const [contractNumber, setContractNumber] = React.useState("");
   const [startDate, setStartDate] = React.useState("");
-  const [duration, setDuration] = React.useState(12);
-  const [freeMonths, setFreeMonths] = React.useState(0);
-  const [monthlyFee, setMonthlyFee] = React.useState<number>(0);
+  const [duration, setDuration] = React.useState<number | string>(12);
+  const [freeMonths, setFreeMonths] = React.useState<number | string>(0);
+  const [monthlyFee, setMonthlyFee] = React.useState<number | string>(0);
   const [cur, setCur] = React.useState(currency);
   const [billingCycle, setBillingCycle] = React.useState("ANNUAL");
   const [status, setStatus] = React.useState("DRAFT");
@@ -604,8 +604,9 @@ function ContractForm({
       setServiceId(editing.serviceId);
       setContractNumber(editing.contractNumber);
       setStartDate(editing.startDate.slice(0, 10));
-      setDuration(editing.durationMonths);
-      setFreeMonths(editing.freeMonths);
+      const baseDuration = Math.max(1, editing.durationMonths - (editing.freeMonths || 0));
+      setDuration(baseDuration);
+      setFreeMonths(editing.freeMonths || 0);
       setMonthlyFee(Number(editing.monthlyFee));
       setCur(editing.currency);
       setBillingCycle(editing.billingCycle);
@@ -626,31 +627,51 @@ function ContractForm({
     setError(null);
   }, [open, editing, currency]);
 
-  // Auto-compute end date from start + duration
+  // Total contract timeline = paid duration + free months
+  const totalMonths = Math.max(0, Number(duration || 0) + Number(freeMonths || 0));
+
+  // Auto-compute end date from start + duration + free months (free months extend the contract period)
   const endDate = React.useMemo(() => {
     if (!startDate) return "";
     const d = new Date(startDate);
-    d.setMonth(d.getMonth() + Number(duration || 0));
+    d.setMonth(d.getMonth() + totalMonths);
     return d.toISOString().slice(0, 10);
-  }, [startDate, duration]);
+  }, [startDate, totalMonths]);
 
-  const paidMonths = Math.max(0, Number(duration || 0) - Number(freeMonths || 0));
+  // Price is only calculated on the contracted paid duration (free months are zero price)
+  const paidMonths = Math.max(0, Number(duration || 0));
   const scheduled = Number(monthlyFee || 0) * paidMonths;
-  const effective = Number(duration || 0) > 0 ? scheduled / Number(duration) : 0;
+  const effective = totalMonths > 0 ? scheduled / totalMonths : 0;
+
+  const isFormValid = Boolean(
+    serviceId?.trim() &&
+    contractNumber?.trim() &&
+    startDate?.trim() &&
+    duration !== "" &&
+    !isNaN(Number(duration)) &&
+    Number(duration) > 0 &&
+    monthlyFee !== "" &&
+    monthlyFee !== null &&
+    monthlyFee !== undefined &&
+    !isNaN(Number(monthlyFee)) &&
+    Number(monthlyFee) >= 0 &&
+    (freeMonths === undefined || freeMonths === "" || (!isNaN(Number(freeMonths)) && Number(freeMonths) >= 0))
+  );
 
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!serviceId) return setError("Please select an installed service");
     if (!contractNumber.trim()) return setError("Contract number is required");
-    if (freeMonths > duration) return setError("Free months cannot exceed duration");
+    if (Number(freeMonths || 0) < 0) return setError("Free months cannot be negative");
     const payload: Record<string, unknown> = {
       serviceId,
       contractNumber: contractNumber.trim(),
       startDate,
       endDate,
-      durationMonths: Number(duration),
-      freeMonths: Number(freeMonths),
-      monthlyFee: Number(monthlyFee),
+      durationMonths: totalMonths,
+      freeMonths: Number(freeMonths || 0),
+      monthlyFee: Number(monthlyFee || 0),
       currency: cur,
       billingCycle,
       status,
@@ -666,6 +687,7 @@ function ContractForm({
       title={isEdit ? `Edit contract — ${editing?.contractNumber}` : "Create New Contract"}
       description="Configure commercial agreement terms, scheduled period, and billing cycle. Pricing remains locked to this contract."
       submitText={isEdit ? "Save changes" : "Create contract"}
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >
@@ -727,12 +749,12 @@ function ContractForm({
               <DatePicker value={startDate} onChange={setStartDate} placeholder="Select date" />
             </Field>
             <Field label="Duration (months)" required>
-              <Input type="number" min={1} max={120} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
+              <Input type="number" min={1} max={120} value={duration} onChange={(e) => setDuration(e.target.value === "" ? "" : Number(e.target.value))} />
             </Field>
-            <Field label="Free months" hint="Zero-fee months">
-              <Input type="number" min={0} max={120} value={freeMonths} onChange={(e) => setFreeMonths(Number(e.target.value))} />
+            <Field label="Free months" hint="Zero-fee extension">
+              <Input type="number" min={0} max={120} value={freeMonths} onChange={(e) => setFreeMonths(e.target.value === "" ? "" : Number(e.target.value))} />
             </Field>
-            <Field label="End date" hint="Auto-calculated">
+            <Field label="End date" hint="Auto-calculated (extended by free months)">
               <DatePicker value={endDate} disabled className="bg-muted/40 cursor-not-allowed opacity-90" />
             </Field>
           </div>
@@ -747,7 +769,7 @@ function ContractForm({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Field label="Agreed Monthly fee" required hint="Recurring cost">
-              <Input type="number" min={0} step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(Number(e.target.value))} />
+              <Input type="number" min={0} step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value === "" ? "" : Number(e.target.value))} />
             </Field>
             <Field label="Currency" hint="3-letter code">
               <Input value={cur} onChange={(e) => setCur(e.target.value.toUpperCase().slice(0, 3))} maxLength={3} />
@@ -779,7 +801,10 @@ function ContractForm({
               </Badge>
             </div>
             <div className="grid grid-cols-3 gap-3 text-sm">
-              <Preview label="Billable Months" value={`${paidMonths} of ${duration}m`} />
+              <Preview
+                label="Billable Months"
+                value={freeMonths > 0 ? `${paidMonths} of ${totalMonths}m (${freeMonths}m free)` : `${paidMonths} of ${duration}m`}
+              />
               <Preview label="Scheduled Total" value={formatMoney(scheduled, cur)} />
               <Preview label="Effective Monthly" value={`${formatMoney(effective, cur)}/mo`} />
             </div>

@@ -428,9 +428,9 @@ function RenewDialog({
   const oldC = renewal?.oldContract;
   const [contractNumber, setContractNumber] = React.useState("");
   const [startDate, setStartDate] = React.useState("");
-  const [duration, setDuration] = React.useState(12);
-  const [freeMonths, setFreeMonths] = React.useState(0);
-  const [monthlyFee, setMonthlyFee] = React.useState(0);
+  const [duration, setDuration] = React.useState<number | string>(12);
+  const [freeMonths, setFreeMonths] = React.useState<number | string>(0);
+  const [monthlyFee, setMonthlyFee] = React.useState<number | string>(0);
   const [currency, setCurrency] = React.useState("USD");
   const [billingCycle, setBillingCycle] = React.useState("ANNUAL");
   const [notes, setNotes] = React.useState("");
@@ -451,28 +451,44 @@ function RenewDialog({
     setError(null);
   }, [renewal, oldC]);
 
+  const totalMonths = Math.max(0, Number(duration || 0) + Number(freeMonths || 0));
+
   const endDate = React.useMemo(() => {
     if (!startDate) return "";
     const d = new Date(startDate);
-    d.setMonth(d.getMonth() + Number(duration || 0));
+    d.setMonth(d.getMonth() + totalMonths);
     return d.toISOString().slice(0, 10);
-  }, [startDate, duration]);
+  }, [startDate, totalMonths]);
 
-  const feeDelta = oldC ? Number(monthlyFee) - Number(oldC.monthlyFee) : 0;
+  const isFormValid = Boolean(
+    contractNumber?.trim() &&
+    startDate?.trim() &&
+    duration !== "" &&
+    !isNaN(Number(duration)) &&
+    Number(duration) > 0 &&
+    monthlyFee !== "" &&
+    monthlyFee !== null &&
+    monthlyFee !== undefined &&
+    !isNaN(Number(monthlyFee)) &&
+    Number(monthlyFee) >= 0 &&
+    (freeMonths === undefined || freeMonths === "" || (!isNaN(Number(freeMonths)) && Number(freeMonths) >= 0))
+  );
+
+  const feeDelta = oldC && monthlyFee !== "" ? Number(monthlyFee) - Number(oldC.monthlyFee) : 0;
 
   const submit = async () => {
     setError(null);
-    if (!renewal || !oldC) return;
+    if (!renewal || !oldC || !isFormValid) return;
     if (!contractNumber.trim()) return setError("Contract number is required");
-    if (freeMonths > duration) return setError("Free months cannot exceed duration");
+    if (Number(freeMonths || 0) < 0) return setError("Free months cannot be negative");
     try {
       await onSubmit({
         contractNumber: contractNumber.trim(),
         startDate,
         endDate,
-        durationMonths: Number(duration),
-        freeMonths: Number(freeMonths),
-        monthlyFee: Number(monthlyFee),
+        durationMonths: totalMonths,
+        freeMonths: Number(freeMonths || 0),
+        monthlyFee: Number(monthlyFee || 0),
         currency,
         billingCycle,
         notes: notes.trim() || null,
@@ -491,6 +507,7 @@ function RenewDialog({
       title={`Renew ${oldC.contractNumber}`}
       description="Create a new contract period. The old contract is marked RENEWED and preserved for history — its terms never change."
       submitText="Create renewal"
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >
@@ -542,10 +559,10 @@ function RenewDialog({
             <DatePicker value={startDate} onChange={setStartDate} placeholder="Select start date" />
           </Field>
           <Field label="Duration (mo)" required>
-            <Input type="number" min={1} max={120} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
+            <Input type="number" min={1} max={120} value={duration} onChange={(e) => setDuration(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
           <Field label="Free months">
-            <Input type="number" min={0} max={120} value={freeMonths} onChange={(e) => setFreeMonths(Number(e.target.value))} />
+            <Input type="number" min={0} max={120} value={freeMonths} onChange={(e) => setFreeMonths(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
           <Field label="End date" hint="Auto-computed">
             <DatePicker value={endDate} disabled className="bg-muted/40" />
@@ -554,7 +571,7 @@ function RenewDialog({
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Monthly fee" required>
-            <Input type="number" min={0} step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(Number(e.target.value))} />
+            <Input type="number" min={0} step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value === "" ? "" : Number(e.target.value))} />
           </Field>
           <Field label="Currency">
             <Input value={currency} maxLength={3} onChange={(e) => setCurrency(e.target.value.toUpperCase())} />

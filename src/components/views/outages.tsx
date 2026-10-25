@@ -289,8 +289,11 @@ function CreateOutageDialog({
     }
   }, [open]);
 
+  const isFormValid = Boolean(serviceId?.trim() && type?.trim() && startTime?.trim());
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!serviceId) return setError("Select a service");
     try {
       await api("/api/outages", {
@@ -305,7 +308,7 @@ function CreateOutageDialog({
   };
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title="Report outage incident" description="Create an ongoing incident for a service. Resolve it later to compute downtime." submitText="Report incident" onSubmit={submit} size="md">
+    <FormDialog open={open} onOpenChange={onOpenChange} title="Report outage incident" description="Create an ongoing incident for a service. Resolve it later to compute downtime." submitText="Report incident" submitDisabled={!isFormValid} onSubmit={submit} size="md">
       <div className="space-y-4">
         {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
         <Field label="Service" required>

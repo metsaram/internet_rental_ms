@@ -324,11 +324,11 @@ function PlanForm({
   const isEdit = !!editing;
   const [providerId, setProviderId] = React.useState("");
   const [name, setName] = React.useState("");
-  const [bandwidthDown, setBandwidthDown] = React.useState<number>(100);
-  const [bandwidthUp, setBandwidthUp] = React.useState<number>(100);
+  const [bandwidthDown, setBandwidthDown] = React.useState<number | string>(100);
+  const [bandwidthUp, setBandwidthUp] = React.useState<number | string>(100);
   const [connectionType, setConnectionType] =
     React.useState<string>("FIBER");
-  const [price, setPrice] = React.useState<number>(0);
+  const [price, setPrice] = React.useState<number | string>(0);
   const [cur, setCur] = React.useState(currency);
   const [status, setStatus] = React.useState("ACTIVE");
   const [description, setDescription] = React.useState("");
@@ -360,20 +360,35 @@ function PlanForm({
     setError(null);
   }, [open, editing, currency]);
 
+  const isFormValid = Boolean(
+    providerId?.trim() &&
+    name?.trim() &&
+    bandwidthDown !== "" &&
+    !isNaN(Number(bandwidthDown)) &&
+    Number(bandwidthDown) >= 0 &&
+    bandwidthUp !== "" &&
+    !isNaN(Number(bandwidthUp)) &&
+    Number(bandwidthUp) >= 0 &&
+    price !== "" &&
+    !isNaN(Number(price)) &&
+    Number(price) >= 0
+  );
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!providerId) return setError("Select a provider");
     if (!name.trim()) return setError("Plan name is required");
-    if (bandwidthDown < 0) return setError("Download bandwidth must be ≥ 0");
-    if (bandwidthUp < 0) return setError("Upload bandwidth must be ≥ 0");
-    if (price < 0) return setError("Catalog price must be ≥ 0");
+    if (Number(bandwidthDown || 0) < 0) return setError("Download bandwidth must be ≥ 0");
+    if (Number(bandwidthUp || 0) < 0) return setError("Upload bandwidth must be ≥ 0");
+    if (Number(price || 0) < 0) return setError("Catalog price must be ≥ 0");
     const payload: Record<string, unknown> = {
       providerId,
       name: name.trim(),
-      bandwidthDownMbps: Number(bandwidthDown),
-      bandwidthUpMbps: Number(bandwidthUp),
+      bandwidthDownMbps: Number(bandwidthDown || 0),
+      bandwidthUpMbps: Number(bandwidthUp || 0),
       connectionType,
-      catalogMonthlyPrice: Number(price),
+      catalogMonthlyPrice: Number(price || 0),
       currency: cur.trim().toUpperCase() || currency,
       status,
       description: description.trim() || null,
@@ -388,6 +403,7 @@ function PlanForm({
       title={isEdit ? `Edit plan ${editing?.name}` : "New plan"}
       description="Catalog plan offered by a provider. Prices here are master data — existing contracts keep their own monthly fee."
       submitText={isEdit ? "Save changes" : "Create plan"}
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >
@@ -426,7 +442,7 @@ function PlanForm({
               type="number"
               min={0}
               value={bandwidthDown}
-              onChange={(e) => setBandwidthDown(Number(e.target.value))}
+              onChange={(e) => setBandwidthDown(e.target.value === "" ? "" : Number(e.target.value))}
             />
           </Field>
           <Field label="Upload (Mbps)" required>
@@ -434,7 +450,7 @@ function PlanForm({
               type="number"
               min={0}
               value={bandwidthUp}
-              onChange={(e) => setBandwidthUp(Number(e.target.value))}
+              onChange={(e) => setBandwidthUp(e.target.value === "" ? "" : Number(e.target.value))}
             />
           </Field>
           <Field label="Connection type">
@@ -462,7 +478,7 @@ function PlanForm({
               min={0}
               step="0.01"
               value={price}
-              onChange={(e) => setPrice(Number(e.target.value))}
+              onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
             />
           </Field>
           <Field label="Currency">

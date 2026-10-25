@@ -284,8 +284,11 @@ function ServiceForm({
   const visibleShops = branchId ? shops.filter((s) => s.branchId === branchId) : shops;
   const visiblePlans = providerId ? plans.filter((p) => p.providerId === providerId) : plans;
 
+  const isFormValid = Boolean(branchId?.trim() && providerId?.trim() && serviceCode?.trim());
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!branchId) return setError("Select a branch");
     if (!providerId) return setError("Select a provider");
     if (!serviceCode.trim()) return setError("Service code is required");
@@ -299,7 +302,7 @@ function ServiceForm({
   };
 
   return (
-    <FormDialog open={open} onOpenChange={onOpenChange} title={isEdit ? `Edit service ${editing?.serviceCode}` : "New internet service"} description="Installed connection record. Credentials are stored server-side only." submitText={isEdit ? "Save changes" : "Create service"} onSubmit={submit} size="lg">
+    <FormDialog open={open} onOpenChange={onOpenChange} title={isEdit ? `Edit service ${editing?.serviceCode}` : "New internet service"} description="Installed connection record. Credentials are stored server-side only." submitText={isEdit ? "Save changes" : "Create service"} submitDisabled={!isFormValid} onSubmit={submit} size="lg">
       <div className="space-y-4">
         {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">{error}</div>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

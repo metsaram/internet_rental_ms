@@ -523,8 +523,11 @@ function CreateUserDialog({
     if (open) { setEmail(""); setName(""); setPassword(""); setRole("STAFF"); setError(null); }
   }, [open]);
 
+  const isFormValid = Boolean(email.trim() && name.trim() && password && password.length >= 8);
+
   const submit = async () => {
     setError(null);
+    if (!isFormValid) return;
     if (!email.trim() || !name.trim() || password.length < 8) {
       setError("Email, name, and an 8+ char password are required");
       return;
@@ -552,6 +555,7 @@ function CreateUserDialog({
       title="Add user"
       description="Create a new account scoped to your company."
       submitText="Create user"
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="md"
     >
@@ -600,8 +604,10 @@ function ResetPasswordDialog({
 
   React.useEffect(() => { setPassword(""); setError(null); }, [user]);
 
+  const isFormValid = Boolean(password && password.length >= 8);
+
   const submit = async () => {
-    if (!user) return;
+    if (!user || !isFormValid) return;
     setError(null);
     if (password.length < 8) { setError("Password must be at least 8 characters"); return; }
     setSaving(true);
@@ -627,6 +633,7 @@ function ResetPasswordDialog({
       title={`Reset password — ${user?.email ?? ""}`}
       description="Set a new password for this account."
       submitText="Reset password"
+      submitDisabled={!isFormValid}
       onSubmit={submit}
       size="sm"
     >

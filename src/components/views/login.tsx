@@ -162,7 +162,7 @@ export function LoginScreen() {
             <Button
               type="submit"
               className="w-full"
-              disabled={loading}
+              disabled={loading || !email.trim() || !password}
               size="lg"
             >
               {loading ? (

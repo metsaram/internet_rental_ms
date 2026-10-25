@@ -7,7 +7,14 @@ import {
   errorResponse,
 } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
-import { putFile, isAllowedMime, MAX_FILE_BYTES, formatBytes } from "@/lib/storage";
+import {
+  putFile,
+  isAllowedMime,
+  MAX_FILE_BYTES,
+  formatBytes,
+  getSupabasePublicUrl,
+  storageConfig,
+} from "@/lib/storage";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -37,18 +44,22 @@ export async function GET(req: Request) {
       include: { uploadedBy: { select: { name: true, email: true } } },
     });
     return NextResponse.json(
-      rows.map((a) => ({
-        id: a.id,
-        entityType: a.entityType,
-        entityId: a.entityId,
-        category: a.category,
-        fileName: a.fileName,
-        mimeType: a.mimeType,
-        sizeBytes: a.sizeBytes,
-        sizeLabel: formatBytes(a.sizeBytes),
-        uploadedBy: a.uploadedBy,
-        createdAt: a.createdAt,
-      }))
+      rows.map((a) => {
+        const folder = storageConfig.resolveFolder(a.entityType, a.category);
+        return {
+          id: a.id,
+          entityType: a.entityType,
+          entityId: a.entityId,
+          category: a.category,
+          fileName: a.fileName,
+          mimeType: a.mimeType,
+          sizeBytes: a.sizeBytes,
+          sizeLabel: formatBytes(a.sizeBytes),
+          uploadedBy: a.uploadedBy,
+          createdAt: a.createdAt,
+          supabaseUrl: getSupabasePublicUrl(a.storageKey, folder),
+        };
+      })
     );
   } catch (err) {
     return errorResponse(err);
@@ -78,7 +89,14 @@ export async function POST(req: Request) {
     await assertEntityOwnership(entityType as string, entityId as string, user.companyId);
 
     const ext = file.name.includes(".") ? file.name.split(".").pop() : undefined;
-    const { key, size } = await putFile(await file.arrayBuffer(), ext);
+
+    // Automatic folder resolution and Supabase bucket upload
+    const { key, size, publicUrl } = await putFile(await file.arrayBuffer(), ext, {
+      entityType: entityType as string,
+      category,
+      mimeType: file.type,
+      fileName: file.name,
+    });
 
     const att = await db.attachment.create({
       data: {
@@ -103,7 +121,7 @@ export async function POST(req: Request) {
       after: { fileName: att.fileName, entityType: att.entityType, entityId: att.entityId },
     });
 
-    return NextResponse.json({ id: att.id }, { status: 201 });
+    return NextResponse.json({ id: att.id, supabaseUrl: publicUrl }, { status: 201 });
   } catch (err) {
     return errorResponse(err);
   }

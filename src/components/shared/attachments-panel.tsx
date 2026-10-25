@@ -50,6 +50,7 @@ type Attachment = {
   sizeLabel: string;
   uploadedBy: { name: string | null; email: string } | null;
   createdAt: string;
+  supabaseUrl?: string | null;
 };
 
 const CATEGORY_OPTS = [
@@ -264,6 +265,18 @@ export function AttachmentsPanel({
                     <Eye className="size-3.5" />
                   </a>
                 )}
+                {a.supabaseUrl && (
+                  <a
+                    href={a.supabaseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-emerald-600"
+                    aria-label="Open in Supabase Storage"
+                    title="Open in Supabase Storage"
+                  >
+                    <ExternalLink className="size-3.5" />
+                  </a>
+                )}
                 <a
                   href={downloadUrl}
                   download={a.fileName}
@@ -330,6 +343,18 @@ export function AttachmentsPanel({
               Category: {CATEGORY_OPTS.find((c) => c.value === previewAttachment?.category)?.label ?? previewAttachment?.category}
             </span>
             <div className="flex items-center gap-2">
+              {previewAttachment?.supabaseUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(previewAttachment.supabaseUrl!, "_blank")}
+                  title="Open direct Supabase Storage URL"
+                >
+                  <ExternalLink className="size-3.5 mr-1.5 text-emerald-600" />
+                  Supabase
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

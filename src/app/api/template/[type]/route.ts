@@ -122,37 +122,12 @@ function generateFallbackTemplate(type: "contract" | "service", currency = "USD"
   return new Uint8Array(buf);
 }
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://qqiegcibcbytabdqwwyn.supabase.co";
-const SUPABASE_KEY =
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  "sb_publishable_U00Nj2Om7nI9DXge_Z1mQQ_tDN2Nh69";
-const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "net_rent";
+import { supabaseStorage } from "@/lib/supabase-storage";
 
 async function fetchTemplateFromSupabaseStorage(type: string): Promise<Uint8Array | null> {
   const filename = `netrent-${type}-import-template.xlsx`;
-  const urls = [
-    `${SUPABASE_URL}/storage/v1/object/public/${STORAGE_BUCKET}/template/${filename}`,
-    `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/template/${filename}`,
-  ];
-
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        headers: SUPABASE_KEY
-          ? { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` }
-          : {},
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const ab = await res.arrayBuffer();
-        if (ab.byteLength > 0) return new Uint8Array(ab);
-      }
-    } catch {
-      // Continue to next candidate
-    }
-  }
-  return null;
+  const buf = await supabaseStorage.download(`template/${filename}`);
+  return buf ? new Uint8Array(buf) : null;
 }
 
 /**

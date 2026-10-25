@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, HttpError, errorResponse } from "@/lib/session";
-import { getFile } from "@/lib/storage";
+import { getFile, storageConfig } from "@/lib/storage";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -18,7 +18,8 @@ export async function GET(req: Request, { params }: Params) {
     const att = await db.attachment.findUnique({ where: { id } });
     if (!att || att.companyId !== user.companyId) throw new HttpError(404, "Attachment not found");
 
-    const buf = await getFile(att.storageKey);
+    const folder = storageConfig.resolveFolder(att.entityType, att.category);
+    const buf = await getFile(att.storageKey, folder);
     if (!buf) throw new HttpError(410, "File no longer exists in storage");
 
     const url = new URL(req.url);

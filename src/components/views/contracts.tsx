@@ -2,7 +2,23 @@
 
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, FileText, History, Calculator, Network } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  FileText,
+  History,
+  Calculator,
+  Network,
+  Calendar,
+  DollarSign,
+  AlertTriangle,
+  Building2,
+  Clock,
+  ShieldCheck,
+  Eye,
+  Paperclip,
+} from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +43,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { DataTable, FilterSelect, type DataTableColumn } from "@/components/shared/data-table";
@@ -34,7 +52,6 @@ import { FormDialog, Field } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { AttachmentsPanel } from "@/components/shared/attachments-panel";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { EmptyState } from "@/components/shared/empty-state";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -80,6 +97,14 @@ const STATUS_OPTS = [
   { value: "RENEWED", label: "Renewed" },
 ] as const;
 
+function formatBillingCycle(cycle?: string) {
+  if (cycle === "ANNUAL" || cycle === "YEARLY") return "Yearly";
+  if (cycle === "SEMI_ANNUAL") return "Semi-annual";
+  if (cycle === "QUARTERLY") return "Quarterly";
+  if (cycle === "MONTHLY") return "Monthly";
+  return cycle ?? "Yearly";
+}
+
 export function ContractsView() {
   const { data: session } = useSession();
   const currency = (session?.user as any)?.companyCurrency ?? "USD";
@@ -92,7 +117,6 @@ export function ContractsView() {
   const [deleting, setDeleting] = React.useState<Contract | null>(null);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [bulkStatus, setBulkStatus] = React.useState<string>("ACTIVE");
-  const [bulkOpen, setBulkOpen] = React.useState(false);
 
   const { data: contracts = [], isLoading } = useQuery<Contract[]>({
     queryKey: ["contracts", search, statusFilter],
@@ -113,11 +137,34 @@ export function ContractsView() {
     if (!search) return contracts;
     const s = search.toLowerCase();
     return contracts.filter((c) =>
-      [c.contractNumber, c.serviceCode, c.branch?.name, c.provider?.name].some(
+      [c.contractNumber, c.serviceCode, c.branch?.name, c.provider?.name, c.billingCycle].some(
         (v) => v?.toLowerCase().includes(s)
       )
     );
   }, [contracts, search]);
+
+  // Executive KPI summary calculations
+  const activeCount = React.useMemo(
+    () => contracts.filter((c) => c.status === "ACTIVE").length,
+    [contracts]
+  );
+  const expiringCount = React.useMemo(
+    () =>
+      contracts.filter(
+        (c) =>
+          c.derivedStatus === "expiring" ||
+          c.derivedStatus === "expired" ||
+          c.status === "EXPIRED"
+      ).length,
+    [contracts]
+  );
+  const totalMonthlyCommitment = React.useMemo(
+    () =>
+      contracts
+        .filter((c) => c.status === "ACTIVE")
+        .reduce((sum, c) => sum + Number(c.monthlyFee || 0), 0),
+    [contracts]
+  );
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
@@ -160,7 +207,6 @@ export function ContractsView() {
     });
     toast.success(`${ids.length} contract(s) set to ${status}`);
     setSelected(new Set());
-    setBulkOpen(false);
     qc.invalidateQueries({ queryKey: ["contracts"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
@@ -204,12 +250,13 @@ export function ContractsView() {
     },
     {
       key: "contract",
-      header: "Contract",
+      header: "Contract & Service",
       cell: (c) => (
         <div>
-          <div className="font-medium">{c.contractNumber}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {c.serviceCode}
+          <div className="font-semibold text-foreground tracking-tight">{c.contractNumber}</div>
+          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
+            <Network className="size-3 text-primary/70 shrink-0" />
+            <span className="font-medium">{c.serviceCode}</span>
           </div>
         </div>
       ),
@@ -220,7 +267,7 @@ export function ContractsView() {
       hideOnMobile: true,
       cell: (c) => (
         <div className="text-sm">
-          <div>{c.branch?.name ?? "—"}</div>
+          <div className="font-medium text-foreground">{c.branch?.name ?? "—"}</div>
           <div className="text-[11px] text-muted-foreground">
             {c.shop?.name ?? "—"}
           </div>
@@ -229,42 +276,63 @@ export function ContractsView() {
     },
     {
       key: "provider",
-      header: "Provider",
+      header: "Provider & Plan",
       hideOnMobile: true,
       cell: (c) => (
         <div className="text-sm">
-          <div>{c.provider?.name ?? "—"}</div>
+          <div className="font-medium text-foreground">{c.provider?.name ?? "—"}</div>
           <div className="text-[11px] text-muted-foreground">
-            {c.plan?.name ?? "—"}
+            {c.plan?.name ?? "Standard Plan"}
           </div>
         </div>
       ),
     },
     {
       key: "period",
-      header: "Period",
+      header: "Contract Period",
       hideOnMobile: true,
       cell: (c) => (
         <div className="text-sm">
-          <div>{formatDate(c.startDate)} → {formatDate(c.endDate)}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {c.durationMonths}m · {c.freeMonths} free
+          <div className="font-medium">{formatDate(c.startDate)} → {formatDate(c.endDate)}</div>
+          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+            <span>{c.durationMonths}m duration</span>
+            {c.freeMonths > 0 && (
+              <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
+                {c.freeMonths}m free
+              </Badge>
+            )}
           </div>
         </div>
       ),
     },
     {
       key: "fee",
-      header: "Monthly",
+      header: "Fee & Cycle",
       cell: (c) => (
-        <div className="text-sm font-medium tabular-nums">
-          {formatMoney(c.monthlyFee, c.currency)}
+        <div>
+          <div className="text-sm font-semibold tabular-nums text-foreground">
+            {formatMoney(c.monthlyFee, c.currency)}
+            <span className="text-[11px] font-normal text-muted-foreground">/mo</span>
+          </div>
+          <div className="mt-0.5">
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[9px] px-1.5 py-0 h-4 font-normal",
+                c.billingCycle === "ANNUAL" || c.billingCycle === "YEARLY"
+                  ? "bg-primary/5 text-primary border-primary/20"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {formatBillingCycle(c.billingCycle)}
+            </Badge>
+          </div>
         </div>
       ),
     },
     {
       key: "effective",
-      header: "Effective/mo",
+      header: "Effective / mo",
       hideOnMobile: true,
       cell: (c) => (
         <div className="text-sm tabular-nums text-muted-foreground">
@@ -276,7 +344,7 @@ export function ContractsView() {
       key: "status",
       header: "Status",
       cell: (c) => (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 items-start">
           <StatusBadge status={c.status} />
           <span className="text-[10px] text-muted-foreground capitalize">
             {c.derivedStatus}
@@ -296,12 +364,26 @@ export function ContractsView() {
             className="size-8"
             onClick={(e) => {
               e.stopPropagation();
+              setDetail(c);
+            }}
+            aria-label="View contract details"
+            title="View details"
+          >
+            <Eye className="size-4 text-muted-foreground" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={(e) => {
+              e.stopPropagation();
               setEditing(c);
               setDialogOpen(true);
             }}
             aria-label="Edit"
+            title="Edit contract"
           >
-            <Pencil className="size-4" />
+            <Pencil className="size-4 text-muted-foreground" />
           </Button>
         </div>
       ),
@@ -309,10 +391,11 @@ export function ContractsView() {
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
+      {/* Page Header */}
       <PageHeader
         title="Contracts"
-        description="Commercial agreements and agreed monthly price terms. Historical terms are preserved per service."
+        description="Commercial agreements and negotiated terms. Historical terms are preserved per service."
         actions={
           <Button
             onClick={() => {
@@ -320,12 +403,58 @@ export function ContractsView() {
               setDialogOpen(true);
             }}
             disabled={services.length === 0}
+            className="shadow-sm"
           >
             <Plus className="size-4" />
             New contract
           </Button>
         }
       />
+
+      {/* Overview Analytics KPI Cards */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/70 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Total Contracts</span>
+            <FileText className="size-4 text-primary/70" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight">{contracts.length}</div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{activeCount} active in system</p>
+        </Card>
+
+        <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/70 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Active Contracts</span>
+            <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+            {activeCount}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Currently operational</p>
+        </Card>
+
+        <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/70 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Needs Attention</span>
+            <AlertTriangle className="size-4 text-amber-500" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
+            {expiringCount}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Expiring soon or expired</p>
+        </Card>
+
+        <Card className="p-4 bg-card/60 backdrop-blur-xs border-border/70 shadow-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Active Monthly Spend</span>
+            <DollarSign className="size-4 text-primary/70" />
+          </div>
+          <div className="mt-2 text-2xl font-bold tracking-tight">
+            {formatMoney(totalMonthlyCommitment, currency)}
+          </div>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Committed fee per month</p>
+        </Card>
+      </div>
 
       {services.length === 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -341,12 +470,12 @@ export function ContractsView() {
 
       {/* Bulk-action toolbar */}
       {selected.size > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 shadow-xs">
           <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium">{selected.size}</span>
+            <span className="font-semibold text-primary">{selected.size}</span>
             <span className="text-muted-foreground">contract(s) selected</span>
-            <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setSelected(new Set())}>
-              Clear
+            <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => setSelected(new Set())}>
+              Clear selection
             </Button>
           </div>
           <div className="flex items-center gap-2">
@@ -365,6 +494,7 @@ export function ContractsView() {
         </div>
       )}
 
+      {/* Main Contracts Table */}
       <DataTable
         columns={columns}
         rows={filtered}
@@ -372,7 +502,7 @@ export function ContractsView() {
         loading={isLoading}
         onRowClick={(c) => setDetail(c)}
         emptyMessage="No contracts match your filters."
-        search={{ value: search, onChange: setSearch, placeholder: "Search contracts..." }}
+        search={{ value: search, onChange: setSearch, placeholder: "Search contracts, branch, provider..." }}
         toolbar={
           <FilterSelect
             value={statusFilter as any}
@@ -383,6 +513,7 @@ export function ContractsView() {
         }
       />
 
+      {/* Reorganized Form Modal */}
       <ContractForm
         open={dialogOpen}
         onOpenChange={(v) => {
@@ -401,6 +532,7 @@ export function ContractsView() {
         }}
       />
 
+      {/* Reorganized Detail Sheet */}
       <ContractDetailSheet
         contract={detail}
         onClose={() => setDetail(null)}
@@ -415,6 +547,7 @@ export function ContractsView() {
         }}
       />
 
+      {/* Confirm Delete Dialog */}
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(v) => !v && setDeleting(null)}
@@ -434,7 +567,7 @@ export function ContractsView() {
 }
 
 // ---------------------------------------------------------------------------
-// Create / edit form
+// Reorganized Create / Edit Form Modal
 // ---------------------------------------------------------------------------
 
 function ContractForm({
@@ -460,7 +593,7 @@ function ContractForm({
   const [freeMonths, setFreeMonths] = React.useState(0);
   const [monthlyFee, setMonthlyFee] = React.useState<number>(0);
   const [cur, setCur] = React.useState(currency);
-  const [billingCycle, setBillingCycle] = React.useState("MONTHLY");
+  const [billingCycle, setBillingCycle] = React.useState("ANNUAL");
   const [status, setStatus] = React.useState("DRAFT");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -486,14 +619,14 @@ function ContractForm({
       setFreeMonths(0);
       setMonthlyFee(0);
       setCur(currency);
-      setBillingCycle("MONTHLY");
+      setBillingCycle("ANNUAL");
       setStatus("DRAFT");
       setNotes("");
     }
     setError(null);
   }, [open, editing, currency]);
 
-  // Auto-compute end date from start + duration.
+  // Auto-compute end date from start + duration
   const endDate = React.useMemo(() => {
     if (!startDate) return "";
     const d = new Date(startDate);
@@ -507,7 +640,7 @@ function ContractForm({
 
   const submit = async () => {
     setError(null);
-    if (!serviceId) return setError("Please select a service");
+    if (!serviceId) return setError("Please select an installed service");
     if (!contractNumber.trim()) return setError("Contract number is required");
     if (freeMonths > duration) return setError("Free months cannot exceed duration");
     const payload: Record<string, unknown> = {
@@ -530,103 +663,133 @@ function ContractForm({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEdit ? `Edit contract ${editing?.contractNumber}` : "New contract"}
-      description="Define the commercial terms. Prices here are independent of catalog prices and won't change when the plan price changes."
+      title={isEdit ? `Edit contract — ${editing?.contractNumber}` : "Create New Contract"}
+      description="Configure commercial agreement terms, scheduled period, and billing cycle. Pricing remains locked to this contract."
       submitText={isEdit ? "Save changes" : "Create contract"}
       onSubmit={submit}
       size="lg"
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         {error && (
           <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
             {error}
           </div>
         )}
-        <Field label="Service" required>
-          <Select value={serviceId} onValueChange={setServiceId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select installed service..." />
-            </SelectTrigger>
-            <SelectContent>
-              {services.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.serviceCode} — {s.branch?.name ?? "Branch"} · {s.provider?.name ?? "?"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Contract number" required>
-            <Input isCode value={contractNumber} onChange={(e) => setContractNumber(e.target.value)} />
-          </Field>
-          <Field label="Status">
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+        {/* Section 1: Service Identification & Contract No */}
+        <div className="rounded-lg border bg-card/40 p-4 space-y-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Network className="size-3.5 text-primary" />
+            1. Service & Identification
+          </div>
+
+          <Field label="Installed Service" required hint="Select which service this commercial contract covers">
+            <Select value={serviceId} onValueChange={setServiceId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select installed service..." />
+              </SelectTrigger>
               <SelectContent>
-                {STATUS_OPTS.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                {services.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.serviceCode} — {s.branch?.name ?? "Branch"} · {s.provider?.name ?? "Provider"}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Contract Number" required hint="Unique commercial identifier">
+              <Input isCode value={contractNumber} onChange={(e) => setContractNumber(e.target.value)} />
+            </Field>
+            <Field label="Contract Status" hint="Current lifecycle status">
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUS_OPTS.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="Start date" required>
-            <DatePicker value={startDate} onChange={setStartDate} placeholder="Select start date" />
-          </Field>
-          <Field label="Duration (months)" required>
-            <Input type="number" min={1} max={120} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
-          </Field>
-          <Field label="Free months">
-            <Input type="number" min={0} max={120} value={freeMonths} onChange={(e) => setFreeMonths(Number(e.target.value))} />
-          </Field>
-          <Field label="End date" hint="Auto-computed">
-            <DatePicker value={endDate} disabled className="bg-muted/40" />
-          </Field>
+        {/* Section 2: Contract Schedule & Timeline */}
+        <div className="rounded-lg border bg-card/40 p-4 space-y-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Calendar className="size-3.5 text-primary" />
+            2. Schedule & Duration
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Start date" required>
+              <DatePicker value={startDate} onChange={setStartDate} placeholder="Select date" />
+            </Field>
+            <Field label="Duration (months)" required>
+              <Input type="number" min={1} max={120} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
+            </Field>
+            <Field label="Free months" hint="Zero-fee months">
+              <Input type="number" min={0} max={120} value={freeMonths} onChange={(e) => setFreeMonths(Number(e.target.value))} />
+            </Field>
+            <Field label="End date" hint="Auto-calculated">
+              <DatePicker value={endDate} disabled className="bg-muted/40 cursor-not-allowed opacity-90" />
+            </Field>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Monthly fee" required>
-            <Input type="number" min={0} step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(Number(e.target.value))} />
-          </Field>
-          <Field label="Currency">
-            <Input value={cur} onChange={(e) => setCur(e.target.value.toUpperCase().slice(0, 3))} maxLength={3} />
-          </Field>
-          <Field label="Billing cycle">
-            <Select value={billingCycle} onValueChange={setBillingCycle}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="MONTHLY">Monthly</SelectItem>
-                <SelectItem value="QUARTERLY">Quarterly</SelectItem>
-                <SelectItem value="SEMI_ANNUAL">Semi-annual</SelectItem>
-                <SelectItem value="ANNUAL">Annual</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
+        {/* Section 3: Financial Terms & Billing Cycle */}
+        <div className="rounded-lg border bg-card/40 p-4 space-y-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <DollarSign className="size-3.5 text-primary" />
+            3. Financial Terms & Billing
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Field label="Agreed Monthly fee" required hint="Recurring cost">
+              <Input type="number" min={0} step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(Number(e.target.value))} />
+            </Field>
+            <Field label="Currency" hint="3-letter code">
+              <Input value={cur} onChange={(e) => setCur(e.target.value.toUpperCase().slice(0, 3))} maxLength={3} />
+            </Field>
+            <Field label="Billing cycle" hint="Defaults to Yearly">
+              <Select value={billingCycle} onValueChange={setBillingCycle}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ANNUAL">Yearly</SelectItem>
+                  <SelectItem value="MONTHLY">Monthly</SelectItem>
+                  <SelectItem value="QUARTERLY">Quarterly</SelectItem>
+                  <SelectItem value="SEMI_ANNUAL">Semi-annual</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
         </div>
 
-        <Field label="Notes">
-          <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </Field>
-
-        {/* Live cost preview */}
-        <Card className="bg-muted/30">
+        {/* Section 4: Live Cost Calculation Card */}
+        <Card className="border-primary/20 bg-primary/5 shadow-xs">
           <CardContent className="p-4">
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-              <Calculator className="size-4 text-primary" />
-              Cost preview
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                <Calculator className="size-3.5" />
+                Live Cost Projection
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-background">
+                Cycle: {formatBillingCycle(billingCycle)}
+              </Badge>
             </div>
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-              <Preview label="Paid months" value={`${paidMonths}`} />
-              <Preview label="Scheduled total" value={formatMoney(scheduled, cur)} />
-              <Preview label="Effective / month" value={formatMoney(effective, cur)} />
-              <Preview label="Saved vs catalog" value="—" muted />
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <Preview label="Billable Months" value={`${paidMonths} of ${duration}m`} />
+              <Preview label="Scheduled Total" value={formatMoney(scheduled, cur)} />
+              <Preview label="Effective Monthly" value={`${formatMoney(effective, cur)}/mo`} />
             </div>
           </CardContent>
         </Card>
+
+        {/* Section 5: Notes & Documentation */}
+        <Field label="Contract Notes / Reference" hint="Optional reference terms, SLA notes, or conditions">
+          <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Enter any specific contract terms or references..." />
+        </Field>
       </div>
     </FormDialog>
   );
@@ -635,14 +798,14 @@ function ContractForm({
 function Preview({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={cn("font-medium tabular-nums", muted && "text-muted-foreground")}>{value}</p>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn("text-sm font-semibold tabular-nums mt-0.5", muted && "text-muted-foreground")}>{value}</p>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Detail sheet
+// Reorganized Detail Sheet
 // ---------------------------------------------------------------------------
 
 function ContractDetailSheet({
@@ -658,6 +821,7 @@ function ContractDetailSheet({
 }) {
   const [detail, setDetail] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
+  const [tab, setTab] = React.useState<"overview" | "history" | "attachments">("overview");
 
   React.useEffect(() => {
     if (!contract) {
@@ -675,129 +839,191 @@ function ContractDetailSheet({
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="sm:max-w-xl w-full overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <FileText className="size-4 text-primary" />
-            {contract?.contractNumber}
-          </SheetTitle>
-          <SheetDescription>
-            {contract?.serviceCode} · {contract?.provider?.name}
+        <SheetHeader className="pb-3 border-b">
+          <div className="flex items-center justify-between">
+            <SheetTitle className="flex items-center gap-2 text-lg">
+              <FileText className="size-5 text-primary" />
+              <span>{contract?.contractNumber}</span>
+            </SheetTitle>
+            <div className="flex items-center gap-1.5">
+              {contract && <StatusBadge status={contract.status} />}
+              <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
+                {formatBillingCycle(contract?.billingCycle)}
+              </Badge>
+            </div>
+          </div>
+          <SheetDescription className="flex items-center gap-1.5 mt-1">
+            <Network className="size-3.5 text-muted-foreground" />
+            <span className="font-medium text-foreground">{contract?.serviceCode}</span>
+            <span>·</span>
+            <span>{contract?.provider?.name ?? "Provider"}</span>
           </SheetDescription>
         </SheetHeader>
 
         {loading ? (
-          <div className="px-4 py-6 text-sm text-muted-foreground">Loading...</div>
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">Loading contract details...</div>
         ) : detail ? (
-          <div className="space-y-5 px-4 pb-6">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={detail.status} />
-              <span className="text-[11px] text-muted-foreground capitalize">
-                Derived: {detail.derivedStatus}
-              </span>
-            </div>
+          <div className="space-y-5 py-4">
+            {/* Tabs for Clean Separation */}
+            <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
+                <TabsTrigger value="history" className="text-xs">
+                  History {(detail.history ?? []).length > 0 && `(${detail.history.length})`}
+                </TabsTrigger>
+                <TabsTrigger value="attachments" className="text-xs">Attachments</TabsTrigger>
+              </TabsList>
 
-            <DetailGrid
-              rows={[
-                ["Branch", detail.branch?.name ?? "—"],
-                ["Shop", detail.shop?.name ?? "—"],
-                ["Provider", detail.provider?.name ?? "—"],
-                ["Plan", detail.plan?.name ?? "—"],
-                ["Start", formatDate(detail.startDate)],
-                ["End", formatDate(detail.endDate)],
-                ["Duration", `${detail.durationMonths} months`],
-                ["Free months", `${detail.freeMonths}`],
-                ["Monthly fee", formatMoney(detail.monthlyFee, detail.currency)],
-                ["Billing cycle", detail.billingCycle],
-                ["Created by", detail.createdBy?.name ?? detail.createdBy?.email ?? "—"],
-              ]}
-            />
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 space-y-2">
-                <p className="flex items-center gap-2 text-sm font-medium">
-                  <Calculator className="size-4 text-primary" />
-                  Cost breakdown
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <Preview label="Paid months" value={`${detail.costs.paidMonths}`} />
-                  <Preview label="Scheduled total" value={formatMoney(detail.costs.scheduledTotal, detail.currency)} />
-                  <Preview label="Effective monthly" value={formatMoney(detail.costs.effectiveMonthly, detail.currency)} />
-                </div>
-              </CardContent>
-            </Card>
-
-            {detail.notes && (
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Notes</p>
-                <p className="mt-1 text-sm whitespace-pre-wrap">{detail.notes}</p>
-              </div>
-            )}
-
-            <div>
-              <p className="mb-2 flex items-center gap-2 text-sm font-medium">
-                <History className="size-4 text-muted-foreground" />
-                Contract history for this service
-              </p>
-              <div className="space-y-2">
-                {(detail.history ?? []).map((h: any) => (
-                  <div
-                    key={h.id}
-                    className={cn(
-                      "rounded-lg border p-3 text-sm",
-                      h.current && "border-primary/40 bg-primary/5"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{h.contractNumber}</span>
-                      {h.current && <StatusBadge status="RENEWED" tone="violet" />}
+              {/* Tab 1: Overview */}
+              <TabsContent value="overview" className="space-y-4 pt-2">
+                {/* Service & Location Card */}
+                <div className="rounded-lg border bg-card/50 p-4 space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Building2 className="size-3.5 text-primary" />
+                    Service & Location
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Branch</p>
+                      <p className="font-medium mt-0.5">{detail.branch?.name ?? "—"}</p>
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-                      <span>{formatDate(h.startDate)} → {formatDate(h.endDate)}</span>
-                      <span>{h.durationMonths}m · {h.freeMonths} free</span>
-                      <span>{formatMoney(h.monthlyFee, h.currency)}/mo</span>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Shop</p>
+                      <p className="font-medium mt-0.5">{detail.shop?.name ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">ISP Provider</p>
+                      <p className="font-medium mt-0.5">{detail.provider?.name ?? "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Plan</p>
+                      <p className="font-medium mt-0.5">{detail.plan?.name ?? "Standard"}</p>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* Attachments (Phase 11) */}
-            {detail && (
-              <div className="border-t pt-4">
-                <AttachmentsPanel entityType="contract" entityId={detail.id} />
-              </div>
-            )}
+                {/* Schedule & Terms Card */}
+                <div className="rounded-lg border bg-card/50 p-4 space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <Calendar className="size-3.5 text-primary" />
+                    Agreement Period & Terms
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Start Date</p>
+                      <p className="font-medium mt-0.5">{formatDate(detail.startDate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">End Date</p>
+                      <p className="font-medium mt-0.5">{formatDate(detail.endDate)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Duration</p>
+                      <p className="font-medium mt-0.5">{detail.durationMonths} months</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Free Months</p>
+                      <p className="font-medium mt-0.5">{detail.freeMonths} months</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Billing Cycle</p>
+                      <p className="font-medium mt-0.5 text-primary">{formatBillingCycle(detail.billingCycle)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-muted-foreground">Created By</p>
+                      <p className="font-medium mt-0.5 truncate">{detail.createdBy?.name ?? detail.createdBy?.email ?? "—"}</p>
+                    </div>
+                  </div>
+                </div>
 
-            <SheetFooter className="flex-row gap-2">
+                {/* Financial Summary Card */}
+                <Card className="border-primary/20 bg-primary/5 shadow-xs">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                      <Calculator className="size-3.5" />
+                      Financial Projection
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm pt-1">
+                      <Preview label="Monthly Fee" value={formatMoney(detail.monthlyFee, detail.currency)} />
+                      <Preview label="Effective / Mo" value={formatMoney(detail.costs.effectiveMonthly, detail.currency)} />
+                      <Preview label="Scheduled Total" value={formatMoney(detail.costs.scheduledTotal, detail.currency)} />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Notes if available */}
+                {detail.notes && (
+                  <div className="rounded-lg border bg-card/50 p-3.5">
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">Contract Notes</p>
+                    <p className="mt-1 text-sm whitespace-pre-wrap text-foreground/90">{detail.notes}</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Tab 2: Service History */}
+              <TabsContent value="history" className="space-y-3 pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Complete historical chain of contract agreements recorded for service <span className="font-medium text-foreground">{detail.serviceCode}</span>.
+                </p>
+                <div className="space-y-2">
+                  {(detail.history ?? []).length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
+                      No prior contract history for this service.
+                    </div>
+                  ) : (
+                    (detail.history ?? []).map((h: any) => (
+                      <div
+                        key={h.id}
+                        className={cn(
+                          "rounded-lg border p-3 text-sm transition",
+                          h.current ? "border-primary bg-primary/5 shadow-xs" : "bg-card/40"
+                        )}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-foreground">{h.contractNumber}</span>
+                          {h.current ? (
+                            <Badge variant="default" className="text-[10px]">Current Contract</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] text-muted-foreground">Archived</Badge>
+                          )}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                          <span>{formatDate(h.startDate)} → {formatDate(h.endDate)}</span>
+                          <span>{h.durationMonths}m ({h.freeMonths} free)</span>
+                          <span className="font-medium text-foreground">{formatMoney(h.monthlyFee, h.currency)}/mo</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </TabsContent>
+
+              {/* Tab 3: Cloud Attachments */}
+              <TabsContent value="attachments" className="pt-2">
+                <div className="rounded-lg border bg-card/40 p-4">
+                  <AttachmentsPanel entityType="contract" entityId={detail.id} />
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {/* Sheet Actions */}
+            <SheetFooter className="flex-row gap-2 pt-4 border-t">
               <Button variant="outline" onClick={() => contract && onEdit(contract)} className="flex-1">
-                <Pencil className="size-4" /> Edit
+                <Pencil className="size-4 mr-1.5" /> Edit Contract
               </Button>
               <Button
                 variant="outline"
                 onClick={() => contract && onDelete(contract)}
-                className="text-rose-600 hover:text-rose-700"
+                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30"
               >
-                <Trash2 className="size-4" /> Delete
+                <Trash2 className="size-4 mr-1.5" /> Delete
               </Button>
             </SheetFooter>
           </div>
         ) : (
-          <div className="px-4 py-6 text-sm text-muted-foreground">No data.</div>
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">Contract not found.</div>
         )}
       </SheetContent>
     </Sheet>
-  );
-}
-
-function DetailGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
-  return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="text-sm">{value}</p>
-        </div>
-      ))}
-    </div>
   );
 }

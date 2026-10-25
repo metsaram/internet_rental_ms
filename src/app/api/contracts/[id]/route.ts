@@ -23,7 +23,7 @@ function createPartial() {
     freeMonths: z.number().int().min(0).max(120).optional(),
     monthlyFee: z.number().nonnegative().optional(),
     currency: z.string().min(3).max(3).optional(),
-    billingCycle: z.enum(["MONTHLY","QUARTERLY","SEMI_ANNUAL","ANNUAL"]).optional(),
+    billingCycle: z.enum(["YEARLY", "MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL"]).optional(),
     status: z.enum(["DRAFT","ACTIVE","EXPIRED","TERMINATED","RENEWED"]).optional(),
     notes: z.string().optional().nullable(),
   });
@@ -130,7 +130,7 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.freeMonths !== undefined) data.freeMonths = body.freeMonths;
     if (body.monthlyFee !== undefined) data.monthlyFee = new Prisma.Decimal(body.monthlyFee);
     if (body.currency) data.currency = body.currency;
-    if (body.billingCycle) data.billingCycle = body.billingCycle;
+    if (body.billingCycle) data.billingCycle = (body.billingCycle === "YEARLY" ? "ANNUAL" : body.billingCycle) as any;
     if (body.status) data.status = body.status;
     if (body.notes !== undefined) data.notes = body.notes ?? null;
 

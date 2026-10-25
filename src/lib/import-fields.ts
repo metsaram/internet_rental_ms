@@ -28,7 +28,7 @@ export const CONTRACT_FIELDS: ImportField[] = [
   { key: "freeMonths", label: "Free months", type: "number", hint: "Default 0" },
   { key: "currency", label: "Currency", type: "string", hint: "Default USD" },
   { key: "status", label: "Status", type: "enum", enumValues: ["DRAFT", "ACTIVE", "EXPIRED", "TERMINATED"], hint: "Default DRAFT" },
-  { key: "billingCycle", label: "Billing cycle", type: "enum", enumValues: ["MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL"], hint: "Default MONTHLY" },
+  { key: "billingCycle", label: "Billing cycle", type: "enum", enumValues: ["ANNUAL", "YEARLY", "MONTHLY", "QUARTERLY", "SEMI_ANNUAL"], hint: "Default ANNUAL (Yearly)" },
   { key: "notes", label: "Notes", type: "string" },
 ];
 

@@ -18,7 +18,7 @@ const renewSchema = z.object({
   freeMonths: z.number().int().min(0).max(120).default(0),
   monthlyFee: z.number().nonnegative(),
   currency: z.string().min(3).max(3).default("USD"),
-  billingCycle: z.enum(["MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL"]).default("MONTHLY"),
+  billingCycle: z.enum(["YEARLY", "MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL"]).default("ANNUAL"),
   notes: z.string().optional().nullable(),
 });
 
@@ -87,7 +87,7 @@ export async function POST(req: Request, { params }: Params) {
           freeMonths: body.freeMonths,
           monthlyFee: new Prisma.Decimal(body.monthlyFee),
           currency: body.currency,
-          billingCycle: body.billingCycle,
+          billingCycle: (body.billingCycle === "YEARLY" ? "ANNUAL" : body.billingCycle) as any,
           status: "ACTIVE",
           notes: body.notes ?? null,
           createdById: user.id,

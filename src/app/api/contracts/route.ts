@@ -20,8 +20,8 @@ const createSchema = z.object({
   freeMonths: z.number().int().min(0).max(120).default(0),
   monthlyFee: z.number().nonnegative(),
   currency: z.string().min(3).max(3).default("USD"),
-  billingCycle: z.enum(["MONTHLY","QUARTERLY","SEMI_ANNUAL","ANNUAL"]).default("MONTHLY"),
-  status: z.enum(["DRAFT","ACTIVE","EXPIRED","TERMINATED","RENEWED"]).default("DRAFT"),
+  billingCycle: z.enum(["YEARLY", "MONTHLY", "QUARTERLY", "SEMI_ANNUAL", "ANNUAL"]).default("ANNUAL"),
+  status: z.enum(["DRAFT", "ACTIVE", "EXPIRED", "TERMINATED", "RENEWED"]).default("DRAFT"),
   notes: z.string().optional().nullable(),
 });
 
@@ -37,11 +37,11 @@ export async function GET(req: Request) {
       ...(status !== "ALL" ? { status } : {}),
       ...(search
         ? {
-            OR: [
-              { contractNumber: { contains: search, mode: "insensitive" } },
-              { service: { serviceCode: { contains: search, mode: "insensitive" } } },
-            ],
-          }
+          OR: [
+            { contractNumber: { contains: search, mode: "insensitive" } },
+            { service: { serviceCode: { contains: search, mode: "insensitive" } } },
+          ],
+        }
         : {}),
     };
 
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
         freeMonths: body.freeMonths,
         monthlyFee: new Prisma.Decimal(body.monthlyFee),
         currency: body.currency,
-        billingCycle: body.billingCycle,
+        billingCycle: (body.billingCycle === "YEARLY" ? "ANNUAL" : body.billingCycle) as any,
         status: body.status,
         notes: body.notes ?? null,
         createdById: user.id,

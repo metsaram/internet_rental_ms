@@ -117,7 +117,7 @@ export async function POST(req: Request) {
               continue;
             }
             if (f.key === "billingCycle") {
-              coerced[f.key] = "MONTHLY";
+              coerced[f.key] = "ANNUAL";
               continue;
             }
             if (f.key === "ipType") {
@@ -182,7 +182,7 @@ export async function POST(req: Request) {
             freeMonths: free,
             monthlyFee: new Prisma.Decimal(Number(coerced.monthlyFee)),
             currency: String(coerced.currency ?? user.companyCurrency),
-            billingCycle: (coerced.billingCycle as any) ?? "MONTHLY",
+            billingCycle: (coerced.billingCycle === "YEARLY" ? "ANNUAL" : (coerced.billingCycle as any) ?? "ANNUAL"),
             status: (coerced.status as any) ?? "DRAFT",
             notes: (coerced.notes as string) ?? null,
             createdById: user.id,

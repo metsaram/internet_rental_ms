@@ -864,13 +864,13 @@ function ContractDetailSheet({
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
       <SheetContent className="sm:max-w-xl w-full overflow-y-auto">
-        <SheetHeader className="pb-3 border-b">
-          <div className="flex items-center justify-between">
-            <SheetTitle className="flex items-center gap-2 text-lg">
-              <FileText className="size-5 text-primary" />
-              <span>{contract?.contractNumber}</span>
+        <SheetHeader className="pb-3 border-b pr-10">
+          <div className="flex items-center justify-between gap-3">
+            <SheetTitle className="flex items-center gap-2 text-lg min-w-0">
+              <FileText className="size-5 text-primary shrink-0" />
+              <span className="truncate">{contract?.contractNumber}</span>
             </SheetTitle>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 shrink-0">
               {contract && <StatusBadge status={contract.status} />}
               <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
                 {formatBillingCycle(contract?.billingCycle)}

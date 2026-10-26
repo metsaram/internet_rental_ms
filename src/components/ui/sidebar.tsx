@@ -592,6 +592,7 @@ function SidebarMenuBadge({
         "peer-data-[size=default]/menu-button:top-1.5",
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
+        "group-has-data-[sidebar=menu-action]/menu-item:right-8",
         className
       )}
       {...props}

@@ -1,5 +1,6 @@
 import { mkdir, writeFile, readFile, unlink, stat } from "fs/promises";
 import path from "path";
+import os from "os";
 import { randomBytes } from "crypto";
 import { supabaseStorage, storageConfig } from "./supabase-storage";
 
@@ -8,16 +9,29 @@ export { supabaseStorage, storageConfig } from "./supabase-storage";
 /**
  * Storage abstraction with reusable Supabase Storage integration.
  *
- * Files are automatically saved to Supabase Object Storage using central bucket
- * configuration, with automatic entity-to-folder routing (payments/, contracts/,
- * invoices/, etc.). Local disk cache is kept under `download/storage/` for high
- * performance and offline resilience.
+ * In serverless environments (e.g. Vercel, AWS Lambda), the runtime filesystem
+ * (/var/task) is read-only (EROFS). We use os.tmpdir() (/tmp) for ephemeral caching
+ * and ensure that local disk operations are safely guarded, with Supabase Storage
+ * acting as the primary persistent cloud store.
  */
 
-const STORAGE_DIR = path.join(process.cwd(), "download", "storage");
+function getStorageDir(): string {
+  if (
+    process.env.VERCEL ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.LAMBDA_TASK_ROOT
+  ) {
+    return path.join(os.tmpdir(), "net_rent_storage");
+  }
+  return path.join(process.cwd(), "download", "storage");
+}
 
 async function ensureDir() {
-  await mkdir(STORAGE_DIR, { recursive: true });
+  try {
+    await mkdir(getStorageDir(), { recursive: true });
+  } catch {
+    // Non-fatal if filesystem is restricted or read-only
+  }
 }
 
 export interface StoredFile {
@@ -50,14 +64,19 @@ export async function putFile(
   ext?: string,
   options?: PutFileOptions
 ): Promise<StoredFile> {
-  await ensureDir();
   const key = randomBytes(16).toString("hex") + (ext ? `.${ext}` : "");
   const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
 
-  // 1. Write to local cache
-  await writeFile(path.join(STORAGE_DIR, key), buf);
+  // 1. Write to local cache (non-fatal if read-only or in serverless environment)
+  try {
+    await ensureDir();
+    await writeFile(path.join(getStorageDir(), key), buf);
+  } catch (err) {
+    console.warn("Notice: Local storage write skipped or unavailable:", (err as Error).message);
+  }
 
   let publicUrl: string | null = null;
+  let supabaseUploadError: Error | null = null;
 
   // 2. Automatically upload to Supabase Storage if configured
   if (storageConfig.isConfigured) {
@@ -87,8 +106,19 @@ export async function putFile(
         });
       }
     } catch (err) {
-      console.warn("Notice: Supabase Storage upload error, using local storage fallback:", (err as Error).message);
+      supabaseUploadError = err as Error;
+      console.warn("Notice: Supabase Storage upload error:", (err as Error).message);
     }
+  }
+
+  // In serverless environments where local disk cannot persist files across invocations,
+  // surface an actionable error if Supabase upload failed (e.g. missing service role key or RLS).
+  const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (isServerless && supabaseUploadError) {
+    throw new Error(
+      `Cloud storage upload failed: ${supabaseUploadError.message}. ` +
+      `Please ensure SUPABASE_SERVICE_ROLE_KEY is set in your Vercel Environment Variables.`
+    );
   }
 
   return { key, size: buf.byteLength, publicUrl };
@@ -104,7 +134,7 @@ export async function getFile(key: string, folder: string = "payments"): Promise
 
     // 1. Try local filesystem cache first
     try {
-      const localBuf = await readFile(path.join(STORAGE_DIR, key));
+      const localBuf = await readFile(path.join(getStorageDir(), key));
       if (localBuf && localBuf.length > 0) return localBuf;
     } catch {
       // not in local cache, proceed to fetch from Supabase
@@ -128,7 +158,7 @@ export async function getFile(key: string, folder: string = "payments"): Promise
             // Cache locally for faster subsequent access
             try {
               await ensureDir();
-              await writeFile(path.join(STORAGE_DIR, key), buf);
+              await writeFile(path.join(getStorageDir(), key), buf);
             } catch {
               // ignore cache write error
             }
@@ -155,7 +185,7 @@ export async function deleteFile(key: string, folder: string = "payments"): Prom
 
     // 1. Delete from local cache
     try {
-      await unlink(path.join(STORAGE_DIR, key));
+      await unlink(path.join(getStorageDir(), key));
     } catch {
       // ignore
     }
@@ -175,7 +205,7 @@ export async function fileSize(key: string): Promise<number | null> {
     if (!/^[a-f0-9]+(\.[a-z0-9]+)?$/i.test(key) && !/^[a-zA-Z0-9_\-\.]+$/.test(key)) {
       return null;
     }
-    const s = await stat(path.join(STORAGE_DIR, key));
+    const s = await stat(path.join(getStorageDir(), key));
     return s.size;
   } catch {
     return null;

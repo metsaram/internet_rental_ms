@@ -151,5 +151,40 @@ Production end-to-end tests are located in `tests/` and cover critical paths:
     bun run test:e2e:report  # Open HTML test report
     ```
 
+#### 8. Shared DataTable & ReportTable Features (Sorting, Resizing & Styling)
+The project provides centralized, high-performance table components (`DataTable` in `@/components/shared/data-table` and `ReportTable` in `@/components/views/reports`):
 
+- **Column Sorting**:
+  - Click or press `Enter`/`Space` on any sortable header to cycle: Ascending (`ArrowUp`) → Descending (`ArrowDown`) → Default/Unsorted.
+  - Automatically compares numbers, currency (e.g. `$1,200`), dates (ISO/formatted), and strings (with natural ordering, e.g. "Branch 2" before "Branch 10").
+  - Set initial sort via `defaultSort={{ key: "dueDate", direction: "desc" }}` (or `columnIndex` for `ReportTable`).
+  - Customize sort value extraction with `sortValue: (row) => unknown` or `sortKey: "branch.name"`.
+  - Non-sortable columns (e.g. checkboxes or actions) can specify `sortable: false`.
 
+- **Interactive Column Resizing**:
+  - Drag the vertical resizer handle on the right edge of any column header to resize.
+  - Resize handles do not trigger sorting when clicked or dragged (`stopPropagation`).
+  - Double-click the resize handle to reset the column to its original width.
+  - Set default or minimum widths using `width={180}`, `minWidth={80}`, and `maxWidth={600}` on `DataTableColumn`.
+  - Opt-out individual columns via `resizable: false` (automatically disabled for selection and action columns).
+  - Listen to width changes via `onColumnResize={(key, width) => ...}`.
+
+- **Table Styling & Density Options**:
+  - `striped={true}`: Alternating zebra-striped rows (`bg-muted/20 dark:bg-muted/10`).
+  - `density="compact" | "normal" | "comfortable"`: Adjusts cell and header padding (`compact` uses `py-1.5 px-2.5 text-xs`).
+  - `bordered={true}`: Renders vertical cell dividers (`border-r`) for a spreadsheet/grid view.
+  - `stickyHeader={true}`: Keeps the table header fixed at the top during vertical scrolling.
+  - `rowClassName={(row, index) => ...}`: Applies custom CSS classes to individual rows based on row data.
+
+```tsx
+<DataTable
+  columns={columns}
+  rows={data}
+  rowKey={(row) => row.id}
+  defaultSort={{ key: "invoiceNumber", direction: "desc" }}
+  resizable={true}
+  striped={true}
+  density="compact"
+  bordered={true}
+/>
+```

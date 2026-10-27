@@ -42,6 +42,7 @@ export interface DataTableColumn<T> {
   header: React.ReactNode;
   cell: (row: T) => React.ReactNode;
   className?: string;
+  headerClassName?: string;
   hideOnMobile?: boolean;
   /** Explicitly enable or disable sorting for this column */
   sortable?: boolean;
@@ -49,6 +50,17 @@ export interface DataTableColumn<T> {
   sortKey?: string;
   /** Custom function to extract sortable value for a row */
   sortValue?: (row: T) => unknown;
+
+  /** Whether this column is resizable. Defaults to true unless false or key is 'select'/'actions' */
+  resizable?: boolean;
+  /** Initial or fixed column width in px or CSS string (e.g. 160 or '20%') */
+  width?: number | string;
+  /** Minimum width allowed during column resizing (defaults to 60px) */
+  minWidth?: number;
+  /** Maximum width allowed during column resizing (defaults to 1000px) */
+  maxWidth?: number;
+  /** Custom inline style for cells in this column */
+  style?: React.CSSProperties;
 }
 
 export interface DataTableProps<T> {
@@ -73,6 +85,23 @@ export interface DataTableProps<T> {
   onSortChange?: (sort: SortState | null) => void;
   /** Whether columns are sortable by default (defaults to true) */
   sortable?: boolean;
+
+  /** Enable column resizing by dragging column borders (defaults to true) */
+  resizable?: boolean;
+  /** Callback fired when a column is resized */
+  onColumnResize?: (columnKey: string, width: number) => void;
+  /** Striped alternating row backgrounds (zebra striping) */
+  striped?: boolean;
+  /** Density variant for padding: 'compact', 'normal', or 'comfortable' */
+  density?: "compact" | "normal" | "comfortable";
+  /** Add vertical borders between cells for a grid / spreadsheet look */
+  bordered?: boolean;
+  /** Sticky header when scrolling vertically */
+  stickyHeader?: boolean;
+  /** Custom class for the table container */
+  containerClassName?: string;
+  /** Custom function to apply styling classes to individual rows based on row data */
+  rowClassName?: (row: T, index: number) => string | undefined;
 }
 
 function extractPropertySortValue(val: unknown): unknown {
@@ -181,6 +210,14 @@ export function DataTable<T>({
   sort: controlledSort,
   onSortChange,
   sortable = true,
+  resizable = true,
+  onColumnResize,
+  striped = false,
+  density = "normal",
+  bordered = false,
+  stickyHeader = false,
+  containerClassName,
+  rowClassName,
 }: DataTableProps<T>) {
   const [internalSort, setInternalSort] = React.useState<SortState | null>(
     defaultSort ?? null
@@ -190,6 +227,106 @@ export function DataTable<T>({
   const [page, setPage] = React.useState(1);
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const searchRef = React.useRef<HTMLInputElement>(null);
+
+  // Column resizing state
+  const [columnWidths, setColumnWidths] = React.useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    for (const col of columns) {
+      if (typeof col.width === "number") {
+        initial[col.key] = col.width;
+      }
+    }
+    return initial;
+  });
+
+  const [resizingKey, setResizingKey] = React.useState<string | null>(null);
+  const resizeStateRef = React.useRef<{
+    key: string;
+    startX: number;
+    startWidth: number;
+    minWidth: number;
+    maxWidth: number;
+  } | null>(null);
+
+  // Window listeners for smooth column resizing drag
+  React.useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!resizeStateRef.current) return;
+      const { key, startX, startWidth, minWidth, maxWidth } = resizeStateRef.current;
+      const diff = e.clientX - startX;
+      const newWidth = Math.max(minWidth, Math.min(maxWidth, Math.round(startWidth + diff)));
+
+      setColumnWidths((prev) => {
+        if (prev[key] === newWidth) return prev;
+        return { ...prev, [key]: newWidth };
+      });
+      onColumnResize?.(key, newWidth);
+    };
+
+    const onMouseUp = () => {
+      if (!resizeStateRef.current) return;
+      resizeStateRef.current = null;
+      setResizingKey(null);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [onColumnResize]);
+
+  const handleResizeStart = (
+    e: React.MouseEvent,
+    key: string,
+    col: DataTableColumn<T>,
+    th: HTMLElement | null
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startWidth =
+      columnWidths[key] ??
+      (typeof col.width === "number"
+        ? col.width
+        : th
+        ? th.getBoundingClientRect().width
+        : 150);
+
+    const minWidth = col.minWidth ?? 60;
+    const maxWidth = col.maxWidth ?? 1000;
+
+    resizeStateRef.current = {
+      key,
+      startX: e.clientX,
+      startWidth,
+      minWidth,
+      maxWidth,
+    };
+    setResizingKey(key);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  const handleResizeReset = (e: React.MouseEvent, key: string, col: DataTableColumn<T>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setColumnWidths((prev) => {
+      const next = { ...prev };
+      if (typeof col.width === "number") {
+        next[key] = col.width;
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
+  };
 
   const prevDefaultSortRef = React.useRef(defaultSort);
   React.useEffect(() => {
@@ -287,6 +424,10 @@ export function DataTable<T>({
     return () => window.removeEventListener("keydown", handler);
   }, [pageRows, activeIndex, onRowClick, search]);
 
+  const hasCustomWidths =
+    Object.keys(columnWidths).length > 0 ||
+    columns.some((c) => c.width !== undefined);
+
   return (
     <div className="space-y-3">
       {(search || toolbar) && (
@@ -309,10 +450,25 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="rounded-lg border bg-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
+      <div className={cn("rounded-lg border bg-card overflow-hidden", containerClassName)}>
+        <div className={cn("overflow-x-auto", stickyHeader && "max-h-[600px] overflow-y-auto")}>
+          <Table className={cn("w-full", hasCustomWidths && "table-fixed")}>
+            <colgroup>
+              {columns.map((c) => {
+                const w = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
+                return (
+                  <col
+                    key={c.key}
+                    style={{
+                      width: w !== undefined ? `${w}px` : typeof c.width === "string" ? c.width : undefined,
+                      minWidth: c.minWidth !== undefined ? `${c.minWidth}px` : undefined,
+                    }}
+                    className={cn(c.hideOnMobile && "hidden md:table-column")}
+                  />
+                );
+              })}
+            </colgroup>
+            <TableHeader className={cn(stickyHeader && "sticky top-0 z-10")}>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
                 {columns.map((c) => {
                   const isColSortable =
@@ -332,12 +488,26 @@ export function DataTable<T>({
                               (rows[0] as Record<string, unknown>)?.[`${c.key}Date`] !== undefined ||
                               (rows[0] as Record<string, unknown>)?.[`${c.key}At`] !== undefined)))));
 
+                  const isColResizable =
+                    resizable !== false &&
+                    c.resizable !== false &&
+                    c.key !== "select" &&
+                    c.key !== "actions";
+
                   const isSorted = activeSort?.key === c.key;
                   const isAsc = activeSort?.direction === "asc";
+                  const colWidth = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
+                  const isResizingThis = resizingKey === c.key;
 
                   return (
                     <TableHead
                       key={c.key}
+                      style={{
+                        width: colWidth !== undefined ? `${colWidth}px` : typeof c.width === "string" ? c.width : undefined,
+                        minWidth: c.minWidth !== undefined ? `${c.minWidth}px` : undefined,
+                        maxWidth: c.maxWidth !== undefined ? `${c.maxWidth}px` : undefined,
+                        ...c.style,
+                      }}
                       aria-sort={
                         isSorted
                           ? isAsc
@@ -346,10 +516,18 @@ export function DataTable<T>({
                           : undefined
                       }
                       className={cn(
-                        "text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+                        "relative text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+                        density === "compact"
+                          ? "h-8 px-2.5 py-1.5"
+                          : density === "comfortable"
+                          ? "h-12 px-4 py-3"
+                          : "h-10 px-3 py-2",
                         c.hideOnMobile && "hidden md:table-cell",
                         isColSortable &&
                           "group cursor-pointer select-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                        bordered && "border-r border-border/40 last:border-r-0",
+                        stickyHeader && "bg-muted/90 backdrop-blur-sm",
+                        c.headerClassName,
                         c.className
                       )}
                       onClick={isColSortable ? () => handleSort(c.key) : undefined}
@@ -373,7 +551,7 @@ export function DataTable<T>({
                           c.className?.includes("text-center") && "w-full justify-center"
                         )}
                       >
-                        <span>{c.header}</span>
+                        <span className="truncate">{c.header}</span>
                         {isColSortable && (
                           <span className="inline-flex shrink-0">
                             {isSorted ? (
@@ -394,6 +572,30 @@ export function DataTable<T>({
                           </span>
                         )}
                       </div>
+
+                      {isColResizable && (
+                        <div
+                          role="separator"
+                          aria-orientation="vertical"
+                          aria-label={`Resize ${typeof c.header === "string" ? c.header : c.key} column`}
+                          className={cn(
+                            "absolute right-0 top-0 bottom-0 w-3 cursor-col-resize select-none touch-none z-10",
+                            "flex items-center justify-center",
+                            "group/resizer hover:after:bg-primary after:transition-colors",
+                            "after:h-4 after:w-[2px] after:rounded-full after:bg-border/60",
+                            isResizingThis && "after:bg-primary after:h-full after:w-[2px] bg-primary/10"
+                          )}
+                          onMouseDown={(e) => {
+                            const th = e.currentTarget.closest("th");
+                            handleResizeStart(e, c.key, c, th);
+                          }}
+                          onDoubleClick={(e) => handleResizeReset(e, c.key, c)}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                        />
+                      )}
                     </TableHead>
                   );
                 })}
@@ -404,7 +606,13 @@ export function DataTable<T>({
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={`sk-${i}`}>
                     {columns.map((c) => (
-                      <TableCell key={c.key} className="py-3">
+                      <TableCell
+                        key={c.key}
+                        className={cn(
+                          density === "compact" ? "py-2 px-2.5" : density === "comfortable" ? "py-4 px-4" : "py-3 px-3",
+                          bordered && "border-r border-border/40 last:border-r-0"
+                        )}
+                      >
                         <div className="h-4 w-full max-w-[12rem] animate-pulse rounded bg-muted" />
                       </TableCell>
                     ))}
@@ -426,17 +634,25 @@ export function DataTable<T>({
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                     className={cn(
                       "transition-colors",
+                      striped && idx % 2 === 1 && "bg-muted/20 dark:bg-muted/10",
                       onRowClick &&
                         "cursor-pointer hover:bg-muted/40 data-[state=selected]:bg-muted/60",
-                      idx === activeIndex && "bg-primary/10 ring-1 ring-inset ring-primary/20"
+                      idx === activeIndex && "bg-primary/10 ring-1 ring-inset ring-primary/20",
+                      rowClassName?.(row, idx)
                     )}
                   >
                     {columns.map((c) => (
                       <TableCell
                         key={c.key}
+                        style={c.style}
                         className={cn(
-                          "py-3 text-sm",
+                          density === "compact"
+                            ? "py-1.5 px-2.5 text-xs"
+                            : density === "comfortable"
+                            ? "py-4 px-4 text-sm"
+                            : "py-3 px-3 text-sm",
                           c.hideOnMobile && "hidden md:table-cell",
+                          bordered && "border-r border-border/40 last:border-r-0",
                           c.className
                         )}
                       >
@@ -514,6 +730,7 @@ export function DataTable<T>({
     </div>
   );
 }
+
 
 /** Simple client-side select for table filters. */
 export function FilterSelect<T extends string>({

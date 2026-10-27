@@ -881,6 +881,10 @@ function ReportTable({
   loading,
   defaultSort,
   sortable = true,
+  resizable = true,
+  striped = false,
+  density = "normal",
+  bordered = false,
 }: {
   headers: React.ReactNode[];
   rows: React.ReactNode[][];
@@ -888,8 +892,63 @@ function ReportTable({
   loading?: boolean;
   defaultSort?: ReportTableSort;
   sortable?: boolean;
+  resizable?: boolean;
+  striped?: boolean;
+  density?: "compact" | "normal" | "comfortable";
+  bordered?: boolean;
 }) {
   const [sort, setSort] = React.useState<ReportTableSort | null>(defaultSort ?? null);
+  const [columnWidths, setColumnWidths] = React.useState<Record<number, number>>({});
+  const [resizingIndex, setResizingIndex] = React.useState<number | null>(null);
+  const resizeRef = React.useRef<{ index: number; startX: number; startWidth: number } | null>(null);
+
+  React.useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!resizeRef.current) return;
+      const { index, startX, startWidth } = resizeRef.current;
+      const diff = e.clientX - startX;
+      const nextWidth = Math.max(60, Math.min(1000, Math.round(startWidth + diff)));
+      setColumnWidths((prev) => ({ ...prev, [index]: nextWidth }));
+    };
+
+    const onMouseUp = () => {
+      if (!resizeRef.current) return;
+      resizeRef.current = null;
+      setResizingIndex(null);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, []);
+
+  const handleResizeStart = (e: React.MouseEvent, index: number, th: HTMLElement | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startWidth = columnWidths[index] ?? (th ? th.getBoundingClientRect().width : 120);
+    resizeRef.current = { index, startX: e.clientX, startWidth };
+    setResizingIndex(index);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
+
+  const handleResizeReset = (e: React.MouseEvent, index: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setColumnWidths((prev) => {
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+  };
 
   const prevDefaultSortRef = React.useRef(defaultSort);
   React.useEffect(() => {
@@ -938,19 +997,29 @@ function ReportTable({
     setSort(nextSort);
   };
 
+  const hasCustomWidths = Object.keys(columnWidths).length > 0;
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className={cn("w-full text-sm", hasCustomWidths && "table-fixed")}>
+        <colgroup>
+          {headers.map((_, i) => (
+            <col key={i} style={{ width: columnWidths[i] ? `${columnWidths[i]}px` : undefined }} />
+          ))}
+        </colgroup>
         <thead>
           <tr className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
             {headers.map((h, i) => {
               const canSort = sortable !== false;
               const isSorted = sort?.columnIndex === i;
               const isAsc = sort?.direction === "asc";
+              const colWidth = columnWidths[i];
+              const isResizingThis = resizingIndex === i;
 
               return (
                 <th
                   key={i}
+                  style={{ width: colWidth ? `${colWidth}px` : undefined }}
                   aria-sort={
                     isSorted
                       ? isAsc
@@ -959,9 +1028,15 @@ function ReportTable({
                       : undefined
                   }
                   className={cn(
-                    "px-4 py-2 font-semibold",
+                    "relative font-semibold",
+                    density === "compact"
+                      ? "px-2.5 py-1.5 text-[10px]"
+                      : density === "comfortable"
+                      ? "px-4 py-3 text-xs"
+                      : "px-4 py-2",
                     canSort &&
-                      "group cursor-pointer select-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      "group cursor-pointer select-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                    bordered && "border-r border-border/40 last:border-r-0"
                   )}
                   onClick={canSort ? () => handleSort(i) : undefined}
                   onKeyDown={
@@ -999,6 +1074,30 @@ function ReportTable({
                       </span>
                     )}
                   </div>
+
+                  {resizable && (
+                    <div
+                      role="separator"
+                      aria-orientation="vertical"
+                      aria-label="Resize column"
+                      className={cn(
+                        "absolute right-0 top-0 bottom-0 w-3 cursor-col-resize select-none touch-none z-10",
+                        "flex items-center justify-center",
+                        "group/resizer hover:after:bg-primary after:transition-colors",
+                        "after:h-4 after:w-[2px] after:rounded-full after:bg-border/60",
+                        isResizingThis && "after:bg-primary after:h-full after:w-[2px] bg-primary/10"
+                      )}
+                      onMouseDown={(e) => {
+                        const th = e.currentTarget.closest("th");
+                        handleResizeStart(e, i, th);
+                      }}
+                      onDoubleClick={(e) => handleResizeReset(e, i)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                    />
+                  )}
                 </th>
               );
             })}
@@ -1009,7 +1108,13 @@ function ReportTable({
             Array.from({ length: 3 }).map((_, i) => (
               <tr key={i} className="border-b last:border-0">
                 {headers.map((_, j) => (
-                  <td key={j} className="px-4 py-2.5">
+                  <td
+                    key={j}
+                    className={cn(
+                      density === "compact" ? "px-2.5 py-1.5" : density === "comfortable" ? "px-4 py-3" : "px-4 py-2.5",
+                      bordered && "border-r border-border/40 last:border-r-0"
+                    )}
+                  >
                     <Skeleton className="h-4 w-full max-w-[10rem]" />
                   </td>
                 ))}
@@ -1026,9 +1131,26 @@ function ReportTable({
             </tr>
           ) : (
             sortedRows.map((row, i) => (
-              <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
+              <tr
+                key={i}
+                className={cn(
+                  "border-b last:border-0 hover:bg-muted/30 transition-colors",
+                  striped && i % 2 === 1 && "bg-muted/20 dark:bg-muted/10"
+                )}
+              >
                 {row.map((cell, j) => (
-                  <td key={j} className="px-4 py-2.5 align-middle">
+                  <td
+                    key={j}
+                    className={cn(
+                      "align-middle",
+                      density === "compact"
+                        ? "px-2.5 py-1.5 text-xs"
+                        : density === "comfortable"
+                        ? "px-4 py-3 text-sm"
+                        : "px-4 py-2.5 text-sm",
+                      bordered && "border-r border-border/40 last:border-r-0"
+                    )}
+                  >
                     {cell}
                   </td>
                 ))}

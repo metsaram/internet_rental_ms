@@ -1086,3 +1086,39 @@ Task: Print-friendly invoice template + lazy-load views for code-splitting.
    - Verified on Chromium (Web desktop) and Mobile Chrome (Pixel 5 mobile device emulation).
    - All tests passing.
 
+---
+Task ID: Table Column Sorting, Resizing & Styling
+Agent: Antigravity
+Task: Implement interactive column sorting, default sort, column resizing, and visual table styling for DataTable and ReportTable.
+
+### What was done:
+1. **Interactive Column Sorting & Default Sort (`src/components/shared/data-table.tsx` & `src/components/views/reports.tsx`)**:
+   - Enhanced `DataTable` with column sorting triggered via header click or keyboard (`Enter` / `Space`).
+   - Added accessible attributes: `role="columnheader button"`, `aria-sort="ascending" | "descending"`.
+   - Added visual sort indicators using Lucide icons (`ArrowUp`, `ArrowDown`, hoverable `ArrowUpDown`).
+   - Implemented `defaultSort?: { key: string; direction: "asc" | "desc" }` to set initial sorted column and direction.
+   - Built robust comparison engine (`compareSortValues`) handling numbers, currency strings (e.g. `$1,200`), formatted dates, and natural string collation with null safety.
+   - Built nested property resolver (`getSortValue`) supporting dot paths (`branch.name`) and entity naming conventions.
+   - Added column-level `sortValue` and `sortKey` customization hooks, with `sortable: false` opt-outs.
+   - Upgraded `ReportTable` in `src/components/views/reports.tsx` with sorting, JSX node text extraction (`extractNodeText`), and pre-configured default sorts for all 5 report views (Expiring contracts, Invoices, Payments, Variance, Audit log).
+
+2. **Column Resizing (`src/components/shared/data-table.tsx` & `src/components/views/reports.tsx`)**:
+   - Implemented interactive draggable vertical column border handles (`role="separator"`, `cursor-col-resize`).
+   - Prevented sort event triggering during resize interactions via `e.stopPropagation()`.
+   - Added double-click handle reset to restore column to default width.
+   - Added `minWidth` (default 60px) and `maxWidth` bounds.
+   - Integrated `<colgroup>` with pixel-precise `<col>` widths and dynamic `table-fixed` layout.
+   - Added `onColumnResize?: (columnKey: string, width: number) => void` callback.
+
+3. **Table Styling Options (`src/components/shared/data-table.tsx` & `src/components/views/reports.tsx`)**:
+   - Added `striped?: boolean` for alternating zebra-striped rows.
+   - Added `density?: "compact" | "normal" | "comfortable"` for configurable padding density.
+   - Added `bordered?: boolean` for vertical cell dividers / grid spreadsheets.
+   - Added `stickyHeader?: boolean` for fixed table headers during vertical container scrolling.
+   - Added `rowClassName?: (row, index) => string` for conditional row formatting.
+
+4. **Documentation & Verification**:
+   - Updated `docs/guides/developer_guide.md` with Section 8 covering table features and usage examples.
+   - Updated `docs/changelog/2026-10.md` with `[2026-10-27]` release notes.
+   - Created `docs/task_logs/2026-10-27.md` task execution log.
+   - Ran `bun run test:run` — all test suites passing.

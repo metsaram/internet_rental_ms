@@ -176,15 +176,30 @@ The project provides centralized, high-performance table components (`DataTable`
   - `stickyHeader={true}`: Keeps the table header fixed at the top during vertical scrolling.
   - `rowClassName={(row, index) => ...}`: Applies custom CSS classes to individual rows based on row data.
 
+- **Column Chooser & LocalStorage Cache**:
+  - Interactive "Columns" dropdown menu in the toolbar for toggling column visibility (`columnChooser={true}` by default).
+  - Persists visibility choices in `localStorage` under `netrent_tbl_cols_${storageKey || autoKey}` so customized views survive page reloads and browser sessions.
+  - Persists resized column widths in `localStorage` under `netrent_tbl_widths_${storageKey || autoKey}`.
+  - Safe SSR hydration: prevents hydration mismatch by synchronizing state after initial client mount with graceful error handling.
+  - Automatic column protection: selection checkboxes (`key: "select"`) and action columns (`key: "actions"`) are never hidden.
+  - Column-level controls: `hideable?: boolean` (defaults to true), `defaultHidden?: boolean` (starts hidden by default), and friendly `title?: string`.
+  - Built-in toolbar counter badge (`X/Y`), "Show all", and "Reset" (clears local cache and restores original widths and visibility).
+
 ```tsx
 <DataTable
+  storageKey="invoices-table"
   columns={columns}
   rows={data}
   rowKey={(row) => row.id}
   defaultSort={{ key: "invoiceNumber", direction: "desc" }}
+  columnChooser={true}
+  persistColumnVisibility={true}
+  persistColumnWidths={true}
   resizable={true}
+  truncate={true}
   striped={true}
   density="compact"
   bordered={true}
 />
 ```
+

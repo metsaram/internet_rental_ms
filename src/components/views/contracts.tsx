@@ -496,6 +496,7 @@ export function ContractsView() {
 
       {/* Main Contracts Table */}
       <DataTable
+        storageKey="contracts"
         columns={columns}
         rows={filtered}
         rowKey={(c) => c.id}

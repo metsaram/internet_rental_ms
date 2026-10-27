@@ -1122,3 +1122,82 @@ Task: Implement interactive column sorting, default sort, column resizing, and v
    - Updated `docs/changelog/2026-10.md` with `[2026-10-27]` release notes.
    - Created `docs/task_logs/2026-10-27.md` task execution log.
    - Ran `bun run test:run` — all test suites passing.
+
+---
+Task ID: Table Text Ellipsis Overflow & Tooltips
+Agent: Antigravity
+Task: Make table cell and header text truncate with an ellipsis (`text-overflow: ellipsis`) when overflowing or resized, with hover tooltips and opt-out support.
+
+### What was done:
+1. **DataTable Ellipsis & Tooltips (`src/components/shared/data-table.tsx`)**:
+   - Added `truncate?: boolean` (default: `true`) to `DataTableColumn<T>` and `DataTableProps<T>`.
+   - Added `extractNodeText` recursive helper function to extract text strings from nested React JSX trees (single text, numbers, compound two-line cells, badges, and links).
+   - Constrained `TableHead` flex container with `min-w-0 max-w-full` and inner header text with `truncate min-w-0` and `title` tooltip so header titles cleanly truncate when columns are dragged narrow.
+   - Applied `max-w-0 overflow-hidden` on `TableCell` and wrapped cells in `<div className="truncate max-w-full [&_div]:truncate [&_span]:truncate [&_p]:truncate [&_a]:truncate" title={tooltip}>` when `shouldTruncate` is true.
+   - Automatically excluded selection checkboxes (`key: "select"`) and action columns (`key: "actions"`) from truncation.
+   - Preserved column text alignment (`text-right`, `text-center`) in truncation wrappers.
+   - Supported column-level opt-out (`truncate: false`) and table-level opt-out (`<DataTable truncate={false} />`).
+
+2. **ReportTable Ellipsis & Tooltips (`src/components/views/reports.tsx`)**:
+   - Added `truncate?: boolean` (default: `true`) prop and parameter to `ReportTable`.
+   - Updated `<th>` with `min-w-0 max-w-full` flex container and `title` tooltip on header text.
+   - Updated `<td>` with `truncate && "max-w-0 overflow-hidden"` and inner ellipsis wrapper with `extractNodeText` tooltips.
+
+3. **Unit Tests & Verification (`test/data-table.test.tsx`)**:
+   - Created comprehensive Vitest unit test suite covering:
+     - Default cell truncation and `max-w-0 overflow-hidden` styling.
+     - Title tooltip population with full cell text for hover accessibility.
+     - Automatic exclusion of `select` and `actions` columns.
+     - Column-level opt-out (`truncate: false`).
+     - Table-level opt-out (`truncate={false}`).
+     - Recursive nested text extraction for multi-element JSX cells.
+   - Ran `bun run test:run` — all 7 test files, 62 tests passing (100%).
+
+4. **Documentation**:
+   - Updated `docs/guides/developer_guide.md` (Section 8).
+   - Updated `docs/changelog/2026-10.md` (`[2026-10-27]`).
+   - Updated `docs/task_logs/2026-10-27.md`.
+
+---
+Task ID: Table Column Chooser & LocalStorage Cache
+Agent: Antigravity
+Task: Implement interactive Column Chooser dropdown menu to toggle column visibility with persistent localStorage caching of column choices and resized widths across reloads and sessions.
+
+### What was done:
+1. **DataTable Column Chooser & LocalStorage Cache (`src/components/shared/data-table.tsx`)**:
+   - Added `columnChooser?: boolean` (default: `true`) to `DataTableProps<T>`.
+   - Added `hideable?: boolean` (default: `true`), `defaultHidden?: boolean`, and `title?: string` to `DataTableColumn<T>`.
+   - Built automatic deterministic cache key generators (`getColumnStorageKey` and `getWidthsStorageKey`) with `netrent_tbl_cols_${storageKey}` and column-signature fallback.
+   - Built safe Next.js SSR hydration: initial render matches server defaults, then client-side effect safely synchronizes cached hidden column keys and widths from `localStorage` without hydration errors.
+   - Rendered "Columns" dropdown menu in the toolbar with Lucide `Columns3` icon, dynamic badge indicating visible count (`X/Y`), checkbox items for each toggleable column, "Show all", and "Reset" (which clears cache and restores initial visibility and column widths).
+   - Ensured selection checkboxes (`key: "select"`) and action columns (`key: "actions"`) are non-hideable.
+   - Prevented hiding the last remaining column to protect table usability.
+   - Persisted column resizing to `localStorage` on drag release (`mouseup`) and cleared on double-click reset.
+
+2. **ReportTable Column Chooser (`src/components/views/reports.tsx`)**:
+   - Added `columnChooser?: boolean` (default: `true`), `storageKey?: string`, and `hiddenIndices` state with persistent `localStorage` cache.
+   - Rendered subtle "Columns" button with dropdown menu, checkbox items, "Show all", and "Reset" actions.
+   - Synchronized column width resizing to `localStorage`.
+
+3. **Consumer Integration (`src/components/views/contracts.tsx`)**:
+   - Added `storageKey="contracts"` on `<DataTable />` for a clean named cache key.
+
+4. **Unit Tests & Verification (`test/data-table.test.tsx`)**:
+   - Added unit tests covering:
+     - Default rendering of "Columns" button in toolbar.
+     - `columnChooser={false}` toolbar opt-out.
+     - `localStorage` column visibility hydration.
+     - `localStorage` column widths hydration.
+     - `defaultHidden: true` column definitions.
+     - Non-hideable protection for `select` and `actions` columns.
+     - `ReportTable` rendering and Column Chooser integration.
+   - Fixed unclosed `<div>` in `ReportTable` in `src/components/views/reports.tsx`.
+   - Ran `bun run test:run` — all 7 test files, 69 tests passing (100%).
+
+5. **Documentation**:
+   - Updated `docs/guides/developer_guide.md` Section 8.
+   - Updated `docs/changelog/2026-10.md` `[2026-10-27]`.
+   - Updated `docs/task_logs/2026-10-27.md`.
+
+
+

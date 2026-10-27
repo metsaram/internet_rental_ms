@@ -17,9 +17,18 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Columns3,
+  RotateCcw,
   // Gauge,
   // Activity,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -874,7 +883,7 @@ function extractNodeText(node: React.ReactNode): string {
   return "";
 }
 
-function ReportTable({
+export function ReportTable({
   headers,
   rows,
   empty,
@@ -885,6 +894,11 @@ function ReportTable({
   striped = false,
   density = "normal",
   bordered = false,
+  truncate = true,
+  columnChooser = true,
+  storageKey,
+  persistColumnVisibility = true,
+  persistColumnWidths = true,
 }: {
   headers: React.ReactNode[];
   rows: React.ReactNode[][];
@@ -896,11 +910,122 @@ function ReportTable({
   striped?: boolean;
   density?: "compact" | "normal" | "comfortable";
   bordered?: boolean;
+  truncate?: boolean;
+  columnChooser?: boolean;
+  storageKey?: string;
+  persistColumnVisibility?: boolean;
+  persistColumnWidths?: boolean;
 }) {
   const [sort, setSort] = React.useState<ReportTableSort | null>(defaultSort ?? null);
   const [columnWidths, setColumnWidths] = React.useState<Record<number, number>>({});
   const [resizingIndex, setResizingIndex] = React.useState<number | null>(null);
   const resizeRef = React.useRef<{ index: number; startX: number; startWidth: number } | null>(null);
+
+  const headerSig = React.useMemo(() => {
+    return headers.map((h, i) => extractNodeText(h) || String(i)).join("_");
+  }, [headers]);
+
+  const colStorageKey = React.useMemo(() => {
+    const key = storageKey?.trim() || headerSig;
+    return `netrent_reptbl_cols_${key}`;
+  }, [storageKey, headerSig]);
+
+  const widthStorageKey = React.useMemo(() => {
+    const key = storageKey?.trim() || headerSig;
+    return `netrent_reptbl_widths_${key}`;
+  }, [storageKey, headerSig]);
+
+  const [hiddenIndices, setHiddenIndices] = React.useState<number[]>([]);
+
+  // Hydrate hidden indices from localStorage
+  React.useEffect(() => {
+    if (persistColumnVisibility === false || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(colStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter(
+            (idx) => typeof idx === "number" && idx >= 0 && idx < headers.length
+          );
+          setHiddenIndices(valid);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, [colStorageKey, persistColumnVisibility, headers.length]);
+
+  // Hydrate column widths from localStorage
+  React.useEffect(() => {
+    if (persistColumnWidths === false || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(widthStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          setColumnWidths((prev) => ({ ...prev, ...parsed }));
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, [widthStorageKey, persistColumnWidths]);
+
+  const visibleIndices = React.useMemo(() => {
+    return headers.map((_, i) => i).filter((i) => !hiddenIndices.includes(i));
+  }, [headers, hiddenIndices]);
+
+  const toggleColumn = React.useCallback(
+    (index: number) => {
+      setHiddenIndices((prev) => {
+        const isHidden = prev.includes(index);
+        let next: number[];
+        if (isHidden) {
+          next = prev.filter((i) => i !== index);
+        } else {
+          if (headers.length - prev.length <= 1) {
+            return prev;
+          }
+          next = [...prev, index];
+        }
+
+        if (persistColumnVisibility !== false && typeof window !== "undefined") {
+          try {
+            localStorage.setItem(colStorageKey, JSON.stringify(next));
+          } catch {
+            // Ignore
+          }
+        }
+        return next;
+      });
+    },
+    [headers.length, persistColumnVisibility, colStorageKey]
+  );
+
+  const showAllColumns = React.useCallback(() => {
+    setHiddenIndices([]);
+    if (persistColumnVisibility !== false && typeof window !== "undefined") {
+      try {
+        localStorage.setItem(colStorageKey, JSON.stringify([]));
+      } catch {
+        // Ignore
+      }
+    }
+  }, [persistColumnVisibility, colStorageKey]);
+
+  const resetColumns = React.useCallback(() => {
+    setHiddenIndices([]);
+    setColumnWidths({});
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(colStorageKey);
+        localStorage.removeItem(widthStorageKey);
+      } catch {
+        // Ignore
+      }
+    }
+  }, [colStorageKey, widthStorageKey]);
 
   React.useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -917,6 +1042,17 @@ function ReportTable({
       setResizingIndex(null);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+
+      if (persistColumnWidths !== false && typeof window !== "undefined") {
+        setColumnWidths((current) => {
+          try {
+            localStorage.setItem(widthStorageKey, JSON.stringify(current));
+          } catch {
+            // Ignore
+          }
+          return current;
+        });
+      }
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -946,6 +1082,13 @@ function ReportTable({
     setColumnWidths((prev) => {
       const next = { ...prev };
       delete next[index];
+      if (persistColumnWidths !== false && typeof window !== "undefined") {
+        try {
+          localStorage.setItem(widthStorageKey, JSON.stringify(next));
+        } catch {
+          // Ignore
+        }
+      }
       return next;
     });
   };
@@ -1000,21 +1143,99 @@ function ReportTable({
   const hasCustomWidths = Object.keys(columnWidths).length > 0;
 
   return (
-    <div className="overflow-x-auto">
-      <table className={cn("w-full text-sm", hasCustomWidths && "table-fixed")}>
-        <colgroup>
-          {headers.map((_, i) => (
-            <col key={i} style={{ width: columnWidths[i] ? `${columnWidths[i]}px` : undefined }} />
-          ))}
-        </colgroup>
-        <thead>
-          <tr className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-            {headers.map((h, i) => {
-              const canSort = sortable !== false;
-              const isSorted = sort?.columnIndex === i;
-              const isAsc = sort?.direction === "asc";
-              const colWidth = columnWidths[i];
-              const isResizingThis = resizingIndex === i;
+    <div>
+      {columnChooser !== false && headers.length > 1 && (
+        <div className="flex items-center justify-end px-3 py-1.5 border-b bg-muted/10">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                aria-label="Customize visible columns"
+              >
+                <Columns3 className="size-3.5" />
+                <span>Columns</span>
+                {hiddenIndices.length > 0 && (
+                  <span className="rounded-full bg-primary/10 px-1.5 py-0.2 text-[10px] font-semibold text-primary">
+                    {headers.length - hiddenIndices.length}/{headers.length}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                <span>Toggle columns</span>
+                <span className="text-[10px] font-normal">
+                  {headers.length - hiddenIndices.length} of {headers.length}
+                </span>
+              </div>
+              <DropdownMenuSeparator />
+              <div className="max-h-60 overflow-y-auto py-0.5">
+                {headers.map((h, i) => {
+                  const isVisible = !hiddenIndices.includes(i);
+                  const isLast = isVisible && headers.length - hiddenIndices.length <= 1;
+                  const label =
+                    typeof h === "string" ? h : extractNodeText(h) || `Column ${i + 1}`;
+
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={i}
+                      checked={isVisible}
+                      onCheckedChange={() => toggleColumn(i)}
+                      disabled={isLast}
+                      className="text-xs"
+                    >
+                      <span className="truncate">{label}</span>
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+              </div>
+              <DropdownMenuSeparator />
+              <div className="flex items-center justify-between gap-1 p-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={showAllColumns}
+                  disabled={hiddenIndices.length === 0}
+                  className="h-7 text-[11px] font-normal px-2"
+                >
+                  Show all
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetColumns}
+                  className="h-7 text-[11px] font-normal px-2 text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="size-3 mr-1" />
+                  Reset
+                </Button>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className={cn("w-full text-sm", hasCustomWidths && "table-fixed")}>
+          <colgroup>
+            {visibleIndices.map((i) => (
+              <col
+                key={i}
+                style={{ width: columnWidths[i] ? `${columnWidths[i]}px` : undefined }}
+              />
+            ))}
+          </colgroup>
+          <thead>
+            <tr className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+              {visibleIndices.map((i) => {
+                const h = headers[i];
+                const canSort = sortable !== false;
+                const isSorted = sort?.columnIndex === i;
+                const isAsc = sort?.direction === "asc";
+                const colWidth = columnWidths[i];
+                const isResizingThis = resizingIndex === i;
 
               return (
                 <th
@@ -1052,8 +1273,13 @@ function ReportTable({
                   tabIndex={canSort ? 0 : undefined}
                   role={canSort ? "columnheader button" : "columnheader"}
                 >
-                  <div className="inline-flex items-center gap-1.5">
-                    <span>{h}</span>
+                  <div className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                    <span
+                      className="truncate min-w-0"
+                      title={typeof h === "string" ? h : undefined}
+                    >
+                      {h}
+                    </span>
                     {canSort && (
                       <span className="inline-flex shrink-0">
                         {isSorted ? (
@@ -1107,7 +1333,7 @@ function ReportTable({
           {loading ? (
             Array.from({ length: 3 }).map((_, i) => (
               <tr key={i} className="border-b last:border-0">
-                {headers.map((_, j) => (
+                {visibleIndices.map((j) => (
                   <td
                     key={j}
                     className={cn(
@@ -1123,7 +1349,7 @@ function ReportTable({
           ) : sortedRows.length === 0 ? (
             <tr>
               <td
-                colSpan={headers.length}
+                colSpan={visibleIndices.length}
                 className="h-20 text-center text-sm text-muted-foreground"
               >
                 {empty}
@@ -1138,27 +1364,42 @@ function ReportTable({
                   striped && i % 2 === 1 && "bg-muted/20 dark:bg-muted/10"
                 )}
               >
-                {row.map((cell, j) => (
-                  <td
-                    key={j}
-                    className={cn(
-                      "align-middle",
-                      density === "compact"
-                        ? "px-2.5 py-1.5 text-xs"
-                        : density === "comfortable"
-                        ? "px-4 py-3 text-sm"
-                        : "px-4 py-2.5 text-sm",
-                      bordered && "border-r border-border/40 last:border-r-0"
-                    )}
-                  >
-                    {cell}
-                  </td>
-                ))}
+                {visibleIndices.map((j) => {
+                  const cell = row[j];
+                  const cellTooltip = truncate ? extractNodeText(cell) : undefined;
+                  return (
+                    <td
+                      key={j}
+                      className={cn(
+                        "align-middle",
+                        density === "compact"
+                          ? "px-2.5 py-1.5 text-xs"
+                          : density === "comfortable"
+                          ? "px-4 py-3 text-sm"
+                          : "px-4 py-2.5 text-sm",
+                        bordered && "border-r border-border/40 last:border-r-0",
+                        truncate && "max-w-0 overflow-hidden"
+                      )}
+                    >
+                      {truncate ? (
+                        <div
+                          className="truncate max-w-full [&_div]:truncate [&_span]:truncate [&_p]:truncate [&_a]:truncate"
+                          title={cellTooltip || undefined}
+                        >
+                          {cell}
+                        </div>
+                      ) : (
+                        cell
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           )}
         </tbody>
       </table>
     </div>
+  </div>
   );
 }

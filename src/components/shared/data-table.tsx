@@ -19,6 +19,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
@@ -26,6 +33,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Columns3,
+  RotateCcw,
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -61,6 +70,14 @@ export interface DataTableColumn<T> {
   maxWidth?: number;
   /** Custom inline style for cells in this column */
   style?: React.CSSProperties;
+  /** Whether cell text should truncate with an ellipsis if it overflows (defaults to true) */
+  truncate?: boolean;
+  /** Whether this column can be hidden in the column chooser (defaults to true; false for 'select' and 'actions') */
+  hideable?: boolean;
+  /** Whether this column is hidden by default on initial render (defaults to false) */
+  defaultHidden?: boolean;
+  /** Human-readable title for the column chooser (defaults to header string or extracted text) */
+  title?: string;
 }
 
 export interface DataTableProps<T> {
@@ -102,6 +119,49 @@ export interface DataTableProps<T> {
   containerClassName?: string;
   /** Custom function to apply styling classes to individual rows based on row data */
   rowClassName?: (row: T, index: number) => string | undefined;
+  /** Whether cell text should truncate with an ellipsis when overflowing (defaults to true) */
+  truncate?: boolean;
+  /** Enable the Column Chooser dropdown in the toolbar (defaults to true) */
+  columnChooser?: boolean;
+  /** Custom key used to persist column visibility and widths in localStorage cache */
+  storageKey?: string;
+  /** Whether to persist column visibility in localStorage cache (defaults to true) */
+  persistColumnVisibility?: boolean;
+  /** Whether to persist resized column widths in localStorage cache (defaults to true) */
+  persistColumnWidths?: boolean;
+  /** Callback fired when visible column keys change */
+  onVisibleColumnsChange?: (visibleKeys: string[]) => void;
+}
+
+function extractNodeText(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractNodeText).filter(Boolean).join(" ");
+  if (React.isValidElement(node)) {
+    const props = node.props as Record<string, unknown>;
+    if (typeof props.status === "string") return props.status;
+    if (typeof props.label === "string") return props.label;
+    if (props.children) return extractNodeText(props.children as React.ReactNode);
+  }
+  return "";
+}
+
+const STORAGE_PREFIX = "netrent_tbl";
+
+function getColumnStorageKey(storageKey?: string, columns?: { key: string }[]): string {
+  if (storageKey && storageKey.trim()) {
+    return `${STORAGE_PREFIX}_cols_${storageKey.trim()}`;
+  }
+  const colSig = columns?.map((c) => c.key).join("_") || "default";
+  return `${STORAGE_PREFIX}_cols_${colSig}`;
+}
+
+function getWidthsStorageKey(storageKey?: string, columns?: { key: string }[]): string {
+  if (storageKey && storageKey.trim()) {
+    return `${STORAGE_PREFIX}_widths_${storageKey.trim()}`;
+  }
+  const colSig = columns?.map((c) => c.key).join("_") || "default";
+  return `${STORAGE_PREFIX}_widths_${colSig}`;
 }
 
 function extractPropertySortValue(val: unknown): unknown {
@@ -218,6 +278,12 @@ export function DataTable<T>({
   stickyHeader = false,
   containerClassName,
   rowClassName,
+  truncate = true,
+  columnChooser = true,
+  storageKey,
+  persistColumnVisibility = true,
+  persistColumnWidths = true,
+  onVisibleColumnsChange,
 }: DataTableProps<T>) {
   const [internalSort, setInternalSort] = React.useState<SortState | null>(
     defaultSort ?? null
@@ -227,6 +293,21 @@ export function DataTable<T>({
   const [page, setPage] = React.useState(1);
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const searchRef = React.useRef<HTMLInputElement>(null);
+
+  const colStorageKey = React.useMemo(
+    () => getColumnStorageKey(storageKey, columns),
+    [storageKey, columns]
+  );
+  const widthStorageKey = React.useMemo(
+    () => getWidthsStorageKey(storageKey, columns),
+    [storageKey, columns]
+  );
+
+  const defaultHiddenKeys = React.useMemo(() => {
+    return columns.filter((c) => c.defaultHidden).map((c) => c.key);
+  }, [columns]);
+
+  const [hiddenKeys, setHiddenKeys] = React.useState<string[]>(defaultHiddenKeys);
 
   // Column resizing state
   const [columnWidths, setColumnWidths] = React.useState<Record<string, number>>(() => {
@@ -238,6 +319,119 @@ export function DataTable<T>({
     }
     return initial;
   });
+
+  // Safely hydrate column visibility choices from localStorage cache
+  React.useEffect(() => {
+    if (persistColumnVisibility === false || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(colStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const valid = parsed.filter(
+            (k) => typeof k === "string" && columns.some((c) => c.key === k)
+          );
+          setHiddenKeys(valid);
+        }
+      }
+    } catch {
+      // Gracefully ignore sandbox/private mode localStorage errors
+    }
+  }, [colStorageKey, persistColumnVisibility, columns]);
+
+  // Safely hydrate column widths from localStorage cache
+  React.useEffect(() => {
+    if (persistColumnWidths === false || typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem(widthStorageKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          setColumnWidths((prev) => ({ ...prev, ...parsed }));
+        }
+      }
+    } catch {
+      // Gracefully ignore
+    }
+  }, [widthStorageKey, persistColumnWidths]);
+
+  const toggleableColumns = React.useMemo(() => {
+    return columns.filter(
+      (c) => c.hideable !== false && c.key !== "select" && c.key !== "actions"
+    );
+  }, [columns]);
+
+  const visibleColumns = React.useMemo(() => {
+    const hiddenSet = new Set(hiddenKeys);
+    return columns.filter((c) => {
+      if (c.hideable === false || c.key === "select" || c.key === "actions") {
+        return true;
+      }
+      return !hiddenSet.has(c.key);
+    });
+  }, [columns, hiddenKeys]);
+
+  React.useEffect(() => {
+    onVisibleColumnsChange?.(visibleColumns.map((c) => c.key));
+  }, [visibleColumns, onVisibleColumnsChange]);
+
+  const toggleColumn = React.useCallback(
+    (key: string) => {
+      setHiddenKeys((prev) => {
+        const isHidden = prev.includes(key);
+        let next: string[];
+        if (isHidden) {
+          next = prev.filter((k) => k !== key);
+        } else {
+          const currentVisible = toggleableColumns.filter((c) => !prev.includes(c.key)).length;
+          if (currentVisible <= 1) {
+            return prev;
+          }
+          next = [...prev, key];
+        }
+
+        if (persistColumnVisibility !== false && typeof window !== "undefined") {
+          try {
+            localStorage.setItem(colStorageKey, JSON.stringify(next));
+          } catch {
+            // Gracefully ignore
+          }
+        }
+        return next;
+      });
+    },
+    [toggleableColumns, persistColumnVisibility, colStorageKey]
+  );
+
+  const showAllColumns = React.useCallback(() => {
+    setHiddenKeys([]);
+    if (persistColumnVisibility !== false && typeof window !== "undefined") {
+      try {
+        localStorage.setItem(colStorageKey, JSON.stringify([]));
+      } catch {
+        // Gracefully ignore
+      }
+    }
+  }, [persistColumnVisibility, colStorageKey]);
+
+  const resetColumns = React.useCallback(() => {
+    setHiddenKeys(defaultHiddenKeys);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(colStorageKey);
+        localStorage.removeItem(widthStorageKey);
+      } catch {
+        // Gracefully ignore
+      }
+    }
+    const initialWidths: Record<string, number> = {};
+    for (const col of columns) {
+      if (typeof col.width === "number") {
+        initialWidths[col.key] = col.width;
+      }
+    }
+    setColumnWidths(initialWidths);
+  }, [defaultHiddenKeys, colStorageKey, widthStorageKey, columns]);
 
   const [resizingKey, setResizingKey] = React.useState<string | null>(null);
   const resizeStateRef = React.useRef<{
@@ -269,6 +463,17 @@ export function DataTable<T>({
       setResizingKey(null);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+
+      if (persistColumnWidths !== false && typeof window !== "undefined") {
+        setColumnWidths((current) => {
+          try {
+            localStorage.setItem(widthStorageKey, JSON.stringify(current));
+          } catch {
+            // Gracefully ignore
+          }
+          return current;
+        });
+      }
     };
 
     window.addEventListener("mousemove", onMouseMove);
@@ -323,6 +528,13 @@ export function DataTable<T>({
         next[key] = col.width;
       } else {
         delete next[key];
+      }
+      if (persistColumnWidths !== false && typeof window !== "undefined") {
+        try {
+          localStorage.setItem(widthStorageKey, JSON.stringify(next));
+        } catch {
+          // Gracefully ignore
+        }
       }
       return next;
     });
@@ -426,11 +638,11 @@ export function DataTable<T>({
 
   const hasCustomWidths =
     Object.keys(columnWidths).length > 0 ||
-    columns.some((c) => c.width !== undefined);
+    visibleColumns.some((c) => c.width !== undefined);
 
   return (
     <div className="space-y-3">
-      {(search || toolbar) && (
+      {(search || toolbar || (columnChooser !== false && toggleableColumns.length > 0)) && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           {search ? (
             <div className="relative w-full sm:max-w-xs">
@@ -446,7 +658,83 @@ export function DataTable<T>({
           ) : (
             <span />
           )}
-          {toolbar ? <div className="flex flex-wrap gap-2">{toolbar}</div> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            {toolbar ? <div className="flex flex-wrap gap-2">{toolbar}</div> : null}
+            {columnChooser !== false && toggleableColumns.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1.5 text-xs font-medium"
+                    aria-label="Customize visible columns"
+                  >
+                    <Columns3 className="size-3.5 text-muted-foreground" />
+                    <span>Columns</span>
+                    {hiddenKeys.length > 0 && (
+                      <span className="ml-0.5 rounded-full bg-primary/10 px-1.5 py-0.2 text-[10px] font-semibold text-primary">
+                        {toggleableColumns.length - hiddenKeys.length}/{toggleableColumns.length}
+                      </span>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                    <span>Toggle columns</span>
+                    <span className="text-[10px] font-normal">
+                      {toggleableColumns.length - hiddenKeys.length} of {toggleableColumns.length}
+                    </span>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <div className="max-h-60 overflow-y-auto py-0.5">
+                    {toggleableColumns.map((col) => {
+                      const isVisible = !hiddenKeys.includes(col.key);
+                      const currentVisibleCount = toggleableColumns.length - hiddenKeys.length;
+                      const isLastVisible = isVisible && currentVisibleCount <= 1;
+                      const colLabel =
+                        col.title ||
+                        (typeof col.header === "string"
+                          ? col.header
+                          : extractNodeText(col.header) || col.key);
+
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={col.key}
+                          checked={isVisible}
+                          onCheckedChange={() => toggleColumn(col.key)}
+                          disabled={isLastVisible}
+                          className="text-xs capitalize"
+                        >
+                          <span className="truncate">{colLabel}</span>
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                  </div>
+                  <DropdownMenuSeparator />
+                  <div className="flex items-center justify-between gap-1 p-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={showAllColumns}
+                      disabled={hiddenKeys.length === 0}
+                      className="h-7 text-[11px] font-normal px-2"
+                    >
+                      Show all
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetColumns}
+                      className="h-7 text-[11px] font-normal px-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <RotateCcw className="size-3 mr-1" />
+                      Reset
+                    </Button>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
       )}
 
@@ -454,7 +742,7 @@ export function DataTable<T>({
         <div className={cn("overflow-x-auto", stickyHeader && "max-h-[600px] overflow-y-auto")}>
           <Table className={cn("w-full", hasCustomWidths && "table-fixed")}>
             <colgroup>
-              {columns.map((c) => {
+              {visibleColumns.map((c) => {
                 const w = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
                 return (
                   <col
@@ -470,7 +758,7 @@ export function DataTable<T>({
             </colgroup>
             <TableHeader className={cn(stickyHeader && "sticky top-0 z-10")}>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
-                {columns.map((c) => {
+                {visibleColumns.map((c) => {
                   const isColSortable =
                     sortable !== false &&
                     (c.sortable === true ||
@@ -546,12 +834,21 @@ export function DataTable<T>({
                     >
                       <div
                         className={cn(
-                          "inline-flex items-center gap-1.5",
+                          "inline-flex items-center gap-1.5 min-w-0 max-w-full",
                           c.className?.includes("text-right") && "w-full justify-end",
                           c.className?.includes("text-center") && "w-full justify-center"
                         )}
                       >
-                        <span className="truncate">{c.header}</span>
+                        {c.key === "select" ? (
+                          c.header
+                        ) : (
+                          <span
+                            className="truncate min-w-0"
+                            title={typeof c.header === "string" ? c.header : undefined}
+                          >
+                            {c.header}
+                          </span>
+                        )}
                         {isColSortable && (
                           <span className="inline-flex shrink-0">
                             {isSorted ? (
@@ -605,7 +902,7 @@ export function DataTable<T>({
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={`sk-${i}`}>
-                    {columns.map((c) => (
+                    {visibleColumns.map((c) => (
                       <TableCell
                         key={c.key}
                         className={cn(
@@ -621,7 +918,7 @@ export function DataTable<T>({
               ) : pageRows.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length}
+                    colSpan={visibleColumns.length}
                     className="h-24 text-center text-sm text-muted-foreground"
                   >
                     {emptyMessage}
@@ -641,24 +938,48 @@ export function DataTable<T>({
                       rowClassName?.(row, idx)
                     )}
                   >
-                    {columns.map((c) => (
-                      <TableCell
-                        key={c.key}
-                        style={c.style}
-                        className={cn(
-                          density === "compact"
-                            ? "py-1.5 px-2.5 text-xs"
-                            : density === "comfortable"
-                            ? "py-4 px-4 text-sm"
-                            : "py-3 px-3 text-sm",
-                          c.hideOnMobile && "hidden md:table-cell",
-                          bordered && "border-r border-border/40 last:border-r-0",
-                          c.className
-                        )}
-                      >
-                        {c.cell(row)}
-                      </TableCell>
-                    ))}
+                    {visibleColumns.map((c) => {
+                      const cellContent = c.cell(row);
+                      const shouldTruncate =
+                        truncate !== false &&
+                        c.truncate !== false &&
+                        c.key !== "select" &&
+                        c.key !== "actions";
+                      const cellTooltip = shouldTruncate ? extractNodeText(cellContent) : undefined;
+
+                      return (
+                        <TableCell
+                          key={c.key}
+                          style={c.style}
+                          className={cn(
+                            density === "compact"
+                              ? "py-1.5 px-2.5 text-xs"
+                              : density === "comfortable"
+                              ? "py-4 px-4 text-sm"
+                              : "py-3 px-3 text-sm",
+                            c.hideOnMobile && "hidden md:table-cell",
+                            bordered && "border-r border-border/40 last:border-r-0",
+                            shouldTruncate && "max-w-0 overflow-hidden",
+                            c.className
+                          )}
+                        >
+                          {shouldTruncate ? (
+                            <div
+                              className={cn(
+                                "truncate max-w-full [&_div]:truncate [&_span]:truncate [&_p]:truncate [&_a]:truncate",
+                                c.className?.includes("text-right") && "text-right",
+                                c.className?.includes("text-center") && "text-center"
+                              )}
+                              title={cellTooltip || undefined}
+                            >
+                              {cellContent}
+                            </div>
+                          ) : (
+                            cellContent
+                          )}
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 ))
               )}

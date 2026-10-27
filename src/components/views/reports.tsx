@@ -14,6 +14,9 @@ import {
   CreditCard,
   Scale,
   LayoutDashboard,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   // Gauge,
   // Activity,
 } from "lucide-react";
@@ -26,6 +29,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { compareSortValues } from "@/components/shared/data-table";
 import { formatMoney, formatDate, formatDateTime /*, formatBandwidth */ } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -505,6 +509,7 @@ export function ReportsView() {
           <CardContent className="p-0">
             <ReportTable
               headers={["Contract", "Branch", "Provider", "End", "Monthly", "Status"]}
+              defaultSort={{ columnIndex: 3, direction: "asc" }}
               rows={expiring.map((c) => [
                 c.contractNumber,
                 c.branch?.name ?? "—",
@@ -564,9 +569,8 @@ export function ReportsView() {
           <CardContent className="p-0">
             <ReportTable
               headers={["Invoice", "Branch", "Due", "Total", "Outstanding", "Status"]}
+              defaultSort={{ columnIndex: 4, direction: "desc" }}
               rows={outstandingInvoices
-                .slice()
-                .sort((a, b) => Number(b.outstanding) - Number(a.outstanding))
                 .map((i) => [
                   i.invoiceNumber,
                   i.branch?.name ?? "—",
@@ -607,6 +611,7 @@ export function ReportsView() {
           <CardContent className="p-0">
             <ReportTable
               headers={["Date", "Amount", "Method", "Reference", "Allocated to", "Status"]}
+              defaultSort={{ columnIndex: 0, direction: "desc" }}
               rows={completedPayments.map((p) => [
                 formatDate(p.paymentDate),
                 formatMoney(p.amount, p.currency),
@@ -656,6 +661,7 @@ export function ReportsView() {
             <ReportTable
               loading={varianceLoading}
               headers={["Contract", "Branch", "Scheduled", "Invoiced", "Collected", "Outstanding", "Variance"]}
+              defaultSort={{ columnIndex: 0, direction: "asc" }}
               rows={(variance?.rows ?? [])
                 .filter((r) => Number(r.invoicedTotal) > 0 || Number(r.scheduledTotal) > 0)
                 .map((r) => [
@@ -819,6 +825,7 @@ export function ReportsView() {
             <div className="max-h-96 overflow-y-auto">
               <ReportTable
                 headers={["Time", "Actor", "Action", "Entity", "ID"]}
+                defaultSort={{ columnIndex: 0, direction: "desc" }}
                 rows={audit.map((a) => [
                   formatDateTime(a.createdAt),
                   a.actor,
@@ -849,27 +856,152 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: str
   );
 }
 
+export interface ReportTableSort {
+  columnIndex: number;
+  direction: "asc" | "desc";
+}
+
+function extractNodeText(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractNodeText).join(" ");
+  if (React.isValidElement(node)) {
+    const props = node.props as Record<string, unknown>;
+    if (props.status) return String(props.status);
+    if (props.label) return String(props.label);
+    if (props.children) return extractNodeText(props.children as React.ReactNode);
+  }
+  return "";
+}
+
 function ReportTable({
   headers,
   rows,
   empty,
   loading,
+  defaultSort,
+  sortable = true,
 }: {
   headers: React.ReactNode[];
   rows: React.ReactNode[][];
   empty: string;
   loading?: boolean;
+  defaultSort?: ReportTableSort;
+  sortable?: boolean;
 }) {
+  const [sort, setSort] = React.useState<ReportTableSort | null>(defaultSort ?? null);
+
+  const prevDefaultSortRef = React.useRef(defaultSort);
+  React.useEffect(() => {
+    if (defaultSort !== prevDefaultSortRef.current) {
+      prevDefaultSortRef.current = defaultSort;
+      setSort(defaultSort ?? null);
+    }
+  }, [defaultSort]);
+
+  const sortedRows = React.useMemo(() => {
+    if (!sort) return rows;
+    const { columnIndex, direction } = sort;
+
+    return [...rows].sort((rowA, rowB) => {
+      const cellA = rowA[columnIndex];
+      const cellB = rowB[columnIndex];
+
+      const valA = extractNodeText(cellA);
+      const valB = extractNodeText(cellB);
+
+      const aEmpty = valA === "";
+      const bEmpty = valB === "";
+
+      if (aEmpty && !bEmpty) return 1;
+      if (bEmpty && !aEmpty) return -1;
+      if (aEmpty && bEmpty) return 0;
+
+      const cmp = compareSortValues(valA, valB);
+      return direction === "asc" ? cmp : -cmp;
+    });
+  }, [rows, sort]);
+
+  const handleSort = (index: number) => {
+    let nextSort: ReportTableSort | null = null;
+    if (!sort || sort.columnIndex !== index) {
+      nextSort = { columnIndex: index, direction: "asc" };
+    } else if (sort.direction === "asc") {
+      nextSort = { columnIndex: index, direction: "desc" };
+    } else {
+      if (defaultSort && defaultSort.columnIndex === index && defaultSort.direction === "desc") {
+        nextSort = { columnIndex: index, direction: "asc" };
+      } else {
+        nextSort = defaultSort ? { ...defaultSort } : null;
+      }
+    }
+    setSort(nextSort);
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-            {headers.map((h, i) => (
-              <th key={i} className="px-4 py-2 font-semibold">
-                {h}
-              </th>
-            ))}
+            {headers.map((h, i) => {
+              const canSort = sortable !== false;
+              const isSorted = sort?.columnIndex === i;
+              const isAsc = sort?.direction === "asc";
+
+              return (
+                <th
+                  key={i}
+                  aria-sort={
+                    isSorted
+                      ? isAsc
+                        ? "ascending"
+                        : "descending"
+                      : undefined
+                  }
+                  className={cn(
+                    "px-4 py-2 font-semibold",
+                    canSort &&
+                      "group cursor-pointer select-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  )}
+                  onClick={canSort ? () => handleSort(i) : undefined}
+                  onKeyDown={
+                    canSort
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleSort(i);
+                          }
+                        }
+                      : undefined
+                  }
+                  tabIndex={canSort ? 0 : undefined}
+                  role={canSort ? "columnheader button" : "columnheader"}
+                >
+                  <div className="inline-flex items-center gap-1.5">
+                    <span>{h}</span>
+                    {canSort && (
+                      <span className="inline-flex shrink-0">
+                        {isSorted ? (
+                          isAsc ? (
+                            <ArrowUp
+                              className="size-3 text-primary"
+                              aria-label="Sorted ascending"
+                            />
+                          ) : (
+                            <ArrowDown
+                              className="size-3 text-primary"
+                              aria-label="Sorted descending"
+                            />
+                          )
+                        ) : (
+                          <ArrowUpDown className="size-3 text-muted-foreground/40 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
@@ -883,7 +1015,7 @@ function ReportTable({
                 ))}
               </tr>
             ))
-          ) : rows.length === 0 ? (
+          ) : sortedRows.length === 0 ? (
             <tr>
               <td
                 colSpan={headers.length}
@@ -893,7 +1025,7 @@ function ReportTable({
               </td>
             </tr>
           ) : (
-            rows.map((row, i) => (
+            sortedRows.map((row, i) => (
               <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
                 {row.map((cell, j) => (
                   <td key={j} className="px-4 py-2.5 align-middle">

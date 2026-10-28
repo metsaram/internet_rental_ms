@@ -36,6 +36,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
@@ -265,48 +266,40 @@ export function ShopsView() {
       maxWidth: 130,
       resizable: false,
       cell: (s) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditing(s);
-              setDialogOpen(true);
-            }}
-            aria-label="Edit shop"
-          >
-            <Pencil className="size-4" />
-          </Button>
-          {s.status === "ACTIVE" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={(e) => {
-                e.stopPropagation();
-                setArchiving(s);
-              }}
-              aria-label="Archive shop"
-              title="Archive"
-            >
-              <Archive className="size-4" />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-rose-600 hover:text-rose-700"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeleting(s);
-            }}
-            aria-label="Delete shop"
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
+        <ActionMenu
+          actions={[
+            {
+              id: "edit",
+              label: "Edit shop",
+              icon: <Pencil className="size-4" />,
+              isPrimary: true,
+              priority: 1,
+              onClick: () => {
+                setEditing(s);
+                setDialogOpen(true);
+              },
+            },
+            ...(s.status === "ACTIVE"
+              ? [
+                  {
+                    id: "archive",
+                    label: "Archive shop",
+                    icon: <Archive className="size-4" />,
+                    priority: 2,
+                    onClick: () => setArchiving(s),
+                  },
+                ]
+              : []),
+            {
+              id: "delete",
+              label: "Delete shop",
+              icon: <Trash2 className="size-4" />,
+              variant: "destructive" as const,
+              priority: 3,
+              onClick: () => setDeleting(s),
+            },
+          ]}
+        />
       ),
     },
   ];

@@ -40,6 +40,13 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+export {
+  ActionMenu,
+  type ActionItem,
+  type ActionConfirmationConfig,
+  type ActionMenuProps,
+} from "./action-menu";
+
 export type SortDirection = "asc" | "desc";
 
 export interface SortState {

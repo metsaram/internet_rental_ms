@@ -41,7 +41,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
-import { DataTable, FilterSelect, type DataTableColumn } from "@/components/shared/data-table";
+import {
+  DataTable,
+  FilterSelect,
+  ActionMenu,
+  type DataTableColumn,
+} from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { AttachmentsPanel } from "@/components/shared/attachments-panel";
@@ -261,41 +266,55 @@ export function InvoicesView() {
       key: "actions",
       header: "",
       className: "text-right",
-      width: 90,
+      width: 100,
       minWidth: 80,
-      maxWidth: 110,
+      maxWidth: 130,
       resizable: false,
       cell: (i) => (
-        <div className="flex justify-end gap-1">
-          {Number(i.outstanding) > 0 && i.status !== "VOID" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-emerald-600"
-              onClick={(e) => {
-                e.stopPropagation();
-                setPayFor(i);
-              }}
-              aria-label="Record payment"
-              title="Record payment"
-            >
-              <CreditCard className="size-4" />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditing(i);
-              setDialogOpen(true);
-            }}
-            aria-label="Edit"
-          >
-            <Pencil className="size-4" />
-          </Button>
-        </div>
+        <ActionMenu
+          actions={[
+            ...(Number(i.outstanding) > 0 && i.status !== "VOID"
+              ? [
+                  {
+                    id: "pay",
+                    label: "Record payment",
+                    icon: <CreditCard className="size-4" />,
+                    isPrimary: true,
+                    priority: 1,
+                    onClick: () => setPayFor(i),
+                  },
+                ]
+              : []),
+            {
+              id: "edit",
+              label: "Edit invoice",
+              icon: <Pencil className="size-4" />,
+              priority: 2,
+              onClick: () => {
+                setEditing(i);
+                setDialogOpen(true);
+              },
+            },
+            {
+              id: "void",
+              label: "Void invoice",
+              icon: <Ban className="size-4" />,
+              priority: 3,
+              disabled: i.status === "VOID",
+              disabledReason: i.status === "VOID" ? "Invoice is already voided" : undefined,
+              variant: "destructive" as const,
+              onClick: () => setVoiding(i),
+            },
+            {
+              id: "delete",
+              label: "Delete invoice",
+              icon: <Trash2 className="size-4" />,
+              priority: 4,
+              variant: "destructive" as const,
+              onClick: () => setDeleting(i),
+            },
+          ]}
+        />
       ),
     },
   ];

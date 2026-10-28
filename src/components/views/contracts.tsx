@@ -47,7 +47,12 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
-import { DataTable, FilterSelect, type DataTableColumn } from "@/components/shared/data-table";
+import {
+  DataTable,
+  FilterSelect,
+  ActionMenu,
+  type DataTableColumn,
+} from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { AttachmentsPanel } from "@/components/shared/attachments-panel";
@@ -377,40 +382,41 @@ export function ContractsView() {
       key: "actions",
       header: "",
       className: "text-right",
-      width: 90,
+      width: 100,
       minWidth: 80,
-      maxWidth: 110,
+      maxWidth: 120,
       resizable: false,
       cell: (c) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDetail(c);
-            }}
-            aria-label="View contract details"
-            title="View details"
-          >
-            <Eye className="size-4 text-muted-foreground" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditing(c);
-              setDialogOpen(true);
-            }}
-            aria-label="Edit"
-            title="Edit contract"
-          >
-            <Pencil className="size-4 text-muted-foreground" />
-          </Button>
-        </div>
+        <ActionMenu
+          actions={[
+            {
+              id: "view",
+              label: "View details",
+              icon: <Eye className="size-4" />,
+              isPrimary: true,
+              priority: 1,
+              onClick: () => setDetail(c),
+            },
+            {
+              id: "edit",
+              label: "Edit contract",
+              icon: <Pencil className="size-4" />,
+              priority: 2,
+              onClick: () => {
+                setEditing(c);
+                setDialogOpen(true);
+              },
+            },
+            {
+              id: "delete",
+              label: "Delete contract",
+              icon: <Trash2 className="size-4" />,
+              variant: "destructive" as const,
+              priority: 3,
+              onClick: () => setDeleting(c),
+            },
+          ]}
+        />
       ),
     },
   ];

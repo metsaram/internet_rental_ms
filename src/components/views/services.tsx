@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, KeyRound } from "lucide-react";
+import { Plus, Pencil, KeyRound, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,12 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
-import { DataTable, FilterSelect, type DataTableColumn } from "@/components/shared/data-table";
+import {
+  DataTable,
+  FilterSelect,
+  ActionMenu,
+  type DataTableColumn,
+} from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -164,7 +169,40 @@ export function ServicesView() {
     { key: "creds", header: "Creds", width: 90, minWidth: 70, maxWidth: 120, cell: (s) => (s.hasCredentials ? <span className="inline-flex items-center gap-1 text-amber-600 text-xs"><KeyRound className="size-3.5" /> set</span> : <span className="text-muted-foreground text-xs">—</span>) },
     { key: "installed", header: "Installed", width: 120, minWidth: 100, maxWidth: 160, cell: (s) => <span className="text-sm">{formatDate(s.installedAt)}</span> },
     { key: "status", header: "Status", width: 110, minWidth: 90, maxWidth: 140, cell: (s) => <StatusBadge status={s.status} /> },
-    { key: "actions", header: "", className: "text-right", width: 70, minWidth: 60, maxWidth: 90, resizable: false, cell: (s) => (<Button variant="ghost" size="icon" className="size-8" onClick={() => { setEditing(s); setDialogOpen(true); }}><Pencil className="size-4" /></Button>) },
+    {
+      key: "actions",
+      header: "",
+      className: "text-right",
+      width: 90,
+      minWidth: 80,
+      maxWidth: 110,
+      resizable: false,
+      cell: (s) => (
+        <ActionMenu
+          actions={[
+            {
+              id: "edit",
+              label: "Edit service",
+              icon: <Pencil className="size-4" />,
+              isPrimary: true,
+              priority: 1,
+              onClick: () => {
+                setEditing(s);
+                setDialogOpen(true);
+              },
+            },
+            {
+              id: "delete",
+              label: "Delete service",
+              icon: <Trash2 className="size-4" />,
+              variant: "destructive" as const,
+              priority: 2,
+              onClick: () => setDeleting(s),
+            },
+          ]}
+        />
+      ),
+    },
   ];
 
   const canCreate = branches.length > 0 && providers.length > 0;

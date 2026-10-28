@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
@@ -205,21 +206,20 @@ export function PlansView() {
       maxWidth: 100,
       resizable: false,
       cell: (p) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditing(p);
-              setDialogOpen(true);
-            }}
-            aria-label="Edit plan"
-          >
-            <Pencil className="size-4" />
-          </Button>
-        </div>
+        <ActionMenu
+          actions={[
+            {
+              id: "edit",
+              label: "Edit plan",
+              icon: <Pencil className="size-4" />,
+              isPrimary: true,
+              onClick: () => {
+                setEditing(p);
+                setDialogOpen(true);
+              },
+            },
+          ]}
+        />
       ),
     },
   ];

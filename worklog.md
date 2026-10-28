@@ -1199,5 +1199,55 @@ Task: Implement interactive Column Chooser dropdown menu to toggle column visibi
    - Updated `docs/changelog/2026-10.md` `[2026-10-27]`.
    - Updated `docs/task_logs/2026-10-27.md`.
 
+---
+Task ID: Responsive Column Sizes, Reusable ActionMenu & Theme-Adaptive Reduced Backgrounds
+Date: 2026-10-28
+Agent: Antigravity
+Task: Standardize table column width constraints with mobile responsive minWidth sizing, remove hideOnMobile, build reusable ActionMenu component for data tables, and implement theme-adaptive reduced button backgrounds.
+
+### What was done:
+1. **DataTable Column Size Constraints & Mobile Responsive Sizing (`src/components/shared/data-table.tsx`)**:
+   - Standardized proportional `width`, `minWidth`, and `maxWidth` across all table view columns.
+   - Removed deprecated `hideOnMobile` property (replaced by Column Chooser).
+   - On mobile viewports (< 768px via `useIsMobile()`), column widths automatically switch to `minWidth` to ensure touch readability and eliminate column collapse.
+
+2. **Reusable ActionMenu Component (`src/components/shared/action-menu.tsx` & `data-table.tsx`)**:
+   - Implemented responsive partition rules:
+     - 1–3 actions (Desktop/Tablet): All visible buttons.
+     - 1–2 actions (Mobile): All visible buttons.
+     - More than 2 actions (Mobile): Primary action visible as a button, remaining in 3-dot (More) menu.
+     - 4–6 actions (Desktop): 1–3 highest-priority actions as visible buttons (default 2), remaining in 3-dot menu.
+     - 7+ actions: 3-dot menu organized into logical sections (`General`, `Management`, `Danger Zone`).
+   - Prioritization: `priority?: number`, `isPrimary?: boolean`, `display?: "auto" | "visible" | "menu"`.
+   - Destructive confirmation: `confirmation: ActionConfirmationConfig | boolean` renders a `ConfirmDialog` before invoking `onClick`.
+   - Tooltips on visible buttons showing action labels or `disabledReason`.
+   - Event isolation: `stopPropagation?: boolean` prevents table row click events (`onRowClick`) from firing on action clicks.
+   - Re-exported from `src/components/shared/data-table.tsx`.
+   - Integrated across data table views:
+     - `branches.tsx`: Edit, Archive, Delete.
+     - `shops.tsx`: Edit, Archive, Delete.
+     - `invoices.tsx`: Record Payment, Edit, Void, Delete.
+     - `contracts.tsx`: View Details, Edit, Delete.
+     - `plans.tsx`: Edit.
+     - `services.tsx`: Edit, Delete.
+
+3. **Theme-Adaptive Reduced Button Backgrounds (`src/components/ui/button.tsx` & `action-menu.tsx`)**:
+   - Added `subtle` and `destructive-subtle` variants to `Button` using `bg-primary/10` and `bg-destructive/10`.
+   - Replaced heavy 100% solid filled backgrounds in table rows with 10–15% reduced background tints.
+   - Added `buttonStyle?: "subtle" | "ghost"` to `ActionMenuProps`.
+   - Replaced hardcoded colors (`rose-600`, `rose-50`, `dark:rose-950`, `emerald-600`) with theme tokens (`text-primary`, `bg-primary/10`, `text-destructive`, `bg-destructive/10`, `text-muted-foreground`, `hover:bg-accent/60`) for full cross-theme compatibility across light, dark, and custom palettes.
+
+4. **Testing & Verification**:
+   - Created `test/action-menu.test.tsx` (10 unit tests passing).
+   - Maintained `test/data-table.test.tsx` (17 unit tests passing).
+   - Ran `bun run test:run` — all 8 test files, 84 tests passing (100%).
+
+5. **Documentation**:
+   - Created `docs/task_logs/2026-10-28.md`.
+   - Updated `docs/changelog/2026-10.md` (`[2026-10-28]`).
+   - Updated `docs/guides/developer_guide.md` (Section 8 and new Section 9).
+   - Updated `worklog.md`.
+
+
 
 

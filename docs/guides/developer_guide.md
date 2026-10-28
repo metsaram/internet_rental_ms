@@ -185,6 +185,11 @@ The project provides centralized, high-performance table components (`DataTable`
   - Column-level controls: `hideable?: boolean` (defaults to true), `defaultHidden?: boolean` (starts hidden by default), and friendly `title?: string`.
   - Built-in toolbar counter badge (`X/Y`), "Show all", and "Reset" (clears local cache and restores original widths and visibility).
 
+- **Responsive Mobile Column Sizing**:
+  - Automatically switches column sizes to `minWidth` on mobile viewports (< 768px via `useIsMobile()`) to prevent horizontal compression and text clipping.
+  - Standardized proportional `width`, `minWidth`, and `maxWidth` across all table view columns.
+  - Deprecated `hideOnMobile` is removed in favor of native Column Chooser control.
+
 ```tsx
 <DataTable
   storageKey="invoices-table"
@@ -202,4 +207,82 @@ The project provides centralized, high-performance table components (`DataTable`
   bordered={true}
 />
 ```
+
+#### 9. Reusable ActionMenu Component for Data Tables
+The `ActionMenu` component (`@/components/shared/action-menu` or re-exported from `@/components/shared/data-table`) standardizes row actions across all data tables:
+
+- **Responsive Breakpoint Behavior**:
+  | Action Count | Desktop / Tablet (≥ 768px) | Mobile (< 768px) |
+  |---|---|---|
+  | **1–2 actions** | All visible buttons | All visible buttons |
+  | **3 actions** | All 3 visible buttons | Primary visible; remainder in 3-dot menu |
+  | **4–6 actions** | Top 1–3 highest-priority buttons (default: 2); remainder in 3-dot menu | Primary visible; remainder in 3-dot menu |
+  | **7+ actions** | 3-dot menu organized into logical sections (`General`, `Management`, `Danger Zone`) | 3-dot menu organized into logical sections |
+
+- **Action Prioritization & Overrides**:
+  - `priority?: number`: Lower numbers take precedence for visible button slots (`priority: 1` before `priority: 2`).
+  - `isPrimary?: boolean`: Explicitly boosts action priority for visible mobile/desktop display.
+  - `display?: "auto" | "visible" | "menu"`: Explicit placement override per action.
+
+- **Theme-Adaptive Reduced Background Colors**:
+  - `buttonStyle?: "subtle" | "ghost"` (defaults to `"subtle"`):
+    - **`subtle`**: Renders primary actions with `bg-primary/10 text-primary hover:bg-primary/20` and destructive actions with `bg-destructive/10 text-destructive hover:bg-destructive/20`. Avoids heavy 100% solid filled blocks in table rows.
+    - **`ghost`**: Renders actions with a transparent background and hover-only theme tint.
+  - Native `subtle` and `destructive-subtle` variants in `Button` (`@/components/ui/button`).
+  - 100% CSS variable compatibility (`--primary`, `--destructive`, `--accent`, `--muted`) across light, dark, and custom color themes without hardcoded color classes.
+
+- **Destructive Confirmation Interception**:
+  - Set `confirmation={true}` or pass custom `ActionConfirmationConfig` (`title`, `description`, `confirmText`, `destructive`).
+  - Automatically intercepts execution and renders a `ConfirmDialog` before invoking `onClick`, eliminating parent modal state boilerplate.
+
+- **Row Click Isolation & Tooltips**:
+  - Actions automatically call `e.stopPropagation()` (unless `stopPropagation={false}`) to prevent triggering row click handlers like `onRowClick`.
+  - Visible icon buttons render accessible tooltips displaying action labels or `disabledReason`.
+
+```tsx
+import { ActionMenu } from "@/components/shared/data-table";
+import { Eye, Pencil, Trash2 } from "lucide-react";
+
+// In column definition:
+{
+  key: "actions",
+  header: "",
+  className: "text-right",
+  width: 100,
+  minWidth: 80,
+  maxWidth: 120,
+  resizable: false,
+  cell: (record) => (
+    <ActionMenu
+      actions={[
+        {
+          id: "view",
+          label: "View details",
+          icon: <Eye className="size-4" />,
+          isPrimary: true,
+          priority: 1,
+          onClick: () => viewRecord(record),
+        },
+        {
+          id: "edit",
+          label: "Edit record",
+          icon: <Pencil className="size-4" />,
+          priority: 2,
+          onClick: () => editRecord(record),
+        },
+        {
+          id: "delete",
+          label: "Delete record",
+          icon: <Trash2 className="size-4" />,
+          variant: "destructive",
+          priority: 3,
+          confirmation: true,
+          onClick: () => deleteRecord(record.id),
+        },
+      ]}
+    />
+  ),
+}
+```
+
 

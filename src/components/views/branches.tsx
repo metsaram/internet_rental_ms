@@ -18,6 +18,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
@@ -191,53 +192,45 @@ export function BranchesView() {
       key: "actions",
       header: "",
       className: "text-right",
-      width: 90,
+      width: 100,
       minWidth: 80,
-      maxWidth: 110,
+      maxWidth: 120,
       resizable: false,
       cell: (b) => (
-        <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditing(b);
-              setDialogOpen(true);
-            }}
-            aria-label="Edit branch"
-          >
-            <Pencil className="size-4" />
-          </Button>
-          {b.status === "ACTIVE" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={(e) => {
-                e.stopPropagation();
-                setArchiving(b);
-              }}
-              aria-label="Archive branch"
-              title="Archive"
-            >
-              <Archive className="size-4" />
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-rose-600 hover:text-rose-700"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeleting(b);
-            }}
-            aria-label="Delete branch"
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </div>
+        <ActionMenu
+          actions={[
+            {
+              id: "edit",
+              label: "Edit branch",
+              icon: <Pencil className="size-4" />,
+              isPrimary: true,
+              priority: 1,
+              onClick: () => {
+                setEditing(b);
+                setDialogOpen(true);
+              },
+            },
+            ...(b.status === "ACTIVE"
+              ? [
+                  {
+                    id: "archive",
+                    label: "Archive branch",
+                    icon: <Archive className="size-4" />,
+                    priority: 2,
+                    onClick: () => setArchiving(b),
+                  },
+                ]
+              : []),
+            {
+              id: "delete",
+              label: "Delete branch",
+              icon: <Trash2 className="size-4" />,
+              variant: "destructive" as const,
+              priority: 3,
+              onClick: () => setDeleting(b),
+            },
+          ]}
+        />
       ),
     },
   ];

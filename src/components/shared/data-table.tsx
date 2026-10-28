@@ -364,6 +364,7 @@ export function DataTable<T>({
     }
     return initial;
   });
+  const [userResizedKeys, setUserResizedKeys] = React.useState<Set<string>>(() => new Set());
 
   // Safely hydrate column visibility choices from localStorage cache
   React.useEffect(() => {
@@ -393,6 +394,7 @@ export function DataTable<T>({
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") {
           setColumnWidths((prev) => ({ ...prev, ...parsed }));
+          setUserResizedKeys((prev) => new Set([...prev, ...Object.keys(parsed)]));
         }
       }
     } catch {
@@ -476,6 +478,7 @@ export function DataTable<T>({
       }
     }
     setColumnWidths(initialWidths);
+    setUserResizedKeys(new Set());
   }, [defaultHiddenKeys, colStorageKey, widthStorageKey, columns]);
 
   const [resizingKey, setResizingKey] = React.useState<string | null>(null);
@@ -486,23 +489,30 @@ export function DataTable<T>({
     minWidth: number;
     maxWidth: number;
   } | null>(null);
+  const lastTapRef = React.useRef<{ key: string; time: number } | null>(null);
 
-  // Window listeners for smooth column resizing drag
+  // Window listeners for smooth column resizing drag across mouse, pointer, and touch
   React.useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
+    const handleMove = (clientX: number) => {
       if (!resizeStateRef.current) return;
       const { key, startX, startWidth, minWidth, maxWidth } = resizeStateRef.current;
-      const diff = e.clientX - startX;
+      const diff = clientX - startX;
       const newWidth = Math.max(minWidth, Math.min(maxWidth, Math.round(startWidth + diff)));
 
       setColumnWidths((prev) => {
         if (prev[key] === newWidth) return prev;
         return { ...prev, [key]: newWidth };
       });
+      setUserResizedKeys((prev) => {
+        if (prev.has(key)) return prev;
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
       onColumnResize?.(key, newWidth);
     };
 
-    const onMouseUp = () => {
+    const handleEnd = () => {
       if (!resizeStateRef.current) return;
       resizeStateRef.current = null;
       setResizingKey(null);
@@ -519,12 +529,55 @@ export function DataTable<T>({
       }
     };
 
+    const onMouseMove = (e: MouseEvent) => {
+      handleMove(e.clientX);
+    };
+    const onMouseUp = () => {
+      handleEnd();
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      handleMove(e.clientX);
+    };
+    const onPointerUp = () => {
+      handleEnd();
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!resizeStateRef.current) return;
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      if (e.touches && e.touches.length > 0) {
+        handleMove(e.touches[0].clientX);
+      }
+    };
+    const onTouchEnd = () => {
+      handleEnd();
+    };
+
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd);
+    window.addEventListener("touchcancel", onTouchEnd);
 
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
     };
   }, [onColumnResize, persistColumnWidths, widthStorageKey]);
 
@@ -541,27 +594,28 @@ export function DataTable<T>({
   }, [resizingKey]);
 
   const handleResizeStart = (
-    e: React.MouseEvent,
+    clientX: number,
     key: string,
     col: DataTableColumn<T>,
     th: HTMLElement | null
   ) => {
-    e.preventDefault();
-    e.stopPropagation();
+    const { minWidth, maxWidth } = getColumnConstraints(col, defaultMinWidth, defaultMaxWidth);
 
     const startWidth =
-      columnWidths[key] ??
-      (typeof col.width === "number"
-        ? col.width
-        : th
-        ? th.getBoundingClientRect().width
-        : 150);
-
-    const { minWidth, maxWidth } = getColumnConstraints(col, defaultMinWidth, defaultMaxWidth);
+      userResizedKeys.has(key) && columnWidths[key] !== undefined
+        ? columnWidths[key]
+        : shouldApplyMobileMin
+        ? (th ? Math.round(th.getBoundingClientRect().width) : minWidth)
+        : columnWidths[key] ??
+          (typeof col.width === "number"
+            ? col.width
+            : th
+            ? Math.round(th.getBoundingClientRect().width)
+            : 150);
 
     resizeStateRef.current = {
       key,
-      startX: e.clientX,
+      startX: clientX,
       startWidth,
       minWidth,
       maxWidth,
@@ -569,9 +623,18 @@ export function DataTable<T>({
     setResizingKey(key);
   };
 
-  const handleResizeReset = (e: React.MouseEvent, key: string, col: DataTableColumn<T>) => {
+  const handleResizeReset = (
+    e: React.SyntheticEvent,
+    key: string,
+    col: DataTableColumn<T>
+  ) => {
     e.preventDefault();
     e.stopPropagation();
+    setUserResizedKeys((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
+    });
     setColumnWidths((prev) => {
       const next = { ...prev };
       if (typeof col.width === "number") {
@@ -691,6 +754,10 @@ export function DataTable<T>({
 
   const getColWidth = React.useCallback(
     (c: DataTableColumn<T>, colMin: number) => {
+      const isCustomized = userResizedKeys.has(c.key);
+      if (isCustomized && columnWidths[c.key] !== undefined) {
+        return `${columnWidths[c.key]}px`;
+      }
       if (shouldApplyMobileMin) {
         return `${colMin}px`;
       }
@@ -699,7 +766,7 @@ export function DataTable<T>({
       if (typeof c.width === "string") return c.width;
       return undefined;
     },
-    [shouldApplyMobileMin, columnWidths]
+    [shouldApplyMobileMin, columnWidths, userResizedKeys]
   );
 
   const hasCustomWidths =
@@ -851,7 +918,6 @@ export function DataTable<T>({
 
                   const isColResizable =
                     resizable !== false &&
-                    !shouldApplyMobileMin &&
                     c.resizable !== false &&
                     c.key !== "select" &&
                     c.key !== "actions";
@@ -950,15 +1016,41 @@ export function DataTable<T>({
                           aria-orientation="vertical"
                           aria-label={`Resize ${typeof c.header === "string" ? c.header : c.key} column`}
                           className={cn(
-                            "absolute right-0 top-0 bottom-0 w-3 cursor-col-resize select-none touch-none z-10",
+                            "absolute -right-2 top-0 bottom-0 w-5 sm:right-0 sm:w-3 cursor-col-resize select-none touch-none z-10",
                             "flex items-center justify-center",
                             "group/resizer hover:after:bg-primary after:transition-colors",
                             "after:h-4 after:w-[2px] after:rounded-full after:bg-border/60",
                             isResizingThis && "after:bg-primary after:h-full after:w-[2px] bg-primary/10"
                           )}
-                          onMouseDown={(e) => {
+                          onPointerDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             const th = e.currentTarget.closest("th");
-                            handleResizeStart(e, c.key, c, th);
+                            handleResizeStart(e.clientX, c.key, c, th);
+                          }}
+                          onTouchStart={(e) => {
+                            e.stopPropagation();
+                            const now = Date.now();
+                            if (
+                              lastTapRef.current &&
+                              lastTapRef.current.key === c.key &&
+                              now - lastTapRef.current.time < 300
+                            ) {
+                              handleResizeReset(e, c.key, c);
+                              lastTapRef.current = null;
+                              return;
+                            }
+                            lastTapRef.current = { key: c.key, time: now };
+                            if (e.touches && e.touches.length > 0) {
+                              const th = e.currentTarget.closest("th");
+                              handleResizeStart(e.touches[0].clientX, c.key, c, th);
+                            }
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const th = e.currentTarget.closest("th");
+                            handleResizeStart(e.clientX, c.key, c, th);
                           }}
                           onDoubleClick={(e) => handleResizeReset(e, c.key, c)}
                           onClick={(e) => {

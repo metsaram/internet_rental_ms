@@ -870,7 +870,40 @@ export interface ReportTableSort {
   direction: "asc" | "desc";
 }
 
-function extractNodeText(node: React.ReactNode): string {
+export interface ColumnConfig {
+  width?: number | string;
+  minWidth?: number;
+  maxWidth?: number;
+}
+
+export interface ReportTableProps {
+  headers: React.ReactNode[];
+  rows: React.ReactNode[][];
+  empty: string;
+  loading?: boolean;
+  defaultSort?: ReportTableSort;
+  sortable?: boolean;
+  resizable?: boolean;
+  striped?: boolean;
+  density?: "compact" | "normal" | "comfortable";
+  bordered?: boolean;
+  truncate?: boolean;
+  columnChooser?: boolean;
+  storageKey?: string;
+  persistColumnVisibility?: boolean;
+  persistColumnWidths?: boolean;
+  onRowClick?: (row: React.ReactNode[], index: number) => void;
+  rowClassName?: (row: React.ReactNode[], index: number) => string | undefined;
+  className?: string;
+  columnConfigs?: ColumnConfig[];
+  widths?: (number | string | undefined)[] | Record<number, number | string>;
+  minWidths?: (number | undefined)[] | Record<number, number>;
+  maxWidths?: (number | undefined)[] | Record<number, number>;
+  defaultMinWidth?: number;
+  defaultMaxWidth?: number;
+}
+
+export function extractNodeText(node: React.ReactNode): string {
   if (node === null || node === undefined || typeof node === "boolean") return "";
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(extractNodeText).join(" ");
@@ -881,6 +914,18 @@ function extractNodeText(node: React.ReactNode): string {
     if (props.children) return extractNodeText(props.children as React.ReactNode);
   }
   return "";
+}
+
+export function extractCellSortValue(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") return "";
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (React.isValidElement(node)) {
+    const props = node.props as Record<string, unknown>;
+    if (props["data-sort-value"] !== undefined && props["data-sort-value"] !== null) {
+      return String(props["data-sort-value"]);
+    }
+  }
+  return extractNodeText(node);
 }
 
 export function ReportTable({
@@ -899,27 +944,60 @@ export function ReportTable({
   storageKey,
   persistColumnVisibility = true,
   persistColumnWidths = true,
-}: {
-  headers: React.ReactNode[];
-  rows: React.ReactNode[][];
-  empty: string;
-  loading?: boolean;
-  defaultSort?: ReportTableSort;
-  sortable?: boolean;
-  resizable?: boolean;
-  striped?: boolean;
-  density?: "compact" | "normal" | "comfortable";
-  bordered?: boolean;
-  truncate?: boolean;
-  columnChooser?: boolean;
-  storageKey?: string;
-  persistColumnVisibility?: boolean;
-  persistColumnWidths?: boolean;
-}) {
+  onRowClick,
+  rowClassName,
+  className,
+  columnConfigs,
+  widths,
+  minWidths,
+  maxWidths,
+  defaultMinWidth = 60,
+  defaultMaxWidth = 1000,
+}: ReportTableProps) {
   const [sort, setSort] = React.useState<ReportTableSort | null>(defaultSort ?? null);
-  const [columnWidths, setColumnWidths] = React.useState<Record<number, number>>({});
+
+  const getColConstraints = React.useCallback(
+    (index: number) => {
+      const cfg = columnConfigs?.[index];
+      const minW =
+        cfg?.minWidth ??
+        (Array.isArray(minWidths) ? minWidths[index] : minWidths?.[index]) ??
+        defaultMinWidth ??
+        60;
+      const maxW =
+        cfg?.maxWidth ??
+        (Array.isArray(maxWidths) ? maxWidths[index] : maxWidths?.[index]) ??
+        defaultMaxWidth ??
+        1000;
+      const configuredWidth =
+        cfg?.width ??
+        (Array.isArray(widths) ? widths[index] : widths?.[index]);
+
+      return { minWidth: minW, maxWidth: maxW, configuredWidth };
+    },
+    [columnConfigs, minWidths, maxWidths, defaultMinWidth, defaultMaxWidth, widths]
+  );
+
+  const [columnWidths, setColumnWidths] = React.useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {};
+    headers.forEach((_, i) => {
+      const cfg = columnConfigs?.[i];
+      const configuredW = cfg?.width ?? (Array.isArray(widths) ? widths[i] : widths?.[i]);
+      if (typeof configuredW === "number") {
+        initial[i] = configuredW;
+      }
+    });
+    return initial;
+  });
+
   const [resizingIndex, setResizingIndex] = React.useState<number | null>(null);
-  const resizeRef = React.useRef<{ index: number; startX: number; startWidth: number } | null>(null);
+  const resizeRef = React.useRef<{
+    index: number;
+    startX: number;
+    startWidth: number;
+    minWidth: number;
+    maxWidth: number;
+  } | null>(null);
 
   const headerSig = React.useMemo(() => {
     return headers.map((h, i) => extractNodeText(h) || String(i)).join("_");
@@ -1040,8 +1118,6 @@ export function ReportTable({
       if (!resizeRef.current) return;
       resizeRef.current = null;
       setResizingIndex(null);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
 
       if (persistColumnWidths !== false && typeof window !== "undefined") {
         setColumnWidths((current) => {
@@ -1061,27 +1137,54 @@ export function ReportTable({
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
     };
-  }, []);
+  }, [persistColumnWidths, widthStorageKey]);
+
+  React.useEffect(() => {
+    if (resizingIndex === null) return;
+    const prevCursor = document.body.style.cursor;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevUserSelect;
+    };
+  }, [resizingIndex]);
 
   const handleResizeStart = (e: React.MouseEvent, index: number, th: HTMLElement | null) => {
     e.preventDefault();
     e.stopPropagation();
-    const startWidth = columnWidths[index] ?? (th ? th.getBoundingClientRect().width : 120);
-    resizeRef.current = { index, startX: e.clientX, startWidth };
+    const { minWidth, maxWidth, configuredWidth } = getColConstraints(index);
+    const startWidth =
+      columnWidths[index] ??
+      (typeof configuredWidth === "number"
+        ? configuredWidth
+        : th
+        ? th.getBoundingClientRect().width
+        : 120);
+
+    resizeRef.current = {
+      index,
+      startX: e.clientX,
+      startWidth,
+      minWidth,
+      maxWidth,
+    };
     setResizingIndex(index);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
   };
 
   const handleResizeReset = (e: React.MouseEvent, index: number) => {
     e.preventDefault();
     e.stopPropagation();
+    const { configuredWidth } = getColConstraints(index);
     setColumnWidths((prev) => {
       const next = { ...prev };
-      delete next[index];
+      if (typeof configuredWidth === "number") {
+        next[index] = configuredWidth;
+      } else {
+        delete next[index];
+      }
       if (persistColumnWidths !== false && typeof window !== "undefined") {
         try {
           localStorage.setItem(widthStorageKey, JSON.stringify(next));
@@ -1109,8 +1212,8 @@ export function ReportTable({
       const cellA = rowA[columnIndex];
       const cellB = rowB[columnIndex];
 
-      const valA = extractNodeText(cellA);
-      const valB = extractNodeText(cellB);
+      const valA = extractCellSortValue(cellA);
+      const valB = extractCellSortValue(cellB);
 
       const aEmpty = valA === "";
       const bEmpty = valB === "";
@@ -1140,10 +1243,36 @@ export function ReportTable({
     setSort(nextSort);
   };
 
-  const hasCustomWidths = Object.keys(columnWidths).length > 0;
+  const getColStyle = React.useCallback(
+    (index: number): React.CSSProperties => {
+      const { minWidth, maxWidth, configuredWidth } = getColConstraints(index);
+      const activeW = columnWidths[index] ?? configuredWidth;
+
+      const wStr =
+        activeW !== undefined
+          ? typeof activeW === "number"
+            ? `${activeW}px`
+            : activeW
+          : undefined;
+
+      return {
+        width: wStr,
+        minWidth: minWidth !== undefined ? `${minWidth}px` : undefined,
+        maxWidth: maxWidth !== undefined ? `${maxWidth}px` : undefined,
+      };
+    },
+    [getColConstraints, columnWidths]
+  );
+
+  const hasCustomWidths =
+    Object.keys(columnWidths).length > 0 ||
+    (columnConfigs !== undefined && columnConfigs.length > 0) ||
+    (widths !== undefined && (Array.isArray(widths) ? widths.length > 0 : Object.keys(widths).length > 0)) ||
+    (minWidths !== undefined && (Array.isArray(minWidths) ? minWidths.length > 0 : Object.keys(minWidths).length > 0)) ||
+    (maxWidths !== undefined && (Array.isArray(maxWidths) ? maxWidths.length > 0 : Object.keys(maxWidths).length > 0));
 
   return (
-    <div>
+    <div className={className}>
       {columnChooser !== false && headers.length > 1 && (
         <div className="flex items-center justify-end px-3 py-1.5 border-b bg-muted/10">
           <DropdownMenu>
@@ -1221,10 +1350,7 @@ export function ReportTable({
         <table className={cn("w-full text-sm", hasCustomWidths && "table-fixed")}>
           <colgroup>
             {visibleIndices.map((i) => (
-              <col
-                key={i}
-                style={{ width: columnWidths[i] ? `${columnWidths[i]}px` : undefined }}
-              />
+              <col key={i} style={getColStyle(i)} />
             ))}
           </colgroup>
           <thead>
@@ -1336,6 +1462,7 @@ export function ReportTable({
                 {visibleIndices.map((j) => (
                   <td
                     key={j}
+                    style={getColStyle(j)}
                     className={cn(
                       density === "compact" ? "px-2.5 py-1.5" : density === "comfortable" ? "px-4 py-3" : "px-4 py-2.5",
                       bordered && "border-r border-border/40 last:border-r-0"
@@ -1359,9 +1486,12 @@ export function ReportTable({
             sortedRows.map((row, i) => (
               <tr
                 key={i}
+                onClick={onRowClick ? () => onRowClick(row, i) : undefined}
                 className={cn(
                   "border-b last:border-0 hover:bg-muted/30 transition-colors",
-                  striped && i % 2 === 1 && "bg-muted/20 dark:bg-muted/10"
+                  onRowClick && "cursor-pointer",
+                  striped && i % 2 === 1 && "bg-muted/20 dark:bg-muted/10",
+                  rowClassName?.(row, i)
                 )}
               >
                 {visibleIndices.map((j) => {

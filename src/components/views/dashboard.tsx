@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ReportTable } from "@/components/views/reports";
 import { formatMoney, formatNumber, formatDate, formatRelative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AnimatedNumber } from "@/components/shared/animated-number";
@@ -483,84 +484,80 @@ export function DashboardView() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       {/* Renewals */}
       <Card className="lg:col-span-2">
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle className="text-base">Upcoming renewals &amp; expiries</CardTitle>
-            <CardDescription className="text-xs">
-              Contracts ending soonest, ordered by end date
-            </CardDescription>
+        <CardHeader className="space-y-1.5">
+          <div className="flex items-center justify-between gap-4">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Clock className="size-4 text-amber-500" />
+              Upcoming renewals &amp; expiries
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.location.hash = "renewals";
+              }}
+            >
+              Manage renewals
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              window.location.hash = "renewals";
-            }}
-          >
-            Manage renewals
-          </Button>
+          <CardDescription className="text-xs">
+            Contracts ending soonest, ordered by end date
+          </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="space-y-2 p-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : (data?.renewals ?? []).length === 0 ? (
-            <EmptyState title="No upcoming renewals" />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/40 text-left text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-2 font-semibold">Contract</th>
-                    <th className="px-4 py-2 font-semibold">Branch</th>
-                    <th className="px-4 py-2 font-semibold">End date</th>
-                    <th className="px-4 py-2 font-semibold">Days left</th>
-                    <th className="px-4 py-2 font-semibold">Monthly</th>
-                    <th className="px-4 py-2 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data?.renewals.map((r) => (
-                    <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="px-4 py-2.5">
-                        <div className="font-medium">{r.contractNumber}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {r.serviceCode}
-                        </div>
-                      </td>
-                      <td className="px-4 py-2.5">{r.branch}</td>
-                      <td className="px-4 py-2.5">{formatDate(r.endDate)}</td>
-                      <td className="px-4 py-2.5">
-                        <span
-                          className={
-                            r.daysLeft < 0
-                              ? "font-semibold text-rose-600"
-                              : r.daysLeft <= 14
-                                ? "font-semibold text-amber-600"
-                                : "text-foreground"
-                          }
-                        >
-                          {r.daysLeft}d
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 font-medium">
-                        {formatMoney(r.monthlyFee, r.currency)}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <StatusBadge
-                          status={r.status.toUpperCase()}
-                          tone={r.status === "expiring" ? "amber" : r.status === "active" ? "green" : "slate"}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <ReportTable
+            storageKey="dashboard_renewals"
+            loading={isLoading}
+            headers={["Contract", "Branch", "End date", "Days left", "Monthly", "Status"]}
+            columnConfigs={[
+              { width: 220, minWidth: 160, maxWidth: 360 },
+              { width: 160, minWidth: 120, maxWidth: 260 },
+              { width: 130, minWidth: 100, maxWidth: 180 },
+              { width: 100, minWidth: 80, maxWidth: 130 },
+              { width: 120, minWidth: 90, maxWidth: 160 },
+              { width: 110, minWidth: 85, maxWidth: 140 },
+            ]}
+            defaultMinWidth={80}
+            defaultMaxWidth={600}
+            defaultSort={{ columnIndex: 2, direction: "asc" }}
+            onRowClick={() => {
+              window.location.hash = "renewals";
+            }}
+            rows={(data?.renewals ?? []).map((r) => [
+              <div key={r.id}>
+                <div className="font-medium text-foreground">{r.contractNumber}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {r.serviceCode}
+                </div>
+              </div>,
+              r.branch,
+              <span key="end" data-sort-value={r.endDate}>
+                {formatDate(r.endDate)}
+              </span>,
+              <span
+                key="days"
+                data-sort-value={r.daysLeft}
+                className={
+                  r.daysLeft < 0
+                    ? "font-semibold text-rose-600"
+                    : r.daysLeft <= 14
+                      ? "font-semibold text-amber-600"
+                      : "text-foreground"
+                }
+              >
+                {r.daysLeft}d
+              </span>,
+              <span key="fee" data-sort-value={r.monthlyFee} className="font-medium">
+                {formatMoney(r.monthlyFee, r.currency)}
+              </span>,
+              <StatusBadge
+                key="st"
+                status={r.status.toUpperCase()}
+                tone={r.status === "expiring" ? "amber" : r.status === "active" ? "green" : "slate"}
+              />,
+            ])}
+            empty="No upcoming renewals"
+          />
         </CardContent>
       </Card>
 

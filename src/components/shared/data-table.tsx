@@ -46,6 +46,12 @@ export {
   type ActionConfirmationConfig,
   type ActionMenuProps,
 } from "./action-menu";
+export {
+  ReportTable,
+  type ColumnConfig,
+  type ReportTableProps,
+  type ReportTableSort,
+} from "@/components/views/reports";
 
 export type SortDirection = "asc" | "desc";
 
@@ -500,8 +506,6 @@ export function DataTable<T>({
       if (!resizeStateRef.current) return;
       resizeStateRef.current = null;
       setResizingKey(null);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
 
       if (persistColumnWidths !== false && typeof window !== "undefined") {
         setColumnWidths((current) => {
@@ -521,10 +525,20 @@ export function DataTable<T>({
     return () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
     };
-  }, [onColumnResize]);
+  }, [onColumnResize, persistColumnWidths, widthStorageKey]);
+
+  React.useEffect(() => {
+    if (resizingKey === null) return;
+    const prevCursor = document.body.style.cursor;
+    const prevUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    return () => {
+      document.body.style.cursor = prevCursor;
+      document.body.style.userSelect = prevUserSelect;
+    };
+  }, [resizingKey]);
 
   const handleResizeStart = (
     e: React.MouseEvent,
@@ -553,8 +567,6 @@ export function DataTable<T>({
       maxWidth,
     };
     setResizingKey(key);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
   };
 
   const handleResizeReset = (e: React.MouseEvent, key: string, col: DataTableColumn<T>) => {

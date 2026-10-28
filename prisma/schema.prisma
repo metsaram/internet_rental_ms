@@ -350,7 +350,7 @@ model InternetContract {
   freeMonths      Int            @default(0)
   monthlyFee      Decimal        @default(0)
   currency        String         @default("USD")
-  billingCycle    BillingCycle   @default(MONTHLY)
+  billingCycle    BillingCycle   @default(ANNUAL)
   status          ContractStatus @default(DRAFT)
   notes           String?
   createdById     String

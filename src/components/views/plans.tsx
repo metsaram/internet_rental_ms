@@ -129,6 +129,9 @@ export function PlansView() {
     {
       key: "name",
       header: "Plan",
+      width: 240,
+      minWidth: 160,
+      maxWidth: 340,
       cell: (p) => (
         <div>
           <div className="font-medium">{p.name}</div>
@@ -141,7 +144,9 @@ export function PlansView() {
     {
       key: "bandwidth",
       header: "Bandwidth",
-      hideOnMobile: true,
+      width: 150,
+      minWidth: 120,
+      maxWidth: 200,
       cell: (p) => (
         <div className="text-sm tabular-nums">
           <div>↓ {formatBandwidth(p.bandwidthDownMbps)}</div>
@@ -154,7 +159,9 @@ export function PlansView() {
     {
       key: "connection",
       header: "Connection",
-      hideOnMobile: true,
+      width: 140,
+      minWidth: 100,
+      maxWidth: 180,
       cell: (p) => (
         <span className="text-sm capitalize">{p.connectionType.toLowerCase()}</span>
       ),
@@ -162,6 +169,9 @@ export function PlansView() {
     {
       key: "price",
       header: "Catalog price",
+      width: 140,
+      minWidth: 110,
+      maxWidth: 190,
       cell: (p) => (
         <span className="text-sm font-medium tabular-nums">
           {formatMoney(p.catalogMonthlyPrice, p.currency)}
@@ -171,7 +181,9 @@ export function PlansView() {
     {
       key: "services",
       header: "Services",
-      hideOnMobile: true,
+      width: 90,
+      minWidth: 70,
+      maxWidth: 120,
       cell: (p) => (
         <span className="text-sm tabular-nums">{p.servicesCount}</span>
       ),
@@ -179,12 +191,19 @@ export function PlansView() {
     {
       key: "status",
       header: "Status",
+      width: 110,
+      minWidth: 90,
+      maxWidth: 140,
       cell: (p) => <StatusBadge status={p.status} />,
     },
     {
       key: "actions",
       header: "",
       className: "text-right",
+      width: 80,
+      minWidth: 70,
+      maxWidth: 100,
+      resizable: false,
       cell: (p) => (
         <div className="flex justify-end gap-1">
           <Button
@@ -238,6 +257,7 @@ export function PlansView() {
       )}
 
       <DataTable
+        storageKey="plans"
         columns={columns}
         rows={plans}
         rowKey={(p) => p.id}

@@ -133,6 +133,9 @@ export function ProvidersView() {
     {
       key: "code",
       header: "Provider",
+      width: 220,
+      minWidth: 150,
+      maxWidth: 320,
       cell: (p) => (
         <div>
           <div className="font-medium">{p.code}</div>
@@ -143,7 +146,9 @@ export function ProvidersView() {
     {
       key: "contact",
       header: "Contact",
-      hideOnMobile: true,
+      width: 160,
+      minWidth: 120,
+      maxWidth: 230,
       cell: (p) => (
         <span className="text-sm">{p.contactPerson ?? "—"}</span>
       ),
@@ -151,7 +156,9 @@ export function ProvidersView() {
     {
       key: "phone",
       header: "Phone",
-      hideOnMobile: true,
+      width: 140,
+      minWidth: 110,
+      maxWidth: 180,
       cell: (p) => (
         <span className="text-sm tabular-nums">{p.phone ?? "—"}</span>
       ),
@@ -159,7 +166,9 @@ export function ProvidersView() {
     {
       key: "email",
       header: "Email",
-      hideOnMobile: true,
+      width: 190,
+      minWidth: 140,
+      maxWidth: 270,
       cell: (p) => (
         <span className="text-sm">{p.email ?? "—"}</span>
       ),
@@ -167,7 +176,9 @@ export function ProvidersView() {
     {
       key: "plans",
       header: "Plans",
-      hideOnMobile: true,
+      width: 90,
+      minWidth: 70,
+      maxWidth: 120,
       cell: (p) => (
         <span className="text-sm tabular-nums">{p.plansCount}</span>
       ),
@@ -175,7 +186,9 @@ export function ProvidersView() {
     {
       key: "services",
       header: "Services",
-      hideOnMobile: true,
+      width: 90,
+      minWidth: 70,
+      maxWidth: 120,
       cell: (p) => (
         <span className="text-sm tabular-nums">{p.servicesCount}</span>
       ),
@@ -183,12 +196,19 @@ export function ProvidersView() {
     {
       key: "status",
       header: "Status",
+      width: 110,
+      minWidth: 90,
+      maxWidth: 140,
       cell: (p) => <StatusBadge status={p.status} />,
     },
     {
       key: "actions",
       header: "",
       className: "text-right",
+      width: 90,
+      minWidth: 80,
+      maxWidth: 110,
+      resizable: false,
       cell: (p) => (
         <div className="flex justify-end gap-1">
           <Button
@@ -255,6 +275,7 @@ export function ProvidersView() {
       />
 
       <DataTable
+        storageKey="providers"
         columns={columns}
         rows={providers}
         rowKey={(p) => p.id}

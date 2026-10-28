@@ -123,6 +123,9 @@ export function BranchesView() {
     {
       key: "code",
       header: "Branch",
+      width: 220,
+      minWidth: 160,
+      maxWidth: 320,
       cell: (b) => (
         <div>
           <div className="font-medium">{b.code}</div>
@@ -133,19 +136,25 @@ export function BranchesView() {
     {
       key: "city",
       header: "City",
-      hideOnMobile: true,
+      width: 140,
+      minWidth: 100,
+      maxWidth: 200,
       cell: (b) => <span className="text-sm">{b.city ?? "—"}</span>,
     },
     {
       key: "manager",
       header: "Manager",
-      hideOnMobile: true,
+      width: 160,
+      minWidth: 120,
+      maxWidth: 240,
       cell: (b) => <span className="text-sm">{b.manager ?? "—"}</span>,
     },
     {
       key: "phone",
       header: "Phone",
-      hideOnMobile: true,
+      width: 140,
+      minWidth: 110,
+      maxWidth: 180,
       cell: (b) => (
         <span className="text-sm tabular-nums">{b.phone ?? "—"}</span>
       ),
@@ -153,7 +162,9 @@ export function BranchesView() {
     {
       key: "shops",
       header: "Shops",
-      hideOnMobile: true,
+      width: 90,
+      minWidth: 70,
+      maxWidth: 120,
       cell: (b) => (
         <span className="text-sm tabular-nums">{b.shopsCount}</span>
       ),
@@ -161,7 +172,9 @@ export function BranchesView() {
     {
       key: "services",
       header: "Services",
-      hideOnMobile: true,
+      width: 90,
+      minWidth: 70,
+      maxWidth: 120,
       cell: (b) => (
         <span className="text-sm tabular-nums">{b.servicesCount}</span>
       ),
@@ -169,12 +182,19 @@ export function BranchesView() {
     {
       key: "status",
       header: "Status",
+      width: 110,
+      minWidth: 90,
+      maxWidth: 140,
       cell: (b) => <StatusBadge status={b.status} />,
     },
     {
       key: "actions",
       header: "",
       className: "text-right",
+      width: 90,
+      minWidth: 80,
+      maxWidth: 110,
+      resizable: false,
       cell: (b) => (
         <div className="flex justify-end gap-1">
           <Button
@@ -241,6 +261,7 @@ export function BranchesView() {
       />
 
       <DataTable
+        storageKey="branches"
         columns={columns}
         rows={branches}
         rowKey={(b) => b.id}

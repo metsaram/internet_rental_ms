@@ -38,6 +38,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export type SortDirection = "asc" | "desc";
 
@@ -52,7 +53,6 @@ export interface DataTableColumn<T> {
   cell: (row: T) => React.ReactNode;
   className?: string;
   headerClassName?: string;
-  hideOnMobile?: boolean;
   /** Explicitly enable or disable sorting for this column */
   sortable?: boolean;
   /** Key path or property name to sort by (supports dot notation like "branch.name") */
@@ -105,6 +105,12 @@ export interface DataTableProps<T> {
 
   /** Enable column resizing by dragging column borders (defaults to true) */
   resizable?: boolean;
+  /** Default minimum width for columns that do not specify minWidth (defaults to 60) */
+  defaultMinWidth?: number;
+  /** Default maximum width for columns that do not specify maxWidth (defaults to 1000) */
+  defaultMaxWidth?: number;
+  /** Whether to set column sizes to their minWidth on mobile screens (< 768px). Defaults to true */
+  useMinWidthOnMobile?: boolean;
   /** Callback fired when a column is resized */
   onColumnResize?: (columnKey: string, width: number) => void;
   /** Striped alternating row backgrounds (zebra striping) */
@@ -256,6 +262,29 @@ export function compareSortValues(a: unknown, b: unknown): number {
   return aStr.localeCompare(bStr, undefined, { numeric: true, sensitivity: "base" });
 }
 
+export function getColumnConstraints<T>(
+  col: DataTableColumn<T>,
+  defaultMin: number = 60,
+  defaultMax: number = 1000
+): { minWidth: number; maxWidth: number } {
+  if (col.key === "select") {
+    return {
+      minWidth: col.minWidth ?? 40,
+      maxWidth: col.maxWidth ?? 60,
+    };
+  }
+  if (col.key === "actions") {
+    return {
+      minWidth: col.minWidth ?? 70,
+      maxWidth: col.maxWidth ?? 130,
+    };
+  }
+  return {
+    minWidth: col.minWidth ?? defaultMin,
+    maxWidth: col.maxWidth ?? defaultMax,
+  };
+}
+
 export function DataTable<T>({
   columns,
   rows,
@@ -271,6 +300,9 @@ export function DataTable<T>({
   onSortChange,
   sortable = true,
   resizable = true,
+  defaultMinWidth = 60,
+  defaultMaxWidth = 1000,
+  useMinWidthOnMobile = true,
   onColumnResize,
   striped = false,
   density = "normal",
@@ -504,8 +536,7 @@ export function DataTable<T>({
         ? th.getBoundingClientRect().width
         : 150);
 
-    const minWidth = col.minWidth ?? 60;
-    const maxWidth = col.maxWidth ?? 1000;
+    const { minWidth, maxWidth } = getColumnConstraints(col, defaultMinWidth, defaultMaxWidth);
 
     resizeStateRef.current = {
       key,
@@ -636,9 +667,31 @@ export function DataTable<T>({
     return () => window.removeEventListener("keydown", handler);
   }, [pageRows, activeIndex, onRowClick, search]);
 
+  const isMobile = useIsMobile();
+  const shouldApplyMobileMin = useMinWidthOnMobile && isMobile;
+
+  const getColWidth = React.useCallback(
+    (c: DataTableColumn<T>, colMin: number) => {
+      if (shouldApplyMobileMin) {
+        return `${colMin}px`;
+      }
+      const w = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
+      if (w !== undefined) return `${w}px`;
+      if (typeof c.width === "string") return c.width;
+      return undefined;
+    },
+    [shouldApplyMobileMin, columnWidths]
+  );
+
   const hasCustomWidths =
+    shouldApplyMobileMin ||
     Object.keys(columnWidths).length > 0 ||
-    visibleColumns.some((c) => c.width !== undefined);
+    visibleColumns.some(
+      (c) =>
+        c.width !== undefined ||
+        c.minWidth !== undefined ||
+        c.maxWidth !== undefined
+    );
 
   return (
     <div className="space-y-3">
@@ -743,15 +796,16 @@ export function DataTable<T>({
           <Table className={cn("w-full", hasCustomWidths && "table-fixed")}>
             <colgroup>
               {visibleColumns.map((c) => {
-                const w = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
+                const { minWidth: colMin, maxWidth: colMax } = getColumnConstraints(c, defaultMinWidth, defaultMaxWidth);
+                const colW = getColWidth(c, colMin);
                 return (
                   <col
                     key={c.key}
                     style={{
-                      width: w !== undefined ? `${w}px` : typeof c.width === "string" ? c.width : undefined,
-                      minWidth: c.minWidth !== undefined ? `${c.minWidth}px` : undefined,
+                      width: colW,
+                      minWidth: colMin !== undefined ? `${colMin}px` : undefined,
+                      maxWidth: colMax !== undefined ? `${colMax}px` : undefined,
                     }}
-                    className={cn(c.hideOnMobile && "hidden md:table-column")}
                   />
                 );
               })}
@@ -778,22 +832,24 @@ export function DataTable<T>({
 
                   const isColResizable =
                     resizable !== false &&
+                    !shouldApplyMobileMin &&
                     c.resizable !== false &&
                     c.key !== "select" &&
                     c.key !== "actions";
 
                   const isSorted = activeSort?.key === c.key;
                   const isAsc = activeSort?.direction === "asc";
-                  const colWidth = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
+                  const { minWidth: colMin, maxWidth: colMax } = getColumnConstraints(c, defaultMinWidth, defaultMaxWidth);
+                  const colW = getColWidth(c, colMin);
                   const isResizingThis = resizingKey === c.key;
 
                   return (
                     <TableHead
                       key={c.key}
                       style={{
-                        width: colWidth !== undefined ? `${colWidth}px` : typeof c.width === "string" ? c.width : undefined,
-                        minWidth: c.minWidth !== undefined ? `${c.minWidth}px` : undefined,
-                        maxWidth: c.maxWidth !== undefined ? `${c.maxWidth}px` : undefined,
+                        width: colW,
+                        minWidth: colMin !== undefined ? `${colMin}px` : undefined,
+                        maxWidth: colMax !== undefined ? `${colMax}px` : undefined,
                         ...c.style,
                       }}
                       aria-sort={
@@ -810,7 +866,6 @@ export function DataTable<T>({
                           : density === "comfortable"
                           ? "h-12 px-4 py-3"
                           : "h-10 px-3 py-2",
-                        c.hideOnMobile && "hidden md:table-cell",
                         isColSortable &&
                           "group cursor-pointer select-none hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                         bordered && "border-r border-border/40 last:border-r-0",
@@ -902,17 +957,27 @@ export function DataTable<T>({
               {loading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={`sk-${i}`}>
-                    {visibleColumns.map((c) => (
-                      <TableCell
-                        key={c.key}
-                        className={cn(
-                          density === "compact" ? "py-2 px-2.5" : density === "comfortable" ? "py-4 px-4" : "py-3 px-3",
-                          bordered && "border-r border-border/40 last:border-r-0"
-                        )}
-                      >
-                        <div className="h-4 w-full max-w-[12rem] animate-pulse rounded bg-muted" />
-                      </TableCell>
-                    ))}
+                    {visibleColumns.map((c) => {
+                      const { minWidth: colMin, maxWidth: colMax } = getColumnConstraints(c, defaultMinWidth, defaultMaxWidth);
+                      const colW = getColWidth(c, colMin);
+                      return (
+                        <TableCell
+                          key={c.key}
+                          style={{
+                            width: colW,
+                            minWidth: colMin !== undefined ? `${colMin}px` : undefined,
+                            maxWidth: colMax !== undefined ? `${colMax}px` : undefined,
+                            ...c.style,
+                          }}
+                          className={cn(
+                            density === "compact" ? "py-2 px-2.5" : density === "comfortable" ? "py-4 px-4" : "py-3 px-3",
+                            bordered && "border-r border-border/40 last:border-r-0"
+                          )}
+                        >
+                          <div className="h-4 w-full max-w-[12rem] animate-pulse rounded bg-muted" />
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 ))
               ) : pageRows.length === 0 ? (
@@ -940,6 +1005,8 @@ export function DataTable<T>({
                   >
                     {visibleColumns.map((c) => {
                       const cellContent = c.cell(row);
+                      const { minWidth: colMin, maxWidth: colMax } = getColumnConstraints(c, defaultMinWidth, defaultMaxWidth);
+                      const colW = getColWidth(c, colMin);
                       const shouldTruncate =
                         truncate !== false &&
                         c.truncate !== false &&
@@ -950,14 +1017,18 @@ export function DataTable<T>({
                       return (
                         <TableCell
                           key={c.key}
-                          style={c.style}
+                          style={{
+                            width: colW,
+                            minWidth: colMin !== undefined ? `${colMin}px` : undefined,
+                            maxWidth: colMax !== undefined ? `${colMax}px` : undefined,
+                            ...c.style,
+                          }}
                           className={cn(
                             density === "compact"
                               ? "py-1.5 px-2.5 text-xs"
                               : density === "comfortable"
                               ? "py-4 px-4 text-sm"
                               : "py-3 px-3 text-sm",
-                            c.hideOnMobile && "hidden md:table-cell",
                             bordered && "border-r border-border/40 last:border-r-0",
                             shouldTruncate && "max-w-0 overflow-hidden",
                             c.className

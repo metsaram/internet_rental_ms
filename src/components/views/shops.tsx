@@ -181,6 +181,9 @@ export function ShopsView() {
     {
       key: "code",
       header: "Shop",
+      width: 200,
+      minWidth: 150,
+      maxWidth: 300,
       cell: (s) => (
         <div>
           <div className="font-medium">{s.code}</div>
@@ -191,7 +194,9 @@ export function ShopsView() {
     {
       key: "branch",
       header: "Branch",
-      hideOnMobile: true,
+      width: 180,
+      minWidth: 130,
+      maxWidth: 260,
       cell: (s) => (
         <div className="text-sm">
           <div>{s.branch?.name ?? "—"}</div>
@@ -204,6 +209,9 @@ export function ShopsView() {
     {
       key: "type",
       header: "Type",
+      width: 110,
+      minWidth: 85,
+      maxWidth: 140,
       cell: (s) => (
         <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
           {s.type}
@@ -213,7 +221,9 @@ export function ShopsView() {
     {
       key: "contact",
       header: "Contact",
-      hideOnMobile: true,
+      width: 150,
+      minWidth: 110,
+      maxWidth: 220,
       cell: (s) => (
         <span className="text-sm">{s.contactPerson ?? "—"}</span>
       ),
@@ -221,7 +231,9 @@ export function ShopsView() {
     {
       key: "phone",
       header: "Phone",
-      hideOnMobile: true,
+      width: 140,
+      minWidth: 110,
+      maxWidth: 180,
       cell: (s) => (
         <span className="text-sm tabular-nums">{s.phone ?? "—"}</span>
       ),
@@ -229,7 +241,9 @@ export function ShopsView() {
     {
       key: "services",
       header: "Services",
-      hideOnMobile: true,
+      width: 90,
+      minWidth: 70,
+      maxWidth: 120,
       cell: (s) => (
         <span className="text-sm tabular-nums">{s.servicesCount}</span>
       ),
@@ -237,12 +251,19 @@ export function ShopsView() {
     {
       key: "status",
       header: "Status",
+      width: 110,
+      minWidth: 90,
+      maxWidth: 140,
       cell: (s) => <StatusBadge status={s.status} />,
     },
     {
       key: "actions",
       header: "",
       className: "text-right",
+      width: 110,
+      minWidth: 90,
+      maxWidth: 130,
+      resizable: false,
       cell: (s) => (
         <div className="flex justify-end gap-1">
           <Button
@@ -324,6 +345,7 @@ export function ShopsView() {
       )}
 
       <DataTable
+        storageKey="shops"
         columns={columns}
         rows={shops}
         rowKey={(s) => s.id}

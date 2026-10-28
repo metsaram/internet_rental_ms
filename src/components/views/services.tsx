@@ -129,6 +129,9 @@ export function ServicesView() {
     {
       key: "code",
       header: "Service code",
+      width: 180,
+      minWidth: 140,
+      maxWidth: 260,
       cell: (s) => (
         <div>
           <div className="font-medium">{s.serviceCode}</div>
@@ -139,6 +142,9 @@ export function ServicesView() {
     {
       key: "ispCheck",
       header: "ISP Info (CID / SID)",
+      width: 180,
+      minWidth: 145,
+      maxWidth: 260,
       cell: (s) => (
         <div className="text-xs space-y-0.5 min-w-[130px]">
           <div className="flex items-center gap-1.5">
@@ -152,13 +158,13 @@ export function ServicesView() {
         </div>
       ),
     },
-    { key: "branch", header: "Branch / Shop", hideOnMobile: true, cell: (s) => (<div className="text-sm"><div>{s.branch?.name ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.shop?.name ?? "—"}</div></div>) },
-    { key: "provider", header: "Provider / Plan", hideOnMobile: true, cell: (s) => (<div className="text-sm"><div>{s.provider?.name ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.plan?.name ?? "—"}</div></div>) },
-    { key: "ip", header: "IP", hideOnMobile: true, cell: (s) => (<div className="text-sm"><div className="tabular-nums">{s.ipAddress ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.ipType}</div></div>) },
-    { key: "creds", header: "Creds", hideOnMobile: true, cell: (s) => (s.hasCredentials ? <span className="inline-flex items-center gap-1 text-amber-600 text-xs"><KeyRound className="size-3.5" /> set</span> : <span className="text-muted-foreground text-xs">—</span>) },
-    { key: "installed", header: "Installed", hideOnMobile: true, cell: (s) => <span className="text-sm">{formatDate(s.installedAt)}</span> },
-    { key: "status", header: "Status", cell: (s) => <StatusBadge status={s.status} /> },
-    { key: "actions", header: "", className: "text-right", cell: (s) => (<Button variant="ghost" size="icon" className="size-8" onClick={() => { setEditing(s); setDialogOpen(true); }}><Pencil className="size-4" /></Button>) },
+    { key: "branch", header: "Branch / Shop", width: 180, minWidth: 130, maxWidth: 260, cell: (s) => (<div className="text-sm"><div>{s.branch?.name ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.shop?.name ?? "—"}</div></div>) },
+    { key: "provider", header: "Provider / Plan", width: 180, minWidth: 130, maxWidth: 260, cell: (s) => (<div className="text-sm"><div>{s.provider?.name ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.plan?.name ?? "—"}</div></div>) },
+    { key: "ip", header: "IP", width: 150, minWidth: 120, maxWidth: 210, cell: (s) => (<div className="text-sm"><div className="tabular-nums">{s.ipAddress ?? "—"}</div><div className="text-[11px] text-muted-foreground">{s.ipType}</div></div>) },
+    { key: "creds", header: "Creds", width: 90, minWidth: 70, maxWidth: 120, cell: (s) => (s.hasCredentials ? <span className="inline-flex items-center gap-1 text-amber-600 text-xs"><KeyRound className="size-3.5" /> set</span> : <span className="text-muted-foreground text-xs">—</span>) },
+    { key: "installed", header: "Installed", width: 120, minWidth: 100, maxWidth: 160, cell: (s) => <span className="text-sm">{formatDate(s.installedAt)}</span> },
+    { key: "status", header: "Status", width: 110, minWidth: 90, maxWidth: 140, cell: (s) => <StatusBadge status={s.status} /> },
+    { key: "actions", header: "", className: "text-right", width: 70, minWidth: 60, maxWidth: 90, resizable: false, cell: (s) => (<Button variant="ghost" size="icon" className="size-8" onClick={() => { setEditing(s); setDialogOpen(true); }}><Pencil className="size-4" /></Button>) },
   ];
 
   const canCreate = branches.length > 0 && providers.length > 0;
@@ -176,6 +182,7 @@ export function ServicesView() {
         </div>
       )}
       <DataTable
+        storageKey="services"
         columns={columns}
         rows={filtered}
         rowKey={(s) => s.id}

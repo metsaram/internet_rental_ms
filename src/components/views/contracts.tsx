@@ -246,11 +246,18 @@ export function ContractsView() {
           className="size-4"
         />
       ),
+      width: 48,
+      minWidth: 40,
+      maxWidth: 50,
+      resizable: false,
       className: "w-10",
     },
     {
       key: "contract",
       header: "Contract & Service",
+      width: 220,
+      minWidth: 160,
+      maxWidth: 320,
       cell: (c) => (
         <div>
           <div className="font-semibold text-foreground tracking-tight">{c.contractNumber}</div>
@@ -264,7 +271,9 @@ export function ContractsView() {
     {
       key: "branch",
       header: "Branch / Shop",
-      hideOnMobile: true,
+      width: 180,
+      minWidth: 130,
+      maxWidth: 260,
       cell: (c) => (
         <div className="text-sm">
           <div className="font-medium text-foreground">{c.branch?.name ?? "—"}</div>
@@ -277,7 +286,9 @@ export function ContractsView() {
     {
       key: "provider",
       header: "Provider & Plan",
-      hideOnMobile: true,
+      width: 180,
+      minWidth: 130,
+      maxWidth: 260,
       cell: (c) => (
         <div className="text-sm">
           <div className="font-medium text-foreground">{c.provider?.name ?? "—"}</div>
@@ -290,7 +301,9 @@ export function ContractsView() {
     {
       key: "period",
       header: "Contract Period",
-      hideOnMobile: true,
+      width: 210,
+      minWidth: 170,
+      maxWidth: 290,
       cell: (c) => (
         <div className="text-sm">
           <div className="font-medium">{formatDate(c.startDate)} → {formatDate(c.endDate)}</div>
@@ -308,6 +321,9 @@ export function ContractsView() {
     {
       key: "fee",
       header: "Fee & Cycle",
+      width: 140,
+      minWidth: 110,
+      maxWidth: 190,
       cell: (c) => (
         <div>
           <div className="text-sm font-semibold tabular-nums text-foreground">
@@ -333,7 +349,9 @@ export function ContractsView() {
     {
       key: "effective",
       header: "Effective / mo",
-      hideOnMobile: true,
+      width: 130,
+      minWidth: 100,
+      maxWidth: 170,
       cell: (c) => (
         <div className="text-sm tabular-nums text-muted-foreground">
           {formatMoney(c.effectiveMonthly, c.currency)}
@@ -343,6 +361,9 @@ export function ContractsView() {
     {
       key: "status",
       header: "Status",
+      width: 120,
+      minWidth: 95,
+      maxWidth: 160,
       cell: (c) => (
         <div className="flex flex-col gap-1 items-start">
           <StatusBadge status={c.status} />
@@ -356,6 +377,10 @@ export function ContractsView() {
       key: "actions",
       header: "",
       className: "text-right",
+      width: 90,
+      minWidth: 80,
+      maxWidth: 110,
+      resizable: false,
       cell: (c) => (
         <div className="flex justify-end gap-1">
           <Button

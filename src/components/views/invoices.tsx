@@ -169,6 +169,9 @@ export function InvoicesView() {
     {
       key: "inv",
       header: "Invoice",
+      width: 200,
+      minWidth: 150,
+      maxWidth: 280,
       cell: (i) => (
         <div>
           <div className="font-medium">{i.invoiceNumber}</div>
@@ -179,7 +182,9 @@ export function InvoicesView() {
     {
       key: "branch",
       header: "Branch / Provider",
-      hideOnMobile: true,
+      width: 190,
+      minWidth: 140,
+      maxWidth: 270,
       cell: (i) => (
         <div className="text-sm">
           <div>{i.branch?.name ?? "—"}</div>
@@ -190,7 +195,9 @@ export function InvoicesView() {
     {
       key: "period",
       header: "Date / Due",
-      hideOnMobile: true,
+      width: 160,
+      minWidth: 120,
+      maxWidth: 220,
       cell: (i) => (
         <div className="text-sm">
           <div>{formatDate(i.invoiceDate)}</div>
@@ -201,6 +208,9 @@ export function InvoicesView() {
     {
       key: "total",
       header: "Total",
+      width: 130,
+      minWidth: 100,
+      maxWidth: 180,
       cell: (i) => (
         <div className="text-sm font-medium tabular-nums">{formatMoney(i.total, i.currency)}</div>
       ),
@@ -208,6 +218,9 @@ export function InvoicesView() {
     {
       key: "outstanding",
       header: "Outstanding",
+      width: 130,
+      minWidth: 100,
+      maxWidth: 180,
       cell: (i) => (
         <div
           className={cn(
@@ -222,6 +235,9 @@ export function InvoicesView() {
     {
       key: "status",
       header: "Status",
+      width: 120,
+      minWidth: 90,
+      maxWidth: 150,
       cell: (i) => (
         <div className="flex flex-col gap-1">
           <StatusBadge
@@ -245,6 +261,10 @@ export function InvoicesView() {
       key: "actions",
       header: "",
       className: "text-right",
+      width: 90,
+      minWidth: 80,
+      maxWidth: 110,
+      resizable: false,
       cell: (i) => (
         <div className="flex justify-end gap-1">
           {Number(i.outstanding) > 0 && i.status !== "VOID" && (
@@ -321,6 +341,7 @@ export function InvoicesView() {
       </div>
 
       <DataTable
+        storageKey="invoices"
         columns={columns}
         rows={filtered}
         rowKey={(i) => i.id}

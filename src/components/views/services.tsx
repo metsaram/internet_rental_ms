@@ -122,6 +122,7 @@ export function ServicesView() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     } catch (err) {
       toast.error((err as Error).message || "Failed to create service");
+      throw err;
     }
   };
 
@@ -135,6 +136,7 @@ export function ServicesView() {
       qc.invalidateQueries({ queryKey: ["dashboard"] });
     } catch (err) {
       toast.error((err as Error).message || "Failed to update service");
+      throw err;
     }
   };
 
@@ -420,13 +422,26 @@ function ServiceForm({
     if (!branchId) return setError("Select a branch");
     if (!providerId) return setError("Select a provider");
     if (!serviceCode.trim()) return setError("Service code is required");
-    await onSubmit({
-      branchId, shopId: shopId === "none" ? null : shopId, providerId, planId: planId === "none" ? null : planId,
-      serviceCode: serviceCode.trim(), accountId: accountId || null,
-      customerId: customerId || null, ispServiceId: ispServiceId || null,
-      installationAddress: installationAddress || null, ipAddress: ipAddress || null,
-      ipType, username: username || null, status, installedAt: installedAt || null,
-    });
+    try {
+      await onSubmit({
+        branchId,
+        shopId: !shopId || shopId === "none" ? null : shopId,
+        providerId,
+        planId: !planId || planId === "none" ? null : planId,
+        serviceCode: serviceCode.trim(),
+        accountId: accountId.trim() || null,
+        customerId: customerId.trim() || null,
+        ispServiceId: ispServiceId.trim() || null,
+        installationAddress: installationAddress.trim() || null,
+        ipAddress: ipAddress.trim() || null,
+        ipType,
+        username: username.trim() || null,
+        status,
+        installedAt: installedAt || null,
+      });
+    } catch (err) {
+      setError((err as Error).message || "Failed to save service");
+    }
   };
 
   return (
@@ -435,7 +450,7 @@ function ServiceForm({
         {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">{error}</div>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Branch" required>
-            <Select value={branchId} onValueChange={(v) => { setBranchId(v); setShopId(""); }}>
+            <Select value={branchId} onValueChange={(v) => { setBranchId(v); setShopId("none"); }}>
               <SelectTrigger><SelectValue placeholder="Select branch..." /></SelectTrigger>
               <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name} — {b.code}</SelectItem>)}</SelectContent>
             </Select>

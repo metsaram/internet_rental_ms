@@ -82,3 +82,37 @@ describe("Service deletion rules & ActionMenu guards", () => {
     expect(deleteFn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Service creation schema & foreign key sanitization", () => {
+  it("sanitizes empty string and 'none' shopId and planId to null", async () => {
+    const { createSchema } = await import("@/app/api/services/route");
+
+    const payloadWithEmptyStrings = {
+      branchId: "branch-1",
+      providerId: "provider-1",
+      serviceCode: "SVC-TEST-001",
+      shopId: "",
+      planId: "none",
+    };
+
+    const parsed = createSchema.parse(payloadWithEmptyStrings);
+    expect(parsed.shopId).toBeNull();
+    expect(parsed.planId).toBeNull();
+  });
+
+  it("preserves valid shopId and planId when provided", async () => {
+    const { createSchema } = await import("@/app/api/services/route");
+
+    const payloadWithValidIds = {
+      branchId: "branch-1",
+      providerId: "provider-1",
+      serviceCode: "SVC-TEST-002",
+      shopId: "shop-abc",
+      planId: "plan-xyz",
+    };
+
+    const parsed = createSchema.parse(payloadWithValidIds);
+    expect(parsed.shopId).toBe("shop-abc");
+    expect(parsed.planId).toBe("plan-xyz");
+  });
+});

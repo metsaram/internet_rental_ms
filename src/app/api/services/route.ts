@@ -10,19 +10,27 @@ import { writeAudit, redactSensitive } from "@/lib/audit";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
-const createSchema = z.object({
+export const createSchema = z.object({
   branchId: z.string().min(1, "Branch is required"),
-  shopId: z.string().nullable().optional(),
+  shopId: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v && v.trim() !== "" && v !== "none" ? v.trim() : null)),
   providerId: z.string().min(1, "Provider is required"),
-  planId: z.string().nullable().optional(),
+  planId: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v && v.trim() !== "" && v !== "none" ? v.trim() : null)),
   serviceCode: z.string().min(1).max(64),
-  accountId: z.string().max(64).optional().nullable(),
-  customerId: z.string().max(64).optional().nullable(),
-  ispServiceId: z.string().max(64).optional().nullable(),
-  installationAddress: z.string().max(255).optional().nullable(),
-  ipAddress: z.string().max(45).optional().nullable(),
+  accountId: z.string().max(64).optional().nullable().transform((v) => v?.trim() || null),
+  customerId: z.string().max(64).optional().nullable().transform((v) => v?.trim() || null),
+  ispServiceId: z.string().max(64).optional().nullable().transform((v) => v?.trim() || null),
+  installationAddress: z.string().max(255).optional().nullable().transform((v) => v?.trim() || null),
+  ipAddress: z.string().max(45).optional().nullable().transform((v) => v?.trim() || null),
   ipType: z.enum(["STATIC","DYNAMIC","CGNAT"]).default("DYNAMIC"),
-  username: z.string().max(128).optional().nullable(),
+  username: z.string().max(128).optional().nullable().transform((v) => v?.trim() || null),
   status: z.enum(["ACTIVE","SUSPENDED","TERMINATED","PENDING"]).default("PENDING"),
   installedAt: z.string().optional().nullable(),
 });
@@ -156,17 +164,17 @@ export async function POST(req: Request) {
       data: {
         companyId: user.companyId,
         branchId: body.branchId,
-        shopId: body.shopId ?? null,
+        shopId: body.shopId || null,
         providerId: body.providerId,
-        planId: body.planId ?? null,
+        planId: body.planId || null,
         serviceCode: body.serviceCode,
-        accountId: body.accountId ?? null,
-        customerId: body.customerId ?? null,
-        ispServiceId: body.ispServiceId ?? null,
-        installationAddress: body.installationAddress ?? null,
-        ipAddress: body.ipAddress ?? null,
+        accountId: body.accountId || null,
+        customerId: body.customerId || null,
+        ispServiceId: body.ispServiceId || null,
+        installationAddress: body.installationAddress || null,
+        ipAddress: body.ipAddress || null,
         ipType: body.ipType,
-        username: body.username ?? null,
+        username: body.username || null,
         status: body.status,
         installedAt: body.installedAt ? new Date(body.installedAt) : null,
       },

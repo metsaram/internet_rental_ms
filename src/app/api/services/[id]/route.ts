@@ -12,17 +12,25 @@ import { z } from "zod";
 
 const updateSchema = z.object({
   branchId: z.string().min(1).optional(),
-  shopId: z.string().nullable().optional(),
+  shopId: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v && v.trim() !== "" && v !== "none" ? v.trim() : null)),
   providerId: z.string().min(1).optional(),
-  planId: z.string().nullable().optional(),
+  planId: z
+    .string()
+    .nullable()
+    .optional()
+    .transform((v) => (v && v.trim() !== "" && v !== "none" ? v.trim() : null)),
   serviceCode: z.string().min(1).max(64).optional(),
-  accountId: z.string().max(64).optional().nullable(),
-  customerId: z.string().max(64).optional().nullable(),
-  ispServiceId: z.string().max(64).optional().nullable(),
-  installationAddress: z.string().max(255).optional().nullable(),
-  ipAddress: z.string().max(45).optional().nullable(),
+  accountId: z.string().max(64).optional().nullable().transform((v) => v?.trim() || null),
+  customerId: z.string().max(64).optional().nullable().transform((v) => v?.trim() || null),
+  ispServiceId: z.string().max(64).optional().nullable().transform((v) => v?.trim() || null),
+  installationAddress: z.string().max(255).optional().nullable().transform((v) => v?.trim() || null),
+  ipAddress: z.string().max(45).optional().nullable().transform((v) => v?.trim() || null),
   ipType: z.enum(["STATIC","DYNAMIC","CGNAT"]).optional(),
-  username: z.string().max(128).optional().nullable(),
+  username: z.string().max(128).optional().nullable().transform((v) => v?.trim() || null),
   status: z.enum(["ACTIVE","SUSPENDED","TERMINATED","PENDING"]).optional(),
   installedAt: z.string().optional().nullable(),
 });

@@ -51,4 +51,5 @@ Every AI agent operating in the NetRent repository must strictly execute the fol
 5. **Mandatory Company Scope**: Guard all route handlers with `requireUser()` or `requireAdmin()` from `@/lib/session` and scope all queries by `user.companyId`.
 6. **Audit All Mutations**: Call `writeAudit()` on every create/update/delete operation with sensitive field redaction.
 7. **Mandatory Component Test Verification**: Every new component added to the codebase must be accompanied by a verifying test suite (`*.test.tsx`) asserting proper rendering, user interactions, and DOM state using Vitest, React Testing Library, and jest-dom.
+8. **Master Entity Display Standard (Name First, Code Second)**: Master entities (`Branch`, `Shop`, `Provider`) must always use entity `name` as primary display (`font-medium` / bold) and entity `code` as secondary text (`text-[11px] text-muted-foreground` / font-mono). DataTable columns must use `key: "name"`, select dropdowns must format as `${name} — ${code}`, and confirmation dialogs / sheets must prioritize name before code.
 

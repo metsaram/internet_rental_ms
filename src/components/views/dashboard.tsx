@@ -191,13 +191,13 @@ export function DashboardView() {
   ];
 
   const providerData = (data?.costByProvider ?? []).slice(0, 6).map((p, i) => ({
-    name: p.code,
+    name: p.provider || p.code,
     value: Number(p.expectedMonthly),
     count: p.count,
     fill: CHART_COLORS[i % CHART_COLORS.length],
   }));
   const branchData = (data?.costByBranch ?? []).slice(0, 6).map((b, i) => ({
-    name: b.code,
+    name: b.branch || b.code,
     value: Number(b.expectedMonthly),
     count: b.count,
     fill: CHART_COLORS[i % CHART_COLORS.length],

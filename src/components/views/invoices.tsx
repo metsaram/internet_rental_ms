@@ -197,9 +197,9 @@ export function InvoicesView() {
     {
       key: "inv",
       header: "Invoice",
-      width: 200,
-      minWidth: 150,
-      maxWidth: 280,
+      width: 150,
+      minWidth: 100,
+      maxWidth: 200,
       cell: (i) => (
         <div>
           <div className="font-medium">{i.invoiceNumber}</div>
@@ -298,15 +298,15 @@ export function InvoicesView() {
           actions={[
             ...(Number(i.outstanding) > 0 && i.status !== "VOID"
               ? [
-                  {
-                    id: "pay",
-                    label: "Record payment",
-                    icon: <CreditCard className="size-4" />,
-                    isPrimary: true,
-                    priority: 1,
-                    onClick: () => setPayFor(i),
-                  },
-                ]
+                {
+                  id: "pay",
+                  label: "Record payment",
+                  icon: <CreditCard className="size-4" />,
+                  isPrimary: true,
+                  priority: 1,
+                  onClick: () => setPayFor(i),
+                },
+              ]
               : []),
             {
               id: "edit",
@@ -407,7 +407,7 @@ export function InvoicesView() {
               onChange={(v) => setProviderFilter(v as string)}
               options={providers.map((p) => ({
                 value: p.id,
-                label: `${p.code} — ${p.name}`,
+                label: `${p.name} — ${p.code}`,
               }))}
               placeholder="Select Provider"
               showPlaceholderOnAll
@@ -741,9 +741,9 @@ function InvoiceDetailSheet({
                 status={detail.status}
                 tone={
                   detail.derivedStatus === "paid" ? "green"
-                  : detail.derivedStatus === "overdue" ? "red"
-                  : detail.derivedStatus === "partial" ? "amber"
-                  : detail.derivedStatus === "void" ? "slate" : "blue"
+                    : detail.derivedStatus === "overdue" ? "red"
+                      : detail.derivedStatus === "partial" ? "amber"
+                        : detail.derivedStatus === "void" ? "slate" : "blue"
                 }
               />
               <span className="text-[11px] text-muted-foreground capitalize">

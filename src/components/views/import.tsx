@@ -698,11 +698,11 @@ export function ImportView() {
                         {validation?.realMasterData.branches.map((b) => (
                           <span
                             key={b.code}
-                            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]"
-                            title={b.name}
+                            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]"
+                            title={b.code}
                           >
-                            <span className="font-bold">{b.code}</span>
-                            <span className="text-muted-foreground">({b.name})</span>
+                            <span className="font-bold">{b.name}</span>
+                            <span className="font-mono text-muted-foreground">({b.code})</span>
                           </span>
                         ))}
                       </div>
@@ -719,8 +719,8 @@ export function ImportView() {
                       <div className="max-h-32 overflow-y-auto space-y-1">
                         {validation?.realMasterData.shops.map((s) => (
                           <div key={s.code} className="flex items-center justify-between text-[10px] rounded bg-muted/60 px-1.5 py-0.5">
-                            <span className="font-mono font-bold">{s.code}</span>
-                            <span className="text-muted-foreground truncate max-w-[120px]">{s.name}</span>
+                            <span className="font-bold truncate max-w-[120px]">{s.name}</span>
+                            <span className="font-mono text-muted-foreground">{s.code}</span>
                             {s.branchCode && (
                               <Badge variant="outline" className="text-[9px] px-1 py-0 font-mono">
                                 {s.branchCode}
@@ -743,11 +743,11 @@ export function ImportView() {
                         {validation?.realMasterData.providers.map((p) => (
                           <span
                             key={p.code}
-                            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px]"
-                            title={p.name}
+                            className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px]"
+                            title={p.code}
                           >
-                            <span className="font-bold">{p.code}</span>
-                            <span className="text-muted-foreground">({p.name})</span>
+                            <span className="font-bold">{p.name}</span>
+                            <span className="font-mono text-muted-foreground">({p.code})</span>
                           </span>
                         ))}
                       </div>

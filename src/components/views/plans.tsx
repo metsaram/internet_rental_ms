@@ -137,7 +137,7 @@ export function PlansView() {
         <div>
           <div className="font-medium">{p.name}</div>
           <div className="text-[11px] text-muted-foreground">
-            {p.provider.code} — {p.provider.name}
+            {p.provider.name} — {p.provider.code}
           </div>
         </div>
       ),
@@ -283,7 +283,7 @@ export function PlansView() {
                 </SelectItem>
                 {providers.map((pv) => (
                   <SelectItem key={pv.id} value={pv.id} className="text-xs">
-                    {pv.code} — {pv.name}
+                    {pv.name} — {pv.code}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -446,7 +446,7 @@ function PlanForm({
               <SelectContent>
                 {providers.map((pv) => (
                   <SelectItem key={pv.id} value={pv.id}>
-                    {pv.code} — {pv.name}
+                    {pv.name} — {pv.code}
                   </SelectItem>
                 ))}
               </SelectContent>

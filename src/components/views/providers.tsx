@@ -132,15 +132,15 @@ export function ProvidersView() {
 
   const columns: DataTableColumn<Provider>[] = [
     {
-      key: "code",
+      key: "name",
       header: "Provider",
       width: 220,
       minWidth: 150,
       maxWidth: 320,
       cell: (p) => (
         <div>
-          <div className="font-medium">{p.code}</div>
-          <div className="text-[11px] text-muted-foreground">{p.name}</div>
+          <div className="font-medium">{p.name}</div>
+          <div className="text-[11px] text-muted-foreground">{p.code}</div>
         </div>
       ),
     },
@@ -314,14 +314,14 @@ export function ProvidersView() {
         title="Archive provider"
         description={
           archiving
-            ? `Archive "${archiving.code} — ${archiving.name}"? It will be marked inactive but kept in history.`
+            ? `Archive "${archiving.name} — ${archiving.code}"? It will be marked inactive but kept in history.`
             : ""
         }
         confirmText="Archive"
         loading={archiveMutation.isPending}
-        onConfirm={() =>
-          archiving && archiveMutation.mutateAsync(archiving.id)
-        }
+        onConfirm={() => {
+          if (archiving) return archiveMutation.mutateAsync(archiving.id);
+        }}
       />
 
       <ConfirmDialog
@@ -330,15 +330,15 @@ export function ProvidersView() {
         title="Delete provider"
         description={
           deleting
-            ? `Permanently delete "${deleting.code} — ${deleting.name}"? Only providers with no plans or services can be deleted; archive otherwise.`
+            ? `Permanently delete "${deleting.name} — ${deleting.code}"? Only providers with no plans or services can be deleted; archive otherwise.`
             : ""
         }
         confirmText="Delete"
         destructive
         loading={deleteMutation.isPending}
-        onConfirm={() =>
-          deleting && deleteMutation.mutateAsync(deleting.id)
-        }
+        onConfirm={() => {
+          if (deleting) return deleteMutation.mutateAsync(deleting.id);
+        }}
       />
     </div>
   );
@@ -418,7 +418,7 @@ function ProviderForm({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEdit ? `Edit provider ${editing?.code}` : "New provider"}
+      title={isEdit ? `Edit provider ${editing?.name || editing?.code}` : "New provider"}
       description="An Internet service provider. Catalog plans are defined per provider; installed services reference the provider."
       submitText={isEdit ? "Save changes" : "Create provider"}
       submitDisabled={!isFormValid}

@@ -250,7 +250,7 @@ export function ServicesView() {
               onChange={(v) => setProviderFilter(v as string)}
               options={providers.map((p) => ({
                 value: p.id,
-                label: `${p.code} — ${p.name}`,
+                label: `${p.name} — ${p.code}`,
               }))}
               placeholder="Select Provider"
               showPlaceholderOnAll
@@ -377,7 +377,7 @@ function ServiceForm({
           <Field label="Branch" required>
             <Select value={branchId} onValueChange={(v) => { setBranchId(v); setShopId(""); }}>
               <SelectTrigger><SelectValue placeholder="Select branch..." /></SelectTrigger>
-              <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.code} — {b.name}</SelectItem>)}</SelectContent>
+              <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name} — {b.code}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
           <Field label="Shop (optional)" hint="Leave empty for branch-level service">
@@ -385,14 +385,14 @@ function ServiceForm({
               <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">None</SelectItem>
-                {visibleShops.map((s) => <SelectItem key={s.id} value={s.id}>{s.code} — {s.name}</SelectItem>)}
+                {visibleShops.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — {s.code}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
           <Field label="Provider" required>
             <Select value={providerId} onValueChange={(v) => { setProviderId(v); setPlanId("none"); }}>
               <SelectTrigger><SelectValue placeholder="Select provider..." /></SelectTrigger>
-              <SelectContent>{providers.map((p) => <SelectItem key={p.id} value={p.id}>{p.code} — {p.name}</SelectItem>)}</SelectContent>
+              <SelectContent>{providers.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} — {p.code}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
           <Field label="Plan (optional)" hint="Catalog plan, if applicable">

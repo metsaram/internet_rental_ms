@@ -285,4 +285,40 @@ import { Eye, Pencil, Trash2 } from "lucide-react";
 }
 ```
 
+#### 10. Master Entity Display Standard (Name First, Code Second)
+All views and shared components in NetRent adhere to a unified display hierarchy for master entities (`Branch`, `Shop`, `Provider`):
+
+- **Data Table Cells**:
+  The primary line is rendered with `font-medium` using the entity `name`. The secondary line is rendered below with `text-[11px] text-muted-foreground` using the entity `code`.
+  ```tsx
+  {
+    key: "name",
+    header: "Branch",
+    width: 220,
+    minWidth: 160,
+    maxWidth: 320,
+    cell: (b) => (
+      <div>
+        <div className="font-medium">{b.name}</div>
+        <div className="text-[11px] text-muted-foreground">{b.code}</div>
+      </div>
+    ),
+  }
+  ```
+- **Sorting Key**:
+  Entity columns set `key: "name"` (or `sortKey: "name"`) so that table header clicks sort rows alphabetically by the visible primary name rather than code.
+- **Select Dropdowns & Filters**:
+  Options are formatted with name first, separated by an em dash:
+  ```tsx
+  <SelectItem key={b.id} value={b.id}>{b.name} — {b.code}</SelectItem>
+  ```
+- **Modals, Confirm Dialogs & Sheets**:
+  Confirmation messages and headers reference the name first:
+  - Archive/Delete description: `Archive "${item.name} — ${item.code}"?`
+  - Edit modal title: `title={isEdit ? `Edit ${item.name}` : "New item"}`
+  - Sheet title: `${item.name} — ${item.code}`
+- **Dashboard Charts & Aggregations**:
+  Charts (e.g. Cost by Provider, Cost by Branch) map chart slice names to `item.name || item.code` to prioritize human-readable names in tooltips and legends.
+
+
 

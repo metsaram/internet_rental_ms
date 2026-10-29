@@ -180,15 +180,15 @@ export function ShopsView() {
 
   const columns: DataTableColumn<Shop>[] = [
     {
-      key: "code",
+      key: "name",
       header: "Shop",
       width: 200,
       minWidth: 150,
       maxWidth: 300,
       cell: (s) => (
         <div>
-          <div className="font-medium">{s.code}</div>
-          <div className="text-[11px] text-muted-foreground">{s.name}</div>
+          <div className="font-medium">{s.name}</div>
+          <div className="text-[11px] text-muted-foreground">{s.code}</div>
         </div>
       ),
     },
@@ -399,12 +399,14 @@ export function ShopsView() {
         title="Archive shop"
         description={
           archiving
-            ? `Archive "${archiving.code} — ${archiving.name}"? It will be marked inactive but kept in history.`
+            ? `Archive "${archiving.name} — ${archiving.code}"? It will be marked inactive but kept in history.`
             : ""
         }
         confirmText="Archive"
         loading={archiveMutation.isPending}
-        onConfirm={() => archiving && archiveMutation.mutateAsync(archiving.id)}
+        onConfirm={() => {
+          if (archiving) return archiveMutation.mutateAsync(archiving.id);
+        }}
       />
 
       <ConfirmDialog
@@ -413,13 +415,15 @@ export function ShopsView() {
         title="Delete shop"
         description={
           deleting
-            ? `Permanently delete "${deleting.code} — ${deleting.name}"? Shops with services cannot be deleted; archive instead.`
+            ? `Permanently delete "${deleting.name} — ${deleting.code}"? Shops with services cannot be deleted; archive instead.`
             : ""
         }
         confirmText="Delete"
         destructive
         loading={deleteMutation.isPending}
-        onConfirm={() => deleting && deleteMutation.mutateAsync(deleting.id)}
+        onConfirm={() => {
+          if (deleting) return deleteMutation.mutateAsync(deleting.id);
+        }}
       />
     </div>
   );
@@ -506,7 +510,7 @@ function ShopForm({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEdit ? `Edit shop ${editing?.code}` : "New shop"}
+      title={isEdit ? `Edit shop ${editing?.name || editing?.code}` : "New shop"}
       description="A shop is a unit located within a branch (e.g. tenant space, kiosk, office)."
       submitText={isEdit ? "Save changes" : "Create shop"}
       submitDisabled={!isFormValid}
@@ -528,7 +532,7 @@ function ShopForm({
               <SelectContent>
                 {branches.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
-                    {b.code} — {b.name}
+                    {b.name} — {b.code}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -668,7 +672,7 @@ function ShopDetailSheet({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Store className="size-4 text-primary" />
-            {shop ? `${shop.code} — ${shop.name}` : ""}
+            {shop ? `${shop.name} — ${shop.code}` : ""}
           </SheetTitle>
           <SheetDescription>
             {shop ? `${shop.branch?.name ?? "—"} · ${shop.type}` : ""}

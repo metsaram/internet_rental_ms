@@ -108,6 +108,16 @@ All critical user flows (Smoke, Auth, Dashboard, CRUD operations, Invoices, Paym
 - **Prisma & Decimal Handling**: In Next.js route handlers, pass numbers or string values directly to Prisma Decimal fields (`subtotal: body.subtotal`) rather than `new Prisma.Decimal()` to prevent bundler serializer errors.
 - **Execution**: Run all tests via `bun run test:e2e` (`playwright test`).
 
+### Rule 10: Master Entity Display Standard — Name First, Code Second
+
+Across all UI views (DataTables, Select dropdowns, ConfirmDialogs, Edit modals, Sheets, and Charts), entities with a name and code pair (Branches, Shops, Providers) must always follow this display hierarchy:
+- **Primary Display**: Entity `name` (bold / `font-medium`).
+- **Secondary Text**: Entity `code` (`text-[11px] text-muted-foreground` or font-mono badge).
+- **Data Table Columns**: For master entity columns (`Branch`, `Shop`, `Provider`), set `key: "name"` so that column sorting naturally sorts by entity name while still displaying the code as the second line.
+- **Dropdown & Select Options**: Format option labels as `${name} — ${code}`.
+- **Dialogs & Sheet Headers**: Format confirmation messages and titles as `${name} — ${code}` or `Edit entity ${name}`.
+- **Dashboard Charts**: Use the entity name (`name: item.name || item.code`) for chart legends and tooltips.
+
 ---
 
 ## 3. Directory Structure
@@ -687,6 +697,19 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 ---
 
 ### Task Log
+
+#### [2026-10-29T16:15:00+07:00] Master Entity Display Hierarchy: Primary Name & Secondary Code Standardization
+- **Task description**: Standardize entity display hierarchy across the entire application so that entity Name is always the primary display and entity Code is secondary text.
+- **Context used**: `branches.tsx`, `shops.tsx`, `providers.tsx`, `services.tsx`, `plans.tsx`, `invoices.tsx`, `dashboard.tsx`, `import.tsx`, `data-table.tsx`.
+- **Output generated / modified**:
+  - Updated Data Table columns in `branches.tsx`, `shops.tsx`, and `providers.tsx` with primary text `font-medium` using name, secondary text `text-[11px] text-muted-foreground` using code, and `key: "name"`.
+  - Updated ConfirmDialogs, edit modal titles, and detail sheets to display `${name} — ${code}` across branches, shops, and providers.
+  - Standardized Select dropdown labels and filter options in `services.tsx`, `plans.tsx`, `invoices.tsx`, and `shops.tsx` to `${name} — ${code}`.
+  - Updated dashboard cost breakdown charts in `dashboard.tsx` to use provider/branch names as primary chart keys.
+  - Updated import validation master data badges in `import.tsx` to show name bold and code in secondary font-mono.
+  - Documented Rule 10 in `AI_AGENT_GUIDE.md`, updated `docs/guides/developer_guide.md`, `docs/guides/ai_agent_guide.md`, `docs/changelog/2026-10.md`, and `docs/task_logs/2026-10-29.md`.
+- **Timestamp**: 2026-10-29T16:15:00+07:00
+- **Status**: Completed
 
 #### [2026-10-22T21:45:00+07:00] Complete Playwright E2E Testing Infrastructure & Production CI/CD
 - **Task description**: Implement a complete Playwright E2E testing infrastructure for Next.js 16 + React 19 + Prisma app, including 7 test suites (Smoke, Auth, Dashboard, Tenants CRUD, Invoices, Payments, Visual Regression), helper utilities (`auth-helper.ts`, `page-helper.ts`), fixtures (`test-data.ts`), global health setup, GitHub Actions workflow (`.github/workflows/playwright.yml`), and package.json scripts.

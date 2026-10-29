@@ -747,6 +747,70 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 - **Timestamp**: 2026-10-29T16:30:00+07:00
 - **Status**: Completed
 
+#### [2026-10-29T22:20:00+07:00] Apply Searchable Select to All Dropdowns with > 5 Items
+- **Task description**: Apply the search mechanism from DataTable Select (`data-table.tsx:L1334-L1416`) to all select dropdowns that have items > 5 across the application.
+- **Context used**: `searchable-select.tsx`, `data-table.tsx`, `services.tsx`, `contracts.tsx`, `shops.tsx`, `plans.tsx`, `invoices.tsx`, `outages.tsx`, `import.tsx`, `test/searchable-select.test.tsx`.
+- **Output generated / modified**:
+  - Created `SearchableSelect` (`src/components/ui/searchable-select.tsx`) with automatic search activation when options exceed 5, sticky input, clear `X` button, and keyboard navigation.
+  - Replaced all form/dialog dropdowns with > 5 options or dynamic lists with `SearchableSelect` (`services.tsx`, `contracts.tsx`, `shops.tsx`, `plans.tsx`, `invoices.tsx`, `outages.tsx`, `import.tsx`).
+  - Added `searchable={true}` to toolbar filters in `plans.tsx` and `invoices.tsx`.
+  - Added unit test suite `test/searchable-select.test.tsx` (6/6 tests passing).
+- **Timestamp**: 2026-10-29T22:20:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T21:30:00+07:00] Fix Prerequisite Warning Banner Display During Data Loading in Contracts View
+- **Task description**: Fix the display message "You need at least one Internet service before you can create a contract. Go to services →" which flashed/displayed while data was loading.
+- **Context used**: `contracts.tsx`, `shops.tsx`, `plans.tsx`, `services.tsx`, `test/contracts-prereq-warning.test.tsx`.
+- **Output generated / modified**:
+  - In `contracts.tsx`, destructured `isLoading: isServicesLoading` from the `services-min` query and guarded the prerequisite banner with `!isPrereqLoading && services.length === 0` (where `isPrereqLoading = isLoading || isServicesLoading`).
+  - Disabled "New contract" button when queries are loading (`isPrereqLoading || services.length === 0`).
+  - Standardized prerequisite loading guards in `shops.tsx` and `plans.tsx`.
+  - Added unit test suite `test/contracts-prereq-warning.test.tsx` (3/3 tests passing).
+- **Timestamp**: 2026-10-29T21:30:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T23:20:00+07:00] Reusable Stored Procedure & Script for Clearing Unrelated Branch Data
+- **Task description**: Create a reusable SQL file and PostgreSQL stored procedure (`clear_unrelated_branch_data`) to clear data unrelated to active branches, with an optional parameter to wipe all shops, and provide an automated CLI runner script and npm command for developers.
+- **Context used**: `db/procedures/clear_unrelated_data.sql`, `db/2026-10-29/procedures/clear_unrelated_data.sql`, `scripts/clear-data.mjs`, `package.json`.
+- **Output generated / modified**:
+  - Created reusable PostgreSQL stored procedure `clear_unrelated_branch_data(p_clear_all_shops BOOLEAN DEFAULT FALSE)` and deployed it to the Supabase PostgreSQL database.
+  - Implemented safe cascading deletion for inactive branches, invoices, payment allocations, contracts, renewals, outages, notes, and dummy providers while preserving active branches/services.
+  - Created automated CLI script `scripts/clear-data.mjs` and npm script `"db:clean-data": "node scripts/clear-data.mjs"`.
+- **Timestamp**: 2026-10-29T23:20:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T23:10:00+07:00] Add GARAGE Shop Type, Remove UNIT & Clear Data Unrelated to Active Branches
+- **Task description**: Add `GARAGE` to `ShopType` enum, remove `UNIT`, update API validators, seed script, and frontend UI, and clear all demo/dummy records unrelated to active branches.
+- **Context used**: `prisma/schema.prisma`, `src/app/api/shops/route.ts`, `src/app/api/shops/[id]/route.ts`, `src/components/views/shops.tsx`, `prisma/seed.ts`, `db/2026-10-29/shops/alter_shop_type_garage_remove_unit.sql`.
+- **Output generated / modified**:
+  - Replaced `UNIT` with `GARAGE` in `ShopType` enum, regenerated Prisma Client, updated API validation schemas and `TYPE_OPTS` in `shops.tsx`.
+  - Created migration script `db/2026-10-29/shops/alter_shop_type_garage_remove_unit.sql`.
+  - Cleared 6 inactive demo branches, 8 demo shops, 10 demo services, 17 demo contracts, 9 demo invoices, and 2 test providers, preserving all 6 active branches and their active services/contracts.
+- **Timestamp**: 2026-10-29T23:10:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T22:45:00+07:00] Add More Shop Types & Prevent Accidental Dialog Closure on Outside Click
+- **Task description**: Expand `ShopType` enum with common business categories (Coffee, Mart, Retail, Pharmacy, Salon, Fitness, Clinic, Storage), update API schemas, enable searchable select for Type, and prevent `FormDialog` modals from dismissing when clicking outside.
+- **Context used**: `prisma/schema.prisma`, `src/app/api/shops/route.ts`, `src/app/api/shops/[id]/route.ts`, `src/components/views/shops.tsx`, `src/components/shared/form-dialog.tsx`, `test/form-dialog.test.tsx`.
+- **Output generated / modified**:
+  - Added new shop types in `prisma/schema.prisma` and generated `db/2026-10-29/shops/add_shop_types.sql`.
+  - Pushed enum updates to PostgreSQL with `prisma db push`.
+  - Updated API route zod validators in `src/app/api/shops/route.ts` and `src/app/api/shops/[id]/route.ts`.
+  - Converted `Type` select in `ShopForm` to `SearchableSelect` with search bar enabled for > 5 items.
+  - Implemented `preventOutsideClose = true` (default) on `FormDialog` preventing accidental dismissal on backdrop click.
+  - Added test suite `test/form-dialog.test.tsx` (5/5 tests passing).
+- **Timestamp**: 2026-10-29T22:45:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T22:30:00+07:00] Rearrange ShopForm Layout to 2 Columns with 1 Full-Width Column for Address
+- **Task description**: In `ShopForm` (`src/components/views/shops.tsx`), reorganize the form fields layout to use a balanced 2-column grid system, with `Address` taking a single full-width column.
+- **Context used**: `src/components/views/shops.tsx`, `test/required-fields-validation.test.tsx`.
+- **Output generated / modified**:
+  - Arranged `ShopForm` fields into paired 2-column rows: `Branch` & `Type`, `Code` & `Name`, `Address` (full width / 1 col), `Contact person` & `Phone`, `Email` & `Status`.
+  - Added unit test cases in `test/required-fields-validation.test.tsx` verifying shop form required fields.
+- **Timestamp**: 2026-10-29T22:30:00+07:00
+- **Status**: Completed
+
 #### [2026-10-29T16:15:00+07:00] Master Entity Display Hierarchy: Primary Name & Secondary Code Standardization
 - **Task description**: Standardize entity display hierarchy across the entire application so that entity Name is always the primary display and entity Code is secondary text.
 - **Context used**: `branches.tsx`, `shops.tsx`, `providers.tsx`, `services.tsx`, `plans.tsx`, `invoices.tsx`, `dashboard.tsx`, `import.tsx`, `data-table.tsx`.

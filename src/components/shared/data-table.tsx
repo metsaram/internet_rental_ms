@@ -1419,3 +1419,9 @@ export function FilterSelect<T extends string>({
 
 export const DropdownSelect = FilterSelect;
 
+export {
+  SearchableSelect,
+  type SearchableSelectProps,
+  type SearchableSelectOption,
+} from "@/components/ui/searchable-select";
+

@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  SearchableSelect,
   ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
@@ -234,14 +235,14 @@ export function ServicesView() {
   ];
 
   const canCreate = branches.length > 0 && providers.length > 0;
-  const isPrereqLoading = isBranchesLoading || isProvidersLoading;
+  const isPrereqLoading = isLoading || isBranchesLoading || isProvidersLoading;
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Internet services"
         description="Inventory of installed connections. ISP credentials are stored server-side and redacted in lists."
-        actions={<Button onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreate}><Plus className="size-4" /> New service</Button>}
+        actions={<Button onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreate || isPrereqLoading}><Plus className="size-4" /> New service</Button>}
       />
       {!canCreate && !isPrereqLoading && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -451,34 +452,42 @@ function ServiceForm({
         {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">{error}</div>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Branch" required>
-            <Select value={branchId} onValueChange={(v) => { setBranchId(v); setShopId("none"); }}>
-              <SelectTrigger><SelectValue placeholder="Select branch..." /></SelectTrigger>
-              <SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name} — {b.code}</SelectItem>)}</SelectContent>
-            </Select>
+            <SearchableSelect
+              value={branchId}
+              onValueChange={(v) => { setBranchId(v); setShopId("none"); }}
+              placeholder="Select branch..."
+              options={branches.map((b) => ({ value: b.id, label: `${b.name} — ${b.code}` }))}
+            />
           </Field>
           <Field label="Shop (optional)" hint="Leave empty for branch-level service">
-            <Select value={shopId} onValueChange={setShopId}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {visibleShops.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — {s.code}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={shopId}
+              onValueChange={setShopId}
+              placeholder="None"
+              options={[
+                { value: "none", label: "None" },
+                ...visibleShops.map((s) => ({ value: s.id, label: `${s.name} — ${s.code}` })),
+              ]}
+            />
           </Field>
           <Field label="Provider" required>
-            <Select value={providerId} onValueChange={(v) => { setProviderId(v); setPlanId("none"); }}>
-              <SelectTrigger><SelectValue placeholder="Select provider..." /></SelectTrigger>
-              <SelectContent>{providers.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} — {p.code}</SelectItem>)}</SelectContent>
-            </Select>
+            <SearchableSelect
+              value={providerId}
+              onValueChange={(v) => { setProviderId(v); setPlanId("none"); }}
+              placeholder="Select provider..."
+              options={providers.map((p) => ({ value: p.id, label: `${p.name} — ${p.code}` }))}
+            />
           </Field>
           <Field label="Plan (optional)" hint="Catalog plan, if applicable">
-            <Select value={planId} onValueChange={setPlanId}>
-              <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {visiblePlans.map((p) => <SelectItem key={p.id} value={p.id}>{p.name} ({formatBandwidth(p.bandwidthDownMbps)})</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={planId}
+              onValueChange={setPlanId}
+              placeholder="None"
+              options={[
+                { value: "none", label: "None" },
+                ...visiblePlans.map((p) => ({ value: p.id, label: `${p.name} (${formatBandwidth(p.bandwidthDownMbps)})` })),
+              ]}
+            />
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

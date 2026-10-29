@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -509,7 +510,8 @@ export function ImportView() {
                           <p className="text-[10px] text-muted-foreground">column {h.index + 1}</p>
                         </div>
                         <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
-                        <Select
+                        <SearchableSelect
+                          className="h-8 w-52 text-xs"
                           value={matched ?? "none"}
                           onValueChange={(target) => {
                             setColumnMap((prev) => {
@@ -521,19 +523,15 @@ export function ImportView() {
                               return next;
                             });
                           }}
-                        >
-                          <SelectTrigger className="h-8 w-52 text-xs">
-                            <SelectValue placeholder="Ignore" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">— ignore —</SelectItem>
-                            {fields.map((f) => (
-                              <SelectItem key={f.key} value={f.key}>
-                                {f.label}{f.required ? " *" : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Ignore"
+                          options={[
+                            { value: "none", label: "— ignore —" },
+                            ...fields.map((f) => ({
+                              value: f.key,
+                              label: `${f.label}${f.required ? " *" : ""}`,
+                            })),
+                          ]}
+                        />
                       </div>
 
                       {/* Real DB validation feedback for this field */}

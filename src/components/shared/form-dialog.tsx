@@ -29,6 +29,7 @@ export function FormDialog({
   children,
   size = "md",
   destructive = false,
+  preventOutsideClose = true,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -40,6 +41,7 @@ export function FormDialog({
   children: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
   destructive?: boolean;
+  preventOutsideClose?: boolean;
 }) {
   const [loading, setLoading] = React.useState(false);
 
@@ -64,7 +66,15 @@ export function FormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(sizeCls, "max-h-[92vh] overflow-hidden flex flex-col gap-0 p-0")}>
+      <DialogContent
+        className={cn(sizeCls, "max-h-[92vh] overflow-hidden flex flex-col gap-0 p-0")}
+        onPointerDownOutside={(e) => {
+          if (preventOutsideClose) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (preventOutsideClose) e.preventDefault();
+        }}
+      >
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-3 border-b">
             <DialogTitle>{title}</DialogTitle>

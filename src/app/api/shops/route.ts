@@ -15,8 +15,22 @@ const createSchema = z.object({
   code: z.string().min(1, "Code is required").max(64),
   name: z.string().min(1, "Name is required").max(128),
   type: z
-    .enum(["UNIT", "KIOSK", "OFFICE", "RESTAURANT", "OTHER"])
-    .default("UNIT"),
+    .enum([
+      "KIOSK",
+      "OFFICE",
+      "RESTAURANT",
+      "COFFEE",
+      "MART",
+      "RETAIL",
+      "PHARMACY",
+      "SALON",
+      "FITNESS",
+      "CLINIC",
+      "STORAGE",
+      "GARAGE",
+      "OTHER",
+    ])
+    .default("GARAGE"),
   contactPerson: z.string().max(128).optional().nullable(),
   phone: z.string().max(64).optional().nullable(),
   email: z.string().max(128).optional().nullable(),

@@ -56,3 +56,8 @@ global.IntersectionObserver = class IntersectionObserver {
 
 // Mock window.scrollTo
 window.scrollTo = vi.fn();
+
+// Mock Element.prototype.scrollIntoView for Radix UI dropdowns
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+Element.prototype.scrollIntoView = vi.fn();
+

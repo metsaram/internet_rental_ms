@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -312,16 +313,15 @@ function CreateOutageDialog({
       <div className="space-y-4">
         {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
         <Field label="Service" required>
-          <Select value={serviceId} onValueChange={setServiceId}>
-            <SelectTrigger><SelectValue placeholder="Select service..." /></SelectTrigger>
-            <SelectContent>
-              {services.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.serviceCode} — {s.branch?.name ?? "—"} · {s.provider?.name ?? "?"}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={serviceId}
+            onValueChange={setServiceId}
+            placeholder="Select service..."
+            options={services.map((s) => ({
+              value: s.id,
+              label: `${s.serviceCode} — ${s.branch?.name ?? "—"} · ${s.provider?.name ?? "?"}`,
+            }))}
+          />
         </Field>
         <Field label="Incident type" required>
           <Select value={type} onValueChange={setType}>

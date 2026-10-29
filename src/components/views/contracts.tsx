@@ -50,6 +50,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  SearchableSelect,
   ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
@@ -133,10 +134,12 @@ export function ContractsView() {
     },
   });
 
-  const { data: services = [] } = useQuery<ServiceMin[]>({
+  const { data: services = [], isLoading: isServicesLoading } = useQuery<ServiceMin[]>({
     queryKey: ["services-min"],
     queryFn: () => api<ServiceMin[]>("/api/services?min=true"),
   });
+
+  const isPrereqLoading = isLoading || isServicesLoading;
 
   const filtered = React.useMemo(() => {
     if (!search) return contracts;
@@ -435,7 +438,7 @@ export function ContractsView() {
               setEditing(null);
               setDialogOpen(true);
             }}
-            disabled={services.length === 0}
+            disabled={isPrereqLoading || services.length === 0}
             className="shadow-sm"
           >
             <Plus className="size-4" />
@@ -489,10 +492,11 @@ export function ContractsView() {
         </Card>
       </div>
 
-      {services.length === 0 && (
+      {!isPrereqLoading && services.length === 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           You need at least one Internet service before you can create a contract.{" "}
           <button
+            type="button"
             className="font-medium underline"
             onClick={() => (window.location.hash = "services")}
           >
@@ -743,18 +747,15 @@ function ContractForm({
           </div>
 
           <Field label="Installed Service" required hint="Select which service this commercial contract covers">
-            <Select value={serviceId} onValueChange={setServiceId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select installed service..." />
-              </SelectTrigger>
-              <SelectContent>
-                {services.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.serviceCode} — {s.branch?.name ?? "Branch"} · {s.provider?.name ?? "Provider"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={serviceId}
+              onValueChange={setServiceId}
+              placeholder="Select installed service..."
+              options={services.map((s) => ({
+                value: s.id,
+                label: `${s.serviceCode} — ${s.branch?.name ?? "Branch"} · ${s.provider?.name ?? "Provider"}`,
+              }))}
+            />
           </Field>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

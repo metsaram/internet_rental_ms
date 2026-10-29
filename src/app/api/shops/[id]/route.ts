@@ -15,7 +15,21 @@ const updateSchema = z.object({
   code: z.string().min(1).max(64).optional(),
   name: z.string().min(1).max(128).optional(),
   type: z
-    .enum(["UNIT", "KIOSK", "OFFICE", "RESTAURANT", "OTHER"])
+    .enum([
+      "KIOSK",
+      "OFFICE",
+      "RESTAURANT",
+      "COFFEE",
+      "MART",
+      "RETAIL",
+      "PHARMACY",
+      "SALON",
+      "FITNESS",
+      "CLINIC",
+      "STORAGE",
+      "GARAGE",
+      "OTHER",
+    ])
     .optional(),
   contactPerson: z.string().max(128).optional().nullable(),
   phone: z.string().max(64).optional().nullable(),

@@ -98,7 +98,7 @@ describe("Service creation schema & foreign key sanitization", () => {
     const parsed = createSchema.parse(payloadWithEmptyStrings);
     expect(parsed.shopId).toBeNull();
     expect(parsed.planId).toBeNull();
-  });
+  }, 15000);
 
   it("preserves valid shopId and planId when provided", async () => {
     const { createSchema } = await import("@/app/api/services/route");

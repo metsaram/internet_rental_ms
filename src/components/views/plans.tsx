@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  SearchableSelect,
   ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
@@ -88,10 +89,12 @@ export function PlansView() {
     },
   });
 
-  const { data: providers = [] } = useQuery<Provider[]>({
+  const { data: providers = [], isLoading: isProvidersLoading } = useQuery<Provider[]>({
     queryKey: ["providers-min"],
     queryFn: () => api<Provider[]>("/api/providers?min=true"),
   });
+
+  const isPrereqLoading = isLoading || isProvidersLoading;
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
@@ -237,14 +240,14 @@ export function PlansView() {
               setEditing(null);
               setDialogOpen(true);
             }}
-            disabled={!canCreate}
+            disabled={!canCreate || isPrereqLoading}
           >
             <Plus className="size-4" />
             New plan
           </Button>
         }
       />
-      {!canCreate && !isLoading && (
+      {!canCreate && !isPrereqLoading && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           You need at least one provider before adding plans.{" "}
           <button
@@ -270,24 +273,17 @@ export function PlansView() {
         }}
         toolbar={
           <>
-            <Select
-              value={providerFilter}
-              onValueChange={(v) => setProviderFilter(v)}
-            >
-              <SelectTrigger className="h-8 w-[12rem] text-xs">
-                <SelectValue placeholder="All providers" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL" className="text-xs">
-                  All providers
-                </SelectItem>
-                {providers.map((pv) => (
-                  <SelectItem key={pv.id} value={pv.id} className="text-xs">
-                    {pv.name} — {pv.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <FilterSelect
+              value={providerFilter as any}
+              onChange={(v) => setProviderFilter(v as string)}
+              options={providers.map((pv) => ({ value: pv.id, label: `${pv.name} — ${pv.code}` }))}
+              placeholder="Select Provider"
+              showPlaceholderOnAll
+              allLabel="All providers"
+              searchable={true}
+              disabled={isLoading}
+              className="w-[12rem]"
+            />
             <FilterSelect
               value={statusFilter as "ACTIVE" | "INACTIVE" | "ALL"}
               onChange={(v) => setStatusFilter(v as string)}
@@ -435,22 +431,16 @@ function PlanForm({
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Provider" required>
-            <Select
+            <SearchableSelect
               value={providerId}
               onValueChange={setProviderId}
               disabled={isEdit}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select provider..." />
-              </SelectTrigger>
-              <SelectContent>
-                {providers.map((pv) => (
-                  <SelectItem key={pv.id} value={pv.id}>
-                    {pv.name} — {pv.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Select provider..."
+              options={providers.map((pv) => ({
+                value: pv.id,
+                label: `${pv.name} — ${pv.code}`,
+              }))}
+            />
           </Field>
           <Field label="Name" required>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
@@ -474,21 +464,14 @@ function PlanForm({
             />
           </Field>
           <Field label="Connection type">
-            <Select
+            <SearchableSelect
               value={connectionType}
               onValueChange={setConnectionType}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CONNECTION_OPTS.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              options={CONNECTION_OPTS.map((c) => ({
+                value: c.value,
+                label: c.label,
+              }))}
+            />
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

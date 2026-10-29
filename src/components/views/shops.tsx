@@ -36,6 +36,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  SearchableSelect,
   ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
@@ -88,10 +89,18 @@ const STATUS_OPTS = [
 ] as const;
 
 const TYPE_OPTS = [
-  { value: "UNIT", label: "Unit" },
+  { value: "GARAGE", label: "Garage" },
   { value: "KIOSK", label: "Kiosk" },
   { value: "OFFICE", label: "Office" },
   { value: "RESTAURANT", label: "Restaurant" },
+  { value: "COFFEE", label: "Coffee / Cafe" },
+  { value: "MART", label: "Mart" },
+  { value: "RETAIL", label: "Retail" },
+  { value: "PHARMACY", label: "Pharmacy" },
+  { value: "SALON", label: "Salon" },
+  { value: "FITNESS", label: "Fitness" },
+  { value: "CLINIC", label: "Clinic" },
+  { value: "STORAGE", label: "Storage" },
   { value: "OTHER", label: "Other" },
 ] as const;
 
@@ -121,10 +130,12 @@ export function ShopsView() {
     },
   });
 
-  const { data: branches = [] } = useQuery<Branch[]>({
+  const { data: branches = [], isLoading: isBranchesLoading } = useQuery<Branch[]>({
     queryKey: ["branches-min"],
     queryFn: () => api<Branch[]>("/api/branches?min=true"),
   });
+
+  const isPrereqLoading = isLoading || isBranchesLoading;
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) =>
@@ -281,14 +292,14 @@ export function ShopsView() {
             },
             ...(s.status === "ACTIVE"
               ? [
-                  {
-                    id: "archive",
-                    label: "Archive shop",
-                    icon: <Archive className="size-4" />,
-                    priority: 2,
-                    onClick: () => setArchiving(s),
-                  },
-                ]
+                {
+                  id: "archive",
+                  label: "Archive shop",
+                  icon: <Archive className="size-4" />,
+                  priority: 2,
+                  onClick: () => setArchiving(s),
+                },
+              ]
               : []),
             {
               id: "delete",
@@ -317,7 +328,7 @@ export function ShopsView() {
               setEditing(null);
               setDialogOpen(true);
             }}
-            disabled={!canCreate}
+            disabled={!canCreate || isPrereqLoading}
           >
             <Plus className="size-4" />
             New shop
@@ -325,7 +336,7 @@ export function ShopsView() {
         }
       />
 
-      {branches.length === 0 && !isLoading && (
+      {branches.length === 0 && !isPrereqLoading && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
           You need at least one branch before adding shops.{" "}
           <button
@@ -450,7 +461,7 @@ function ShopForm({
   const [branchId, setBranchId] = React.useState("");
   const [code, setCode] = React.useState("");
   const [name, setName] = React.useState("");
-  const [type, setType] = React.useState("UNIT");
+  const [type, setType] = React.useState("GARAGE");
   const [contactPerson, setContactPerson] = React.useState("");
   const [phone, setPhone] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -474,7 +485,7 @@ function ShopForm({
       setBranchId("");
       setCode(`SHOP-${Math.floor(100 + Math.random() * 900)}`);
       setName("");
-      setType("UNIT");
+      setType("GARAGE");
       setContactPerson("");
       setPhone("");
       setEmail("");
@@ -525,32 +536,26 @@ function ShopForm({
         )}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Branch" required>
-            <Select value={branchId} onValueChange={setBranchId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select branch..." />
-              </SelectTrigger>
-              <SelectContent>
-                {branches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name} — {b.code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={branchId}
+              onValueChange={setBranchId}
+              placeholder="Select branch..."
+              options={branches.map((b) => ({
+                value: b.id,
+                label: `${b.name} — ${b.code}`,
+              }))}
+            />
           </Field>
           <Field label="Type">
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TYPE_OPTS.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={type}
+              onValueChange={setType}
+              placeholder="Select type..."
+              options={TYPE_OPTS.map((t) => ({
+                value: t.value,
+                label: t.label,
+              }))}
+            />
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -561,7 +566,10 @@ function ShopForm({
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Field>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Field label="Address">
+          <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+        </Field>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Contact person">
             <Input
               value={contactPerson}
@@ -571,6 +579,8 @@ function ShopForm({
           <Field label="Phone">
             <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
           </Field>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Email">
             <Input
               type="email"
@@ -578,24 +588,21 @@ function ShopForm({
               onChange={(e) => setEmail(e.target.value)}
             />
           </Field>
+          <Field label="Status">
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
-        <Field label="Address">
-          <Input value={address} onChange={(e) => setAddress(e.target.value)} />
-        </Field>
-        <Field label="Status">
-          <Select value={status} onValueChange={setStatus}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {STATUS_OPTS.map((s) => (
-                <SelectItem key={s.value} value={s.value}>
-                  {s.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
       </div>
     </FormDialog>
   );

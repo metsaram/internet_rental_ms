@@ -182,4 +182,23 @@ describe("Required Fields Validation Logic", () => {
       expect(validateService({ branchId: "br-1", providerId: "prov-1", serviceCode: "SC-001" })).toBe(true);
     });
   });
+
+  describe("Shops required fields", () => {
+    const validateShop = (data: {
+      branchId?: string;
+      code?: string;
+      name?: string;
+    }) => {
+      return Boolean(data.branchId?.trim() && data.code?.trim() && data.name?.trim());
+    };
+
+    it("disables save when branchId, code, or name is missing", () => {
+      expect(validateShop({ branchId: "", code: "SHOP-101", name: "Alpha Unit" })).toBe(false);
+      expect(validateShop({ branchId: "br-1", code: "", name: "Alpha Unit" })).toBe(false);
+      expect(validateShop({ branchId: "br-1", code: "SHOP-101", name: "" })).toBe(false);
+      expect(validateShop({ branchId: "  ", code: "SHOP-101", name: "Alpha Unit" })).toBe(false);
+      expect(validateShop({ branchId: "br-1", code: "SHOP-101", name: "Alpha Unit" })).toBe(true);
+    });
+  });
 });
+

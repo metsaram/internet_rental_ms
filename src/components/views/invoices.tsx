@@ -44,6 +44,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import {
   DataTable,
   FilterSelect,
+  SearchableSelect,
   ActionMenu,
   type DataTableColumn,
 } from "@/components/shared/data-table";
@@ -437,6 +438,7 @@ export function InvoicesView() {
               placeholder="Select Provider"
               showPlaceholderOnAll
               allLabel="All providers"
+              searchable={true}
               className="w-[11rem] sm:w-[13rem]"
               disabled={isLoading || isProvidersLoading}
             />
@@ -638,16 +640,16 @@ function InvoiceForm({
           </div>
         )}
         <Field label="Contract" required>
-          <Select value={contractId} onValueChange={onContractChange} disabled={isEdit}>
-            <SelectTrigger><SelectValue placeholder="Select contract..." /></SelectTrigger>
-            <SelectContent>
-              {contracts.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.contractNumber} — {c.serviceCode} · {c.branch?.name ?? "—"} ({formatMoney(c.monthlyFee, c.currency)}/mo)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={contractId}
+            onValueChange={onContractChange}
+            disabled={isEdit}
+            placeholder="Select contract..."
+            options={contracts.map((c) => ({
+              value: c.id,
+              label: `${c.contractNumber} — ${c.serviceCode} · ${c.branch?.name ?? "—"} (${formatMoney(c.monthlyFee, c.currency)}/mo)`,
+            }))}
+          />
         </Field>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1091,12 +1093,14 @@ function RecordPaymentDialog({
         </div>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Method">
-            <Select value={method} onValueChange={setMethod}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {METHOD_OPTS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={method}
+              onValueChange={setMethod}
+              options={METHOD_OPTS.map((m) => ({
+                value: m.value,
+                label: m.label,
+              }))}
+            />
           </Field>
           <Field label="Reference code" htmlFor="pay-reference">
             <Input id="pay-reference" isCode value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Bank slip / card last 4" />

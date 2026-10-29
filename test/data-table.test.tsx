@@ -224,6 +224,34 @@ describe("DataTable Column Chooser & LocalStorage Cache", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders Columns button in the same flex container as toolbar elements to allow wrapping on the same row", () => {
+    const columns: DataTableColumn<TestRow>[] = [
+      { key: "name", header: "Service Name", cell: (r) => r.name },
+      { key: "description", header: "Description", cell: (r) => r.description },
+    ];
+
+    render(
+      <DataTable
+        columns={columns}
+        rows={testRows}
+        rowKey={(r) => r.id}
+        toolbar={
+          <>
+            <button type="button" data-testid="filter-1">Filter 1</button>
+            <button type="button" data-testid="filter-2">Filter 2</button>
+          </>
+        }
+      />
+    );
+
+    const columnsBtn = screen.getByRole("button", { name: /customize visible columns/i });
+    const filter1 = screen.getByTestId("filter-1");
+
+    // Both should share the same parent flex container so they can wrap together on small screens
+    expect(columnsBtn.parentElement).toBe(filter1.parentElement);
+    expect(columnsBtn.parentElement?.className).toContain("flex-wrap");
+  });
+
   it("hydrates column visibility choices from localStorage cache", async () => {
     const storageKey = "test_services_table";
     // Pre-cache 'description' column as hidden in localStorage
@@ -866,5 +894,183 @@ describe("FilterSelect placeholder and value transitions", () => {
     expect(trigger).toBeDisabled();
   });
 });
+
+describe("FilterSelect searchable option behavior", () => {
+  const fourItems = [
+    { value: "ACTIVE", label: "Active" },
+    { value: "PENDING", label: "Pending" },
+    { value: "SUSPENDED", label: "Suspended" },
+    { value: "TERMINATED", label: "Terminated" },
+  ];
+
+  const fiveItems = [
+    { value: "1", label: "Provider 1" },
+    { value: "2", label: "Provider 2" },
+    { value: "3", label: "Provider 3" },
+    { value: "4", label: "Provider 4" },
+    { value: "5", label: "Provider 5" },
+  ];
+
+  const sixItems = [
+    ...fiveItems,
+    { value: "6", label: "Provider 6" },
+  ];
+
+  it("does not show search input when searchable is not enabled, even if items > 5", () => {
+    render(
+      <FilterSelect
+        open={true}
+        value="ALL"
+        onChange={() => {}}
+        options={sixItems}
+        placeholder="Select Provider"
+      />
+    );
+
+    expect(screen.queryByPlaceholderText("Search...")).not.toBeInTheDocument();
+  });
+
+  it("does not show search input when searchable is enabled but items <= 5 (e.g. status dropdown with 4 items)", () => {
+    render(
+      <FilterSelect
+        open={true}
+        searchable={true}
+        value="ALL"
+        onChange={() => {}}
+        options={fourItems}
+        placeholder="Select Status"
+      />
+    );
+
+    expect(screen.queryByPlaceholderText("Search...")).not.toBeInTheDocument();
+  });
+
+  it("does not show search input when searchable is enabled and items === 5", () => {
+    render(
+      <FilterSelect
+        open={true}
+        searchable={true}
+        value="ALL"
+        onChange={() => {}}
+        options={fiveItems}
+        placeholder="Select Provider"
+      />
+    );
+
+    expect(screen.queryByPlaceholderText("Search...")).not.toBeInTheDocument();
+  });
+
+  it("shows search input when searchable is enabled and items > 5 (e.g. 6 items)", () => {
+    render(
+      <FilterSelect
+        open={true}
+        searchable={true}
+        value="ALL"
+        onChange={() => {}}
+        options={sixItems}
+        placeholder="Select Provider"
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText("Search...");
+    expect(searchInput).toBeInTheDocument();
+  });
+
+  it("filters items according to user search input and displays matching results", () => {
+    const providers = [
+      { value: "p1", label: "Indosat Ooredoo — INDO" },
+      { value: "p2", label: "Telkomsel Orbit — TSEL" },
+      { value: "p3", label: "Biznet Networks — BIZ" },
+      { value: "p4", label: "MyRepublic — MYR" },
+      { value: "p5", label: "First Media — FM" },
+      { value: "p6", label: "XL Axiata — XL" },
+    ];
+
+    render(
+      <FilterSelect
+        open={true}
+        searchable={true}
+        value="ALL"
+        onChange={() => {}}
+        options={providers}
+        placeholder="Select Provider"
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText("Search...");
+    expect(searchInput).toBeInTheDocument();
+
+    // Initially all 6 are present
+    expect(screen.getByText("Indosat Ooredoo — INDO")).toBeInTheDocument();
+    expect(screen.getByText("Telkomsel Orbit — TSEL")).toBeInTheDocument();
+
+    // Type "indo"
+    fireEvent.change(searchInput, { target: { value: "indo" } });
+
+    expect(screen.getByText("Indosat Ooredoo — INDO")).toBeInTheDocument();
+    expect(screen.queryByText("Telkomsel Orbit — TSEL")).not.toBeInTheDocument();
+    expect(screen.queryByText("Biznet Networks — BIZ")).not.toBeInTheDocument();
+  });
+
+  it("displays 'No matching results' when search does not match any options", () => {
+    const providers = [
+      { value: "p1", label: "Indosat Ooredoo" },
+      { value: "p2", label: "Telkomsel Orbit" },
+      { value: "p3", label: "Biznet Networks" },
+      { value: "p4", label: "MyRepublic" },
+      { value: "p5", label: "First Media" },
+      { value: "p6", label: "XL Axiata" },
+    ];
+
+    render(
+      <FilterSelect
+        open={true}
+        searchable={true}
+        value="ALL"
+        onChange={() => {}}
+        options={providers}
+        placeholder="Select Provider"
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText("Search...");
+    fireEvent.change(searchInput, { target: { value: "nonexistent" } });
+
+    expect(screen.getByText("No matching results")).toBeInTheDocument();
+  });
+
+  it("clears search input when clear button (X) is clicked", () => {
+    const providers = [
+      { value: "p1", label: "Indosat Ooredoo" },
+      { value: "p2", label: "Telkomsel Orbit" },
+      { value: "p3", label: "Biznet Networks" },
+      { value: "p4", label: "MyRepublic" },
+      { value: "p5", label: "First Media" },
+      { value: "p6", label: "XL Axiata" },
+    ];
+
+    render(
+      <FilterSelect
+        open={true}
+        searchable={true}
+        value="ALL"
+        onChange={() => {}}
+        options={providers}
+        placeholder="Select Provider"
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText("Search...");
+    fireEvent.change(searchInput, { target: { value: "indo" } });
+    expect(searchInput).toHaveValue("indo");
+
+    const clearBtn = screen.getByRole("button", { name: /clear search/i });
+    fireEvent.click(clearBtn);
+
+    expect(searchInput).toHaveValue("");
+    expect(screen.getByText("Telkomsel Orbit")).toBeInTheDocument();
+  });
+});
+
 
 

@@ -36,6 +36,7 @@ import {
   Columns3,
   RotateCcw,
   Search,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -779,7 +780,7 @@ export function DataTable<T>({
   return (
     <div className="space-y-3">
       {(search || toolbar || (columnChooser !== false && toggleableColumns.length > 0)) && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           {search ? (
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -794,15 +795,18 @@ export function DataTable<T>({
           ) : (
             <span />
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {toolbar ? <div className="flex flex-wrap gap-2">{toolbar}</div> : null}
+          <div className="flex flex-wrap items-start gap-2">
+            {React.isValidElement<{ children?: React.ReactNode }>(toolbar) &&
+            (toolbar.type === "div" || toolbar.type === React.Fragment)
+              ? toolbar.props.children
+              : toolbar}
             {columnChooser !== false && toggleableColumns.length > 0 && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-9 gap-1.5 text-xs font-medium"
+                    className="h-8 gap-1.5 text-xs font-medium"
                     aria-label="Customize visible columns"
                   >
                     <Columns3 className="size-3.5 text-muted-foreground" />
@@ -1232,7 +1236,25 @@ export function DataTable<T>({
 }
 
 
-/** Simple client-side select for table filters. */
+export type FilterSelectProps<T extends string> = {
+  value: T | "ALL";
+  onChange: (v: T | "ALL") => void;
+  options: { value: T; label: string }[];
+  placeholder?: string;
+  allLabel?: string;
+  showPlaceholderOnAll?: boolean;
+  disabled?: boolean;
+  className?: string;
+  searchable?: boolean;
+  enableSearch?: boolean;
+  searchPlaceholder?: string;
+  searchThreshold?: number;
+  includeAll?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+};
+
+/** Client-side select for table filters and dropdowns with optional search input. */
 export function FilterSelect<T extends string>({
   value,
   onChange,
@@ -1242,25 +1264,72 @@ export function FilterSelect<T extends string>({
   showPlaceholderOnAll = false,
   disabled = false,
   className,
-}: {
-  value: T | "ALL";
-  onChange: (v: T | "ALL") => void;
-  options: { value: T; label: string }[];
-  placeholder?: string;
-  allLabel?: string;
-  showPlaceholderOnAll?: boolean;
-  disabled?: boolean;
-  className?: string;
-}) {
+  searchable = false,
+  enableSearch,
+  searchPlaceholder = "Search...",
+  searchThreshold = 5,
+  includeAll = true,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+}: FilterSelectProps<T>) {
+  const isSearchEnabled = Boolean(searchable ?? enableSearch);
+  const shouldShowSearch = isSearchEnabled && options.length > (searchThreshold ?? 5);
+
+  const [internalOpen, setInternalOpen] = React.useState(false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!isControlled) {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChangeProp?.(nextOpen);
+    if (!nextOpen) {
+      setSearchQuery("");
+    }
+  };
+
+  React.useEffect(() => {
+    if (open && shouldShowSearch) {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [open, shouldShowSearch]);
+
+  const filteredOptions = React.useMemo(() => {
+    if (!shouldShowSearch || !searchQuery.trim()) {
+      return options;
+    }
+    const q = searchQuery.toLowerCase().trim();
+    return options.filter((o) => o.label.toLowerCase().includes(q));
+  }, [options, shouldShowSearch, searchQuery]);
+
   const isPlaceholder =
     value === "ALL" &&
     (showPlaceholderOnAll || !!(placeholder && placeholder.toLowerCase().startsWith("select")));
 
+  const showAllOption =
+    includeAll &&
+    (!searchQuery.trim() || allLabel.toLowerCase().includes(searchQuery.toLowerCase().trim()));
+
   return (
     <Select
-      value={isPlaceholder ? "" : value}
-      onValueChange={(v) => onChange((v || "ALL") as T | "ALL")}
+      value={isPlaceholder ? "" : (value as string)}
+      onValueChange={(v) => {
+        if (!includeAll) {
+          onChange(v as T | "ALL");
+        } else {
+          onChange((v || "ALL") as T | "ALL");
+        }
+      }}
       disabled={disabled}
+      open={open}
+      onOpenChange={handleOpenChange}
     >
       <SelectTrigger
         className={cn("h-8 w-[10rem] text-xs", className)}
@@ -1269,15 +1338,84 @@ export function FilterSelect<T extends string>({
         <SelectValue placeholder={placeholder ?? "Filter"} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="ALL" className="text-xs">
-          {allLabel}
-        </SelectItem>
-        {options.map((o) => (
-          <SelectItem key={o.value} value={o.value} className="text-xs">
-            {o.label}
+        {shouldShowSearch && (
+          <div
+            className="sticky top-0 z-10 -mt-1 -mx-1 mb-1 border-b border-border/60 bg-popover/95 p-1.5 backdrop-blur-xs"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <div className="relative flex items-center">
+              <Search className="text-muted-foreground pointer-events-none absolute left-2 size-3.5" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Escape") {
+                    handleOpenChange(false);
+                  } else if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    const contentEl = searchInputRef.current?.closest('[data-slot="select-content"]');
+                    const firstItem = contentEl?.querySelector<HTMLElement>(
+                      '[data-slot="select-item"]:not([data-disabled])'
+                    );
+                    firstItem?.focus();
+                  } else if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (filteredOptions.length > 0) {
+                      onChange(filteredOptions[0].value);
+                      handleOpenChange(false);
+                    } else if (showAllOption) {
+                      onChange("ALL" as T | "ALL");
+                      handleOpenChange(false);
+                    }
+                  }
+                }}
+                placeholder={searchPlaceholder}
+                className="border-input placeholder:text-muted-foreground focus-visible:ring-ring h-7 w-full rounded-sm border bg-background/50 pl-7 pr-7 text-xs outline-hidden focus-visible:ring-1"
+                aria-label={searchPlaceholder}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery("");
+                    searchInputRef.current?.focus();
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="text-muted-foreground hover:text-foreground absolute right-1.5 p-0.5 rounded-xs"
+                  aria-label="Clear search"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        {showAllOption && (
+          <SelectItem value="ALL" className="text-xs">
+            {allLabel}
           </SelectItem>
-        ))}
+        )}
+        {filteredOptions.length === 0 && !showAllOption ? (
+          <div className="py-3 px-2 text-center text-xs text-muted-foreground select-none">
+            No matching results
+          </div>
+        ) : (
+          filteredOptions.map((o) => (
+            <SelectItem key={o.value} value={o.value} className="text-xs">
+              {o.label}
+            </SelectItem>
+          ))
+        )}
       </SelectContent>
     </Select>
   );
 }
+
+export const DropdownSelect = FilterSelect;
+

@@ -372,10 +372,11 @@ All routes enforce `requireUser()` / `requireAdmin()` + company scope.
 
 ## 6. Shared Components (`src/components/shared/`)
 
-### `data-table.tsx` — `DataTable<T>`
-Generic table with: search input, `FilterSelect`, pagination, loading skeletons,
+### `data-table.tsx` — `DataTable<T>` & `FilterSelect` (`DropdownSelect`)
+Generic table with: search input, `FilterSelect` (also exported as `DropdownSelect`), pagination, loading skeletons,
 empty state, row click, **keyboard shortcuts** (j/k navigate, Enter opens,
 / focuses search, Esc clears). Active row highlighted with `bg-primary/10`.
+`FilterSelect` supports optional client-side search (`searchable` / `enableSearch` prop). Search input appears only when enabled AND `options.length > (searchThreshold ?? 5)`. Supports search input auto-focus, live option filtering, clear query button, Esc dismissal, and arrow navigation.
 
 ### `form-dialog.tsx` — `FormDialog` + `Field`
 Controlled dialog with a form `<form onSubmit>`, loading state on the submit

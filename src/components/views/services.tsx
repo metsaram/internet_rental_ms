@@ -291,7 +291,7 @@ export function ServicesView() {
         emptyMessage="No services match your filters."
         search={{ value: search, onChange: setSearch, placeholder: "Search services, CID, SID, branch, shop, provider, IP..." }}
         toolbar={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             <FilterSelect
               value={statusFilter as any}
               onChange={(v) => setStatusFilter(v as string)}
@@ -313,6 +313,7 @@ export function ServicesView() {
               allLabel="All providers"
               className="w-[11rem] sm:w-[13rem]"
               disabled={isLoading || isProvidersLoading}
+              searchable
             />
             <FilterSelect
               value={sort as any}
@@ -321,7 +322,7 @@ export function ServicesView() {
               placeholder="Sort"
               disabled={isLoading}
             />
-          </div>
+          </>
         }
       />
       <ServiceForm

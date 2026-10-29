@@ -797,12 +797,18 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
   - Pushed enum updates to PostgreSQL with `prisma db push`.
   - Updated API route zod validators in `src/app/api/shops/route.ts` and `src/app/api/shops/[id]/route.ts`.
   - Converted `Type` select in `ShopForm` to `SearchableSelect` with search bar enabled for > 5 items.
-  - Implemented `preventOutsideClose = true` (default) on `FormDialog` preventing accidental dismissal on backdrop click.
-  - Added test suite `test/form-dialog.test.tsx` (5/5 tests passing).
-- **Timestamp**: 2026-10-29T22:45:00+07:00
+#### [2026-10-29T23:30:00+07:00] Plans: Active/Inactive Status Actions and In-Use Delete Protection
+- **Task description**: Add active/inactive status toggle and delete actions to the Plans view (`src/components/views/plans.tsx`) with prevention against deleting catalog plans in use.
+- **Context used**: `src/components/views/plans.tsx`, `src/app/api/plans/[id]/route.ts`, `test/plans-actions.test.tsx`.
+- **Output generated / modified**:
+  - Added "Deactivate plan" (`Archive`) and "Activate plan" (`CheckCircle2`) actions to row `ActionMenu` with `ConfirmDialog` confirmation.
+  - Added "Delete plan" (`Trash2`, destructive) with guard disabling the action and displaying tooltip reason when `servicesCount > 0`.
+  - Added `ConfirmDialog` protection refusing deletion when services reference the plan.
+  - Added unit test suite `test/plans-actions.test.tsx` (3/3 tests passing).
+- **Timestamp**: 2026-10-29T23:30:00+07:00
 - **Status**: Completed
 
-#### [2026-10-29T22:30:00+07:00] Rearrange ShopForm Layout to 2 Columns with 1 Full-Width Column for Address
+#### [2026-10-29T22:45:00+07:00] Add More Shop Types & Prevent Accidental Dialog Closure on Outside Click
 - **Task description**: In `ShopForm` (`src/components/views/shops.tsx`), reorganize the form fields layout to use a balanced 2-column grid system, with `Address` taking a single full-width column.
 - **Context used**: `src/components/views/shops.tsx`, `test/required-fields-validation.test.tsx`.
 - **Output generated / modified**:

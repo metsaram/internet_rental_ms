@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Archive, CheckCircle2, Trash2 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
   type DataTableColumn,
 } from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatBandwidth, formatMoney } from "@/lib/format";
 
@@ -77,6 +78,11 @@ export function PlansView() {
   const [providerFilter, setProviderFilter] = React.useState<string>("ALL");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Plan | null>(null);
+  const [togglingStatus, setTogglingStatus] = React.useState<{
+    plan: Plan;
+    nextStatus: "ACTIVE" | "INACTIVE";
+  } | null>(null);
+  const [deleting, setDeleting] = React.useState<Plan | null>(null);
 
   const { data: plans = [], isLoading } = useQuery<Plan[]>({
     queryKey: ["plans", search, statusFilter, providerFilter],
@@ -122,6 +128,45 @@ export function PlansView() {
       }),
     onSuccess: () => {
       toast.success("Plan updated");
+      qc.invalidateQueries({ queryKey: ["plans"] });
+      qc.invalidateQueries({ queryKey: ["plans-min"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "ACTIVE" | "INACTIVE";
+    }) =>
+      api(`/api/plans/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.status === "ACTIVE" ? "Plan activated" : "Plan deactivated"
+      );
+      setTogglingStatus(null);
+      qc.invalidateQueries({ queryKey: ["plans"] });
+      qc.invalidateQueries({ queryKey: ["plans-min"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      api(`/api/plans/${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      toast.success("Plan deleted");
+      setDeleting(null);
       qc.invalidateQueries({ queryKey: ["plans"] });
       qc.invalidateQueries({ queryKey: ["plans-min"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -204,26 +249,59 @@ export function PlansView() {
       key: "actions",
       header: "",
       className: "text-right",
-      width: 80,
-      minWidth: 70,
-      maxWidth: 100,
+      width: 110,
+      minWidth: 90,
+      maxWidth: 130,
       resizable: false,
-      cell: (p) => (
-        <ActionMenu
-          actions={[
-            {
-              id: "edit",
-              label: "Edit plan",
-              icon: <Pencil className="size-4" />,
-              isPrimary: true,
-              onClick: () => {
-                setEditing(p);
-                setDialogOpen(true);
+      cell: (p) => {
+        const isInUse = (p.servicesCount ?? 0) > 0;
+        return (
+          <ActionMenu
+            actions={[
+              {
+                id: "edit",
+                label: "Edit plan",
+                icon: <Pencil className="size-4" />,
+                isPrimary: true,
+                priority: 1,
+                onClick: () => {
+                  setEditing(p);
+                  setDialogOpen(true);
+                },
               },
-            },
-          ]}
-        />
-      ),
+              p.status === "ACTIVE"
+                ? {
+                    id: "deactivate",
+                    label: "Deactivate plan",
+                    icon: <Archive className="size-4" />,
+                    priority: 2,
+                    onClick: () =>
+                      setTogglingStatus({ plan: p, nextStatus: "INACTIVE" }),
+                  }
+                : {
+                    id: "activate",
+                    label: "Activate plan",
+                    icon: <CheckCircle2 className="size-4" />,
+                    priority: 2,
+                    onClick: () =>
+                      setTogglingStatus({ plan: p, nextStatus: "ACTIVE" }),
+                  },
+              {
+                id: "delete",
+                label: "Delete plan",
+                icon: <Trash2 className="size-4" />,
+                variant: "destructive" as const,
+                priority: 3,
+                disabled: isInUse,
+                disabledReason: isInUse
+                  ? `Plan has ${p.servicesCount} service(s); deactivate instead of delete`
+                  : undefined,
+                onClick: () => setDeleting(p),
+              },
+            ]}
+          />
+        );
+      },
     },
   ];
 
@@ -311,6 +389,60 @@ export function PlansView() {
             await updateMutation.mutateAsync({ id: editing.id, data });
           } else {
             await createMutation.mutateAsync(data);
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!togglingStatus}
+        onOpenChange={(v) => !v && setTogglingStatus(null)}
+        title={
+          togglingStatus?.nextStatus === "ACTIVE"
+            ? "Activate plan"
+            : "Deactivate plan"
+        }
+        description={
+          togglingStatus
+            ? togglingStatus.nextStatus === "ACTIVE"
+              ? `Activate plan "${togglingStatus.plan.name}" (${togglingStatus.plan.provider.name})? It will become available for new services.`
+              : `Deactivate plan "${togglingStatus.plan.name}" (${togglingStatus.plan.provider.name})? Existing services remain unaffected, but it cannot be selected for new services.`
+            : ""
+        }
+        confirmText={
+          togglingStatus?.nextStatus === "ACTIVE" ? "Activate" : "Deactivate"
+        }
+        loading={toggleStatusMutation.isPending}
+        onConfirm={() => {
+          if (togglingStatus) {
+            return toggleStatusMutation.mutateAsync({
+              id: togglingStatus.plan.id,
+              status: togglingStatus.nextStatus,
+            });
+          }
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(v) => !v && setDeleting(null)}
+        title="Delete plan"
+        description={
+          deleting
+            ? (deleting.servicesCount ?? 0) > 0
+              ? `Cannot delete "${deleting.name}" because it is currently in use by ${deleting.servicesCount} service(s). Please deactivate it instead.`
+              : `Permanently delete plan "${deleting.name}" (${deleting.provider.name})? This action cannot be undone.`
+            : ""
+        }
+        confirmText="Delete"
+        destructive
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleting) {
+            if ((deleting.servicesCount ?? 0) > 0) {
+              toast.error("Plan is in use by services and cannot be deleted");
+              return;
+            }
+            return deleteMutation.mutateAsync(deleting.id);
           }
         }}
       />

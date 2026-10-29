@@ -81,7 +81,7 @@ export function ServicesView() {
       return api<Service[]>(`/api/services?${qs.toString()}`);
     },
   });
-  const { data: branches = [] } = useQuery<Branch[]>({ queryKey: ["branches-min"], queryFn: () => api<Branch[]>("/api/branches?min=true") });
+  const { data: branches = [], isLoading: isBranchesLoading } = useQuery<Branch[]>({ queryKey: ["branches-min"], queryFn: () => api<Branch[]>("/api/branches?min=true") });
   const { data: shops = [] } = useQuery<Shop[]>({ queryKey: ["shops-min"], queryFn: () => api<Shop[]>("/api/shops?min=true") });
   const { data: providers = [], isLoading: isProvidersLoading } = useQuery<Provider[]>({ queryKey: ["providers-min"], queryFn: () => api<Provider[]>("/api/providers?min=true") });
   const { data: plans = [] } = useQuery<Plan[]>({ queryKey: ["plans-min"], queryFn: () => api<Plan[]>("/api/plans?min=true") });
@@ -232,6 +232,7 @@ export function ServicesView() {
   ];
 
   const canCreate = branches.length > 0 && providers.length > 0;
+  const isPrereqLoading = isBranchesLoading || isProvidersLoading;
 
   return (
     <div className="space-y-5">
@@ -240,9 +241,42 @@ export function ServicesView() {
         description="Inventory of installed connections. ISP credentials are stored server-side and redacted in lists."
         actions={<Button onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={!canCreate}><Plus className="size-4" /> New service</Button>}
       />
-      {services.length === 0 && !isLoading && (
+      {!canCreate && !isPrereqLoading && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-          You need at least one branch and one provider before adding services.
+          {branches.length === 0 && providers.length === 0 ? (
+            <>
+              You need at least one branch and one provider before adding services.{" "}
+              <button
+                type="button"
+                className="font-medium underline"
+                onClick={() => (window.location.hash = "branches")}
+              >
+                Go to branches →
+              </button>
+            </>
+          ) : branches.length === 0 ? (
+            <>
+              You need at least one branch before adding services.{" "}
+              <button
+                type="button"
+                className="font-medium underline"
+                onClick={() => (window.location.hash = "branches")}
+              >
+                Go to branches →
+              </button>
+            </>
+          ) : (
+            <>
+              You need at least one provider before adding services.{" "}
+              <button
+                type="button"
+                className="font-medium underline"
+                onClick={() => (window.location.hash = "providers")}
+              >
+                Go to providers →
+              </button>
+            </>
+          )}
         </div>
       )}
       <DataTable

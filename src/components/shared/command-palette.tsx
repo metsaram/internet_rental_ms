@@ -37,15 +37,15 @@ import { clearIdleTimeoutStorage } from "@/lib/idle-timeout-config";
 
 const NAV_ITEMS = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "Navigate" },
-  { key: "branches", label: "Branches", icon: Building2, group: "Navigate" },
-  { key: "shops", label: "Shops", icon: Store, group: "Navigate" },
-  { key: "providers", label: "Providers", icon: Wifi, group: "Navigate" },
-  { key: "plans", label: "Plans", icon: Package, group: "Navigate" },
   { key: "services", label: "Internet Services", icon: Network, group: "Navigate" },
   { key: "contracts", label: "Contracts", icon: FileText, group: "Navigate" },
   { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Navigate" },
   { key: "renewals", label: "Contract Renewals", icon: RefreshCw, group: "Navigate" },
   { key: "import", label: "Excel Import", icon: Upload, group: "Navigate" },
+  { key: "providers", label: "Providers", icon: Wifi, group: "Navigate" },
+  { key: "plans", label: "Plans", icon: Package, group: "Navigate" },
+  { key: "branches", label: "Branches", icon: Building2, group: "Navigate" },
+  { key: "shops", label: "Shops", icon: Store, group: "Navigate" },
   { key: "notifications", label: "Notifications", icon: Bell, group: "Navigate" },
   // Temporarily disabled until MikroTik API integration is implemented
   // { key: "outages", label: "Outages", icon: Zap, group: "Navigate" },

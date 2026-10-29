@@ -54,15 +54,15 @@ import { clearIdleTimeoutStorage } from "@/lib/idle-timeout-config";
 
 export type ViewKey =
   | "dashboard"
-  | "branches"
-  | "shops"
-  | "providers"
-  | "plans"
   | "services"
   | "contracts"
   | "invoices"
   | "renewals"
   | "import"
+  | "providers"
+  | "plans"
+  | "branches"
+  | "shops"
   | "notifications"
   | "outages"
   | "reports"
@@ -75,15 +75,15 @@ const NAV: Array<{
   group: string;
 }> = [
     { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "Overview" },
-    { key: "branches", label: "Branches", icon: Building2, group: "Organization" },
-    { key: "shops", label: "Shops", icon: Store, group: "Organization" },
-    { key: "providers", label: "Providers", icon: Wifi, group: "Catalog" },
-    { key: "plans", label: "Plans", icon: Package, group: "Catalog" },
     { key: "services", label: "Internet Services", icon: Network, group: "Operations" },
     { key: "contracts", label: "Contracts", icon: FileText, group: "Operations" },
     { key: "invoices", label: "Invoices & Payments", icon: Receipt, group: "Operations" },
     { key: "renewals", label: "Renewals", icon: RefreshCw, group: "Operations" },
     { key: "import", label: "Excel Import", icon: Upload, group: "Operations" },
+    { key: "providers", label: "Providers", icon: Wifi, group: "Catalog" },
+    { key: "plans", label: "Plans", icon: Package, group: "Catalog" },
+    { key: "branches", label: "Branches", icon: Building2, group: "Organization" },
+    { key: "shops", label: "Shops", icon: Store, group: "Organization" },
     { key: "notifications", label: "Notifications", icon: Bell, group: "Insights" },
     // Temporarily disabled until MikroTik API integration is implemented
     // { key: "outages", label: "Outages", icon: Zap, group: "Insights" },

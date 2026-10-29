@@ -42,7 +42,9 @@ export function ConfirmDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? (
             <AlertDialogDescription>{description}</AlertDialogDescription>
-          ) : null}
+          ) : (
+            <AlertDialogDescription className="sr-only">{title}</AlertDialogDescription>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>{cancelText}</AlertDialogCancel>
@@ -50,7 +52,11 @@ export function ConfirmDialog({
             disabled={loading}
             onClick={async (e) => {
               e.preventDefault();
-              await onConfirm();
+              try {
+                await onConfirm();
+              } catch (err) {
+                console.error("[ConfirmDialog error]:", err);
+              }
             }}
             className={cn(
               destructive &&

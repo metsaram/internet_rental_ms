@@ -49,6 +49,7 @@ import {
 } from "@/components/shared/data-table";
 import { FormDialog, Field } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { VoidInvoiceDialog } from "@/components/shared/void-invoice-dialog";
 import { AttachmentsPanel } from "@/components/shared/attachments-panel";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -91,6 +92,7 @@ type Invoice = {
   derivedStatus: string;
   dueDate: string | null;
   notes: string | null;
+  voidReason?: string | null;
   createdBy: { name: string | null; email: string } | null;
   createdAt: string;
   allocated: string;
@@ -178,19 +180,31 @@ export function InvoicesView() {
     qc.invalidateQueries({ queryKey: ["invoices"] });
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
-  const voidMut = async (id: string) => {
-    await api(`/api/invoices/${id}/void`, { method: "POST" });
-    toast.success("Invoice voided");
-    setVoiding(null);
-    qc.invalidateQueries({ queryKey: ["invoices"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
+  const voidMut = async (id: string, reason: string) => {
+    try {
+      await api(`/api/invoices/${id}/void`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      toast.success("Invoice voided");
+      setVoiding(null);
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+      throw e;
+    }
   };
   const deleteMut = async (id: string) => {
-    await api(`/api/invoices/${id}`, { method: "DELETE" });
-    toast.success("Invoice deleted");
-    setDeleting(null);
-    qc.invalidateQueries({ queryKey: ["invoices"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    try {
+      await api(`/api/invoices/${id}`, { method: "DELETE" });
+      toast.success("Invoice deleted");
+      setDeleting(null);
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
   };
 
   const columns: DataTableColumn<Invoice>[] = [
@@ -269,17 +283,19 @@ export function InvoicesView() {
       cell: (i) => (
         <div className="flex flex-col gap-1">
           <StatusBadge
-            status={i.status}
+            status={i.status !== "VOID" && (i.status === "PAID" || i.derivedStatus === "paid") ? "PAID" : i.status}
             tone={
-              i.derivedStatus === "paid"
-                ? "green"
-                : i.derivedStatus === "overdue"
-                  ? "red"
-                  : i.derivedStatus === "partial"
-                    ? "amber"
-                    : i.derivedStatus === "void"
-                      ? "slate"
-                      : "blue"
+              i.status === "VOID" || i.derivedStatus === "void"
+                ? "red"
+                : i.status === "PAID" || i.derivedStatus === "paid"
+                  ? "green"
+                  : i.status === "OVERDUE" || i.derivedStatus === "overdue"
+                    ? "red"
+                    : i.status === "PARTIAL" || i.derivedStatus === "partial"
+                      ? "amber"
+                      : i.status === "DRAFT" || i.derivedStatus === "draft"
+                        ? "orange"
+                        : "blue"
             }
           />
         </div>
@@ -313,6 +329,8 @@ export function InvoicesView() {
               label: "Edit invoice",
               icon: <Pencil className="size-4" />,
               priority: 2,
+              disabled: i.status === "VOID",
+              disabledReason: i.status === "VOID" ? "Voided invoices cannot be edited" : undefined,
               onClick: () => {
                 setEditing(i);
                 setDialogOpen(true);
@@ -334,6 +352,13 @@ export function InvoicesView() {
               icon: <Trash2 className="size-4" />,
               priority: 4,
               variant: "destructive" as const,
+              disabled: i.status === "VOID" || Number(i.allocated) > 0,
+              disabledReason:
+                i.status === "VOID"
+                  ? "Voided invoices cannot be deleted"
+                  : Number(i.allocated) > 0
+                    ? "Invoice has payments; void instead of delete"
+                    : undefined,
               onClick: () => setDeleting(i),
             },
           ]}
@@ -450,21 +475,16 @@ export function InvoicesView() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!voiding}
-        onOpenChange={(v) => !v && setVoiding(null)}
-        title="Void invoice"
-        description={voiding ? `Void "${voiding.invoiceNumber}"? The record stays for audit history but is excluded from balances.` : ""}
-        confirmText="Void invoice"
-        destructive
-        loading={false}
-        onConfirm={() => { if (voiding) return voidMut(voiding.id); }}
+      <VoidInvoiceDialog
+        invoice={voiding}
+        onClose={() => setVoiding(null)}
+        onVoid={(id, reason) => voidMut(id, reason)}
       />
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(v) => !v && setDeleting(null)}
         title="Delete invoice"
-        description={deleting ? `Delete "${deleting.invoiceNumber}"? Only draft invoices with no payments can be deleted.` : ""}
+        description={deleting ? `Delete invoice "${deleting.invoiceNumber}"? This action cannot be undone.` : ""}
         confirmText="Delete"
         destructive
         loading={false}
@@ -515,6 +535,11 @@ function InvoiceForm({
   React.useEffect(() => {
     if (!open) return;
     if (editing) {
+      if (editing.status === "VOID") {
+        toast.error("Voided invoices cannot be edited");
+        onOpenChange(false);
+        return;
+      }
       setContractId(editing.contractId);
       setInvoiceNumber(editing.invoiceNumber);
       setInvoiceDate(editing.invoiceDate.slice(0, 10));
@@ -630,7 +655,7 @@ function InvoiceForm({
             <Input id="inv-number" isCode value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
           </Field>
           <Field label="Status">
-            <Select value={status} onValueChange={setStatus}>
+            <Select value={status} onValueChange={setStatus} disabled={isEdit}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STATUS_OPTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
@@ -738,18 +763,39 @@ function InvoiceDetailSheet({
           <div className="space-y-5 px-4 pb-6">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge
-                status={detail.status}
+                status={detail.status !== "VOID" && (detail.status === "PAID" || detail.derivedStatus === "paid") ? "PAID" : detail.status}
                 tone={
-                  detail.derivedStatus === "paid" ? "green"
-                    : detail.derivedStatus === "overdue" ? "red"
-                      : detail.derivedStatus === "partial" ? "amber"
-                        : detail.derivedStatus === "void" ? "slate" : "blue"
+                  detail.status === "VOID" || detail.derivedStatus === "void"
+                    ? "red"
+                    : detail.status === "PAID" || detail.derivedStatus === "paid"
+                      ? "green"
+                      : detail.status === "OVERDUE" || detail.derivedStatus === "overdue"
+                        ? "red"
+                        : detail.status === "PARTIAL" || detail.derivedStatus === "partial"
+                          ? "amber"
+                          : detail.status === "DRAFT" || detail.derivedStatus === "draft"
+                            ? "orange"
+                            : "blue"
                 }
               />
               <span className="text-[11px] text-muted-foreground capitalize">
                 Derived: {detail.derivedStatus}
               </span>
             </div>
+
+            {detail.status === "VOID" && (
+              <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300">
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Ban className="size-4" />
+                  Voided invoice
+                </div>
+                {detail.voidReason && (
+                  <p className="mt-1 text-xs text-rose-600/90 dark:text-rose-400">
+                    <span className="font-semibold">Reason:</span> {detail.voidReason}
+                  </p>
+                )}
+              </div>
+            )}
 
             <DetailGrid
               rows={[
@@ -829,15 +875,17 @@ function InvoiceDetailSheet({
               >
                 <Printer className="size-4" /> Print
               </Button>
-              <Button variant="outline" onClick={() => invoice && onEdit(invoice)}>
-                <Pencil className="size-4" /> Edit
-              </Button>
+              {detail.status !== "VOID" && (
+                <Button variant="outline" onClick={() => invoice && onEdit(invoice)}>
+                  <Pencil className="size-4" /> Edit
+                </Button>
+              )}
               {detail.status !== "VOID" && (
                 <Button variant="outline" onClick={() => invoice && onVoid(invoice)} className="text-amber-600">
                   <Ban className="size-4" /> Void
                 </Button>
               )}
-              {detail.status === "DRAFT" && (detail.allocations ?? []).length === 0 && (
+              {detail.status !== "VOID" && (detail.allocations ?? []).length === 0 && (
                 <Button variant="outline" onClick={() => invoice && onDelete(invoice)} className="text-rose-600">
                   <Trash2 className="size-4" /> Delete
                 </Button>

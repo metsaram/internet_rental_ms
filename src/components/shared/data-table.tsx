@@ -752,22 +752,19 @@ export function DataTable<T>({
   const isMobile = useIsMobile();
   const shouldApplyMobileMin = useMinWidthOnMobile && isMobile;
 
-  const getColWidth = React.useCallback(
-    (c: DataTableColumn<T>, colMin: number) => {
-      const isCustomized = userResizedKeys.has(c.key);
-      if (isCustomized && columnWidths[c.key] !== undefined) {
-        return `${columnWidths[c.key]}px`;
-      }
-      if (shouldApplyMobileMin) {
-        return `${colMin}px`;
-      }
-      const w = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
-      if (w !== undefined) return `${w}px`;
-      if (typeof c.width === "string") return c.width;
-      return undefined;
-    },
-    [shouldApplyMobileMin, columnWidths, userResizedKeys]
-  );
+  const getColWidth = (c: DataTableColumn<T>, colMin: number) => {
+    const isCustomized = userResizedKeys.has(c.key);
+    if (isCustomized && columnWidths[c.key] !== undefined) {
+      return `${columnWidths[c.key]}px`;
+    }
+    if (shouldApplyMobileMin) {
+      return `${colMin}px`;
+    }
+    const w = columnWidths[c.key] ?? (typeof c.width === "number" ? c.width : undefined);
+    if (w !== undefined) return `${w}px`;
+    if (typeof c.width === "string") return c.width;
+    return undefined;
+  };
 
   const hasCustomWidths =
     shouldApplyMobileMin ||

@@ -92,9 +92,10 @@ export async function POST(req: Request) {
 
     // Validate every allocation's invoice belongs to the company and the
     // allocated amount does not exceed the invoice's outstanding balance.
+    let invoices: Array<Prisma.InvoiceGetPayload<{ include: { allocations: { include: { payment: { select: { status: true } } } } } }>> = [];
     if (body.allocations.length > 0) {
       const invoiceIds = Array.from(new Set(body.allocations.map((a) => a.invoiceId)));
-      const invoices = await db.invoice.findMany({
+      invoices = await db.invoice.findMany({
         where: { id: { in: invoiceIds }, companyId: user.companyId },
         include: { allocations: { include: { payment: { select: { status: true } } } } },
       });
@@ -116,7 +117,9 @@ export async function POST(req: Request) {
       throw new HttpError(400, "Total allocated exceeds payment amount");
     }
 
-    // Atomic create of payment + allocations.
+    const invoiceStatusUpdates: Array<{ id: string; before: string; after: string }> = [];
+
+    // Atomic create of payment + allocations and invoice status updates.
     const created = await db.$transaction(async (tx) => {
       const payment = await tx.payment.create({
         data: {
@@ -140,6 +143,37 @@ export async function POST(req: Request) {
           },
         });
       }
+
+      // Update invoice statuses: if payment complete amount = invoice amount, status -> PAID
+      for (const inv of invoices) {
+        if (inv.status === "VOID") continue;
+
+        const existingAllocated = inv.allocations
+          .filter((a) => a.payment?.status !== "VOID")
+          .reduce((sum, a) => sum.plus(new Decimal(a.amount)), new Decimal(0));
+
+        const newAllocatedForInv = body.allocations
+          .filter((a) => a.invoiceId === inv.id)
+          .reduce((sum, a) => sum.plus(new Decimal(a.amount)), new Decimal(0));
+
+        const totalAllocatedToInv = existingAllocated.plus(newAllocatedForInv);
+
+        let newStatus = inv.status;
+        if (totalAllocatedToInv.gte(inv.total)) {
+          newStatus = "PAID";
+        } else if (totalAllocatedToInv.gt(0)) {
+          newStatus = "PARTIAL";
+        }
+
+        if (newStatus !== inv.status) {
+          await tx.invoice.update({
+            where: { id: inv.id },
+            data: { status: newStatus as any },
+          });
+          invoiceStatusUpdates.push({ id: inv.id, before: inv.status, after: newStatus });
+        }
+      }
+
       return payment;
     });
 
@@ -151,6 +185,18 @@ export async function POST(req: Request) {
       entityId: created.id,
       after: redactSensitive({ amount: body.amount, method: body.method, allocations: body.allocations.length }),
     });
+
+    for (const update of invoiceStatusUpdates) {
+      await writeAudit({
+        companyId: user.companyId,
+        actorId: user.id,
+        action: "UPDATE",
+        entityType: "Invoice",
+        entityId: update.id,
+        before: { status: update.before },
+        after: { status: update.after },
+      });
+    }
 
     return NextResponse.json({ id: created.id }, { status: 201 });
   } catch (err) {

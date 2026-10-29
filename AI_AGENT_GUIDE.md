@@ -323,8 +323,8 @@ All routes enforce `requireUser()` / `requireAdmin()` + company scope.
 | Route | Method | Description |
 |-------|--------|-------------|
 | `/api/invoices` | GET/POST | List (with derived status + outstanding) / Create. |
-| `/api/invoices/[id]` | GET/PATCH/DELETE | CRUD (void immutable, drafts only deletable). |
-| `/api/invoices/[id]/void` | POST | Void invoice (preserves history). |
+| `/api/invoices/[id]` | GET/PATCH/DELETE | CRUD (void immutable; deletable if no recorded payments). |
+| `/api/invoices/[id]/void` | POST | Void invoice (requires mandatory reason; preserves audit history). |
 | `/api/invoices/[id]/print` | GET | Print-friendly HTML invoice template. |
 | `/api/payments` | GET/POST | List / Create+allocate in a tx (over-allocation guarded). |
 | `/api/payments/[id]` | GET/PATCH/DELETE | CRUD (delete = void). |
@@ -696,7 +696,55 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 
 ---
 
-### Task Log
+#### [2026-10-29T17:25:00+07:00] Invoices: Mandatory Reason Input for Voiding Invoices
+- **Task description**: Require an explicit void reason when voiding an invoice, validate reason input in modal UI and API, store reason in invoice notes and audit log, and display reason in invoice detail sheet.
+- **Context used**: `src/app/api/invoices/[id]/void/route.ts`, `src/app/api/invoices/[id]/route.ts`, `src/app/api/invoices/route.ts`, `src/components/shared/form-dialog.tsx`, `src/components/shared/void-invoice-dialog.tsx`, `src/components/views/invoices.tsx`, `test/void-invoice-dialog.test.tsx`.
+- **Output generated / modified**:
+  - In `POST /api/invoices/[id]/void`, enforced `{ reason: string }` body validation with Zod (`min(1)`), persisted reason in `notes`, and recorded `voidReason` in audit logs.
+  - Added `voidReason` extraction in `GET /api/invoices/[id]` and `GET /api/invoices`.
+  - Added `destructive?: boolean` prop to `FormDialog` for danger action styling.
+  - Created reusable `VoidInvoiceDialog` component (`src/components/shared/void-invoice-dialog.tsx`) with autoFocus textarea and submit button disabling until reason is provided.
+  - Replaced simple confirmation dialog with `VoidInvoiceDialog` in `invoices.tsx` and added void banner displaying the void reason in `InvoiceDetailSheet`.
+  - Created unit test suite `test/void-invoice-dialog.test.tsx` (5/5 tests passing).
+- **Timestamp**: 2026-10-29T17:25:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T17:15:00+07:00] Invoices: Auto-Update Invoice Status to PAID on Full Payment Allocation
+- **Task description**: When payment allocation amount equals or exceeds the invoice total, automatically update the invoice status in the database to PAID (and PARTIAL if partially allocated). Automatically re-evaluate statuses if payments are voided.
+- **Context used**: `src/app/api/payments/route.ts`, `src/app/api/payments/[id]/route.ts`, `src/components/shared/status-badge.tsx`, `src/components/views/invoices.tsx`, `test/billing.test.ts`, `test/status-badge.test.tsx`.
+- **Output generated / modified**:
+  - In `src/app/api/payments/route.ts`, inside the atomic payment creation transaction, updated affected invoices to `PAID` if total allocated >= invoice.total, or `PARTIAL` if partially allocated, recording `writeAudit` logs.
+  - In `src/app/api/payments/[id]/route.ts`, inside the atomic payment void transaction, re-evaluated and reverted invoice statuses (`PARTIAL`, `OVERDUE`, or `ISSUED`) if no longer fully covered, recording audit logs.
+  - Added `PAID: "green"`, `PARTIAL: "amber"`, `OVERDUE: "red"`, and `ISSUED: "blue"` to `labelMap` in `StatusBadge`.
+  - Updated DataTable column status cell and `InvoiceDetailSheet` in `invoices.tsx` to prioritize `PAID` display when fully covered.
+  - Added unit test suite `test/billing.test.ts` (100% passing across 13 test suites, 111 tests).
+- **Timestamp**: 2026-10-29T17:15:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T16:58:00+07:00] Invoices: Void Immutability (Disallow Delete/Edit on Voided Invoices) & Badge Styling
+- **Task description**: Enforce ledger immutability by preventing deletion and editing of voided invoices across backend and frontend, update DRAFT status badge to orange and VOID to red, and disable status selection during invoice edit.
+- **Context used**: `src/app/api/invoices/[id]/route.ts`, `src/components/views/invoices.tsx`, `src/components/shared/status-badge.tsx`, `test/status-badge.test.tsx`.
+- **Output generated / modified**:
+  - Guarded DELETE in `/api/invoices/[id]` to reject deleting voided invoices (`400: Voided invoices cannot be deleted`).
+  - Disabled "Delete invoice" and "Edit invoice" in DataTable `ActionMenu` with clear tooltips when `status === "VOID"`.
+  - Hid "Edit" and "Delete" buttons in `InvoiceDetailSheet` for voided invoices.
+  - Disabled status `<Select>` during invoice edit (`isEdit`) and blocked editing voided invoices in `InvoiceForm`.
+  - Configured orange tone for `DRAFT` and red for `VOID` in `StatusBadge` and `invoices.tsx`.
+  - Added unit test suite `test/status-badge.test.tsx` (100% passing).
+- **Timestamp**: 2026-10-29T16:58:00+07:00
+- **Status**: Completed
+
+#### [2026-10-29T16:30:00+07:00] Fix Invoice Deletion & Robust Error Handling
+- **Task description**: Resolve invoice deletion runtime error by permitting deletion of any non-void invoice with no recorded payments, gracefully catching mutation errors, disabling delete with tooltips when payments exist, and adding unit and E2E test verification.
+- **Context used**: `src/app/api/invoices/[id]/route.ts`, `src/components/views/invoices.tsx`, `src/components/shared/confirm-dialog.tsx`, `test/confirm-dialog.test.tsx`, `tests/invoices/invoice-workflow.spec.ts`.
+- **Output generated / modified**:
+  - Relaxed DELETE constraint in `/api/invoices/[id]` to allow deleting any invoice without recorded payment allocations, cleaning up polymorphic attachments and recording audit logs.
+  - Wrapped `deleteMut` and `voidMut` in `invoices.tsx` in try/catch to toast errors instead of triggering unhandled runtime crashes.
+  - Updated DataTable `ActionMenu` to disable "Delete invoice" with a descriptive tooltip when payments exist (`Number(i.allocated) > 0`).
+  - Added safe error boundary and accessibility improvements in `ConfirmDialog` (`confirm-dialog.tsx`).
+  - Created unit test suite `test/confirm-dialog.test.tsx` (100% passing across 11 test suites) and extended Playwright E2E invoice deletion workflow test.
+- **Timestamp**: 2026-10-29T16:30:00+07:00
+- **Status**: Completed
 
 #### [2026-10-29T16:15:00+07:00] Master Entity Display Hierarchy: Primary Name & Secondary Code Standardization
 - **Task description**: Standardize entity display hierarchy across the entire application so that entity Name is always the primary display and entity Code is secondary text.

@@ -4,13 +4,15 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-type Tone = "green" | "amber" | "red" | "slate" | "violet" | "blue";
+type Tone = "green" | "amber" | "orange" | "red" | "slate" | "violet" | "blue";
 
 const toneMap: Record<Tone, string> = {
   green:
     "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/20",
   amber:
     "bg-amber-500/10 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/20",
+  orange:
+    "bg-orange-500/10 text-orange-700 dark:text-orange-300 ring-1 ring-orange-500/20",
   red: "bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/20",
   slate:
     "bg-slate-500/10 text-slate-700 dark:text-slate-300 ring-1 ring-slate-500/20",
@@ -25,12 +27,17 @@ const labelMap: Record<string, Tone> = {
   PENDING: "amber",
   SUSPENDED: "amber",
   TERMINATED: "red",
-  DRAFT: "slate",
+  DRAFT: "orange",
   EXPIRED: "red",
   RENEWED: "violet",
   COMPLETED: "green",
   FAILED: "red",
   PREVIEW: "amber",
+  VOID: "red",
+  PAID: "green",
+  PARTIAL: "amber",
+  OVERDUE: "red",
+  ISSUED: "blue",
 };
 
 export function StatusBadge({

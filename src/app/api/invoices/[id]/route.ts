@@ -65,6 +65,13 @@ export async function GET(_req: Request, { params }: Params) {
       .filter((a) => a.payment?.status !== "VOID")
       .reduce((acc, a) => acc.plus(a.amount), new Decimal(0));
     const outstanding = outstandingBalance(inv, inv.allocations);
+
+    let voidReason: string | null = null;
+    if (inv.notes && inv.status === "VOID") {
+      const match = inv.notes.match(/\[Void reason\]:\s*(.+)$/m);
+      if (match) voidReason = match[1].trim();
+    }
+
     return NextResponse.json({
       ...inv,
       subtotal: inv.subtotal.toString(),
@@ -78,6 +85,7 @@ export async function GET(_req: Request, { params }: Params) {
       allocated: allocatedSum.toString(),
       outstanding: outstanding.toString(),
       derivedStatus: deriveInvoiceStatus(inv, inv.allocations),
+      voidReason,
     });
   } catch (err) {
     return errorResponse(err);
@@ -143,12 +151,20 @@ export async function DELETE(_req: Request, { params }: Params) {
     const { id } = await params;
     const existing = await db.invoice.findUnique({ where: { id } });
     if (!existing || existing.companyId !== user.companyId) throw new HttpError(404, "Invoice not found");
-    // Only DRAFT invoices with no allocations can be hard-deleted.
-    if (existing.status !== "DRAFT") {
-      throw new HttpError(400, "Only draft invoices can be deleted; void instead to preserve history");
+    // Voided invoices cannot be deleted (financial audit history must be preserved).
+    if (existing.status === "VOID") {
+      throw new HttpError(400, "Voided invoices cannot be deleted");
     }
+
+    // Invoices with payment allocations cannot be hard-deleted; void instead to preserve history.
     const allocCount = await db.paymentAllocation.count({ where: { invoiceId: id } });
     if (allocCount > 0) throw new HttpError(400, "Invoice has payments; void instead of delete");
+
+    // Clean up any polymorphic attachments linked to this invoice
+    await db.attachment.deleteMany({
+      where: { companyId: user.companyId, entityType: "invoice", entityId: id },
+    });
+
     await db.invoice.delete({ where: { id } });
     await writeAudit({
       companyId: user.companyId,
@@ -156,7 +172,7 @@ export async function DELETE(_req: Request, { params }: Params) {
       action: "DELETE",
       entityType: "Invoice",
       entityId: id,
-      before: { invoiceNumber: existing.invoiceNumber },
+      before: { invoiceNumber: existing.invoiceNumber, status: existing.status },
     });
     return new Response(null, { status: 204 });
   } catch (err) {

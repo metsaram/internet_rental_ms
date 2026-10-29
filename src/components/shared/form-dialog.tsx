@@ -28,6 +28,7 @@ export function FormDialog({
   submitDisabled,
   children,
   size = "md",
+  destructive = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -38,6 +39,7 @@ export function FormDialog({
   submitDisabled?: boolean;
   children: React.ReactNode;
   size?: "sm" | "md" | "lg" | "xl";
+  destructive?: boolean;
 }) {
   const [loading, setLoading] = React.useState(false);
 
@@ -80,7 +82,7 @@ export function FormDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={loading || submitDisabled}>
+            <Button type="submit" variant={destructive ? "destructive" : "default"} disabled={loading || submitDisabled}>
               {loading ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />

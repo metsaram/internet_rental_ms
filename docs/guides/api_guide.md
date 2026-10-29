@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 
 ### 5. Invoicing & Billing
 - `GET/POST /api/invoices`: Invoices with auto-derived outstanding balances.
-- `GET/PATCH/DELETE /api/invoices/[id]`: Invoice management (voided records immutable).
+- `GET/PATCH/DELETE /api/invoices/[id]`: Invoice management (voided records immutable; deletable if no recorded payments).
 - `POST /api/invoices/[id]/void`: Voids an invoice while preserving historical allocations.
 - `GET /api/invoices/[id]/print`: HTML printout template.
 - `GET/POST /api/payments`: Records and allocates payments across outstanding invoices.

@@ -94,6 +94,12 @@ export async function GET(req: Request) {
         const allocatedSum = r.allocations
           .filter((a) => a.payment?.status !== "VOID")
           .reduce((acc, a) => acc.plus(a.amount), new Decimal(0));
+        let voidReason: string | null = null;
+        if (r.notes && r.status === "VOID") {
+          const match = r.notes.match(/\[Void reason\]:\s*(.+)$/m);
+          if (match) voidReason = match[1].trim();
+        }
+
         return {
           id: r.id,
           invoiceNumber: r.invoiceNumber,
@@ -114,6 +120,7 @@ export async function GET(req: Request) {
           derivedStatus: deriveInvoiceStatus(r, r.allocations, now),
           dueDate: r.dueDate,
           notes: r.notes,
+          voidReason,
           createdBy: r.createdBy,
           createdAt: r.createdAt,
           allocated: allocatedSum.toString(),

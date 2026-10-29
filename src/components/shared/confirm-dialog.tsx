@@ -35,8 +35,24 @@ export function ConfirmDialog({
   loading?: boolean;
   onConfirm: () => void | Promise<void>;
 }) {
+  const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) {
+      setSubmitting(false);
+    }
+  }, [open]);
+
+  const isBusy = Boolean(loading || submitting);
+
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(v) => {
+        if (isBusy) return;
+        onOpenChange(v);
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
@@ -47,15 +63,19 @@ export function ConfirmDialog({
           )}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>{cancelText}</AlertDialogCancel>
+          <AlertDialogCancel disabled={isBusy}>{cancelText}</AlertDialogCancel>
           <AlertDialogAction
-            disabled={loading}
+            disabled={isBusy}
             onClick={async (e) => {
               e.preventDefault();
+              if (isBusy) return;
+              setSubmitting(true);
               try {
                 await onConfirm();
               } catch (err) {
                 console.error("[ConfirmDialog error]:", err);
+              } finally {
+                setSubmitting(false);
               }
             }}
             className={cn(
@@ -63,7 +83,7 @@ export function ConfirmDialog({
                 cn(buttonVariants({ variant: "destructive" }), "mt-0")
             )}
           >
-            {loading ? "Working..." : confirmText}
+            {isBusy ? "Working..." : confirmText}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -40,6 +40,7 @@ type Service = {
   status: string;
   installedAt: string | null;
   hasCredentials: boolean;
+  contractsCount?: number;
   branch: { id: string; name: string; code: string } | null;
   shop: { id: string; name: string; code: string } | null;
   provider: { id: string; name: string; code: string } | null;
@@ -112,28 +113,42 @@ export function ServicesView() {
   }, [services, providerFilter, search]);
 
   const createMut = async (data: Record<string, unknown>) => {
-    await api("/api/services", { method: "POST", body: JSON.stringify(data) });
-    toast.success("Service created");
-    qc.invalidateQueries({ queryKey: ["services"] });
-    qc.invalidateQueries({ queryKey: ["services-min"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    try {
+      await api("/api/services", { method: "POST", body: JSON.stringify(data) });
+      toast.success("Service created");
+      setDialogOpen(false);
+      qc.invalidateQueries({ queryKey: ["services"] });
+      qc.invalidateQueries({ queryKey: ["services-min"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to create service");
+    }
   };
 
   const updateMut = async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
-    await api(`/api/services/${id}`, { method: "PATCH", body: JSON.stringify(data) });
-    toast.success("Service updated");
-    qc.invalidateQueries({ queryKey: ["services"] });
-    qc.invalidateQueries({ queryKey: ["services-min"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    try {
+      await api(`/api/services/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+      toast.success("Service updated");
+      setDialogOpen(false);
+      qc.invalidateQueries({ queryKey: ["services"] });
+      qc.invalidateQueries({ queryKey: ["services-min"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to update service");
+    }
   };
 
   const deleteMut = async (id: string) => {
-    await api(`/api/services/${id}`, { method: "DELETE" });
-    toast.success("Service deleted");
-    setDeleting(null);
-    qc.invalidateQueries({ queryKey: ["services"] });
-    qc.invalidateQueries({ queryKey: ["services-min"] });
-    qc.invalidateQueries({ queryKey: ["dashboard"] });
+    try {
+      await api(`/api/services/${id}`, { method: "DELETE" });
+      toast.success("Service deleted");
+      setDeleting(null);
+      qc.invalidateQueries({ queryKey: ["services"] });
+      qc.invalidateQueries({ queryKey: ["services-min"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    } catch (err) {
+      toast.error((err as Error).message || "Failed to delete service");
+    }
   };
 
   const columns: DataTableColumn<Service>[] = [
@@ -203,6 +218,11 @@ export function ServicesView() {
               icon: <Trash2 className="size-4" />,
               variant: "destructive" as const,
               priority: 2,
+              disabled: (s.contractsCount ?? 0) > 0,
+              disabledReason:
+                (s.contractsCount ?? 0) > 0
+                  ? `Service has ${s.contractsCount} contract(s); archive instead of delete`
+                  : undefined,
               onClick: () => setDeleting(s),
             },
           ]}
@@ -285,10 +305,16 @@ export function ServicesView() {
         open={!!deleting}
         onOpenChange={(v) => !v && setDeleting(null)}
         title="Delete service"
-        description={deleting ? `Delete "${deleting.serviceCode}"? Services with contracts cannot be deleted.` : ""}
+        description={
+          deleting
+            ? `Delete "${deleting.serviceCode}"? This action cannot be undone.`
+            : ""
+        }
         confirmText="Delete"
         destructive
-        onConfirm={() => { if (deleting) return deleteMut(deleting.id); }}
+        onConfirm={() => {
+          if (deleting) return deleteMut(deleting.id);
+        }}
       />
     </div>
   );

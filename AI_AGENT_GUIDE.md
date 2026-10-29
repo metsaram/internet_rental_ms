@@ -496,9 +496,9 @@ All views are client components (`"use client"`), lazy-loaded in `page.tsx`.
 - Shop → Cascade on company; Restrict on services.
 - Provider → Cascade on company; Restrict on plans/services.
 - Plan → Cascade on company; SetNull on services (optional).
-- Service → Cascade on company; Restrict on contracts.
+- Service → Cascade on company; Restrict on contracts (UI disables delete when `contractsCount > 0`; API uses company-scoped `deleteMany` and cleans up polymorphic attachments/outages).
 - Contract → Cascade on company; Restrict on invoices/renewals.
-- Invoice → Cascade on company; Restrict on allocations.
+- Invoice → Cascade on company; Restrict on allocations (only drafts or zero-allocation invoices can be deleted; VOID invoices cannot be deleted).
 - Payment → Cascade on company; Cascade on allocations.
 - PaymentAllocation → Cascade on payment; Restrict on invoice.
 - Attachment → Cascade on company/user.

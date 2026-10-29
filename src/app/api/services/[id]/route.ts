@@ -139,15 +139,38 @@ export async function DELETE(_req: Request, { params }: Params) {
     if (contractCount > 0) {
       throw new HttpError(400, `Service has ${contractCount} contract(s); archive instead of delete`);
     }
-    await db.internetService.delete({ where: { id } });
-    await writeAudit({
-      companyId: user.companyId,
-      actorId: user.id,
-      action: "DELETE",
-      entityType: "InternetService",
-      entityId: id,
-      before: { serviceCode: existing.serviceCode },
+
+    // Clean up any associated polymorphic attachments or outages before removing service
+    await db.attachment.deleteMany({
+      where: {
+        companyId: user.companyId,
+        entityType: "service",
+        entityId: id,
+      },
     });
+
+    await db.outageIncident.deleteMany({
+      where: {
+        companyId: user.companyId,
+        serviceId: id,
+      },
+    });
+
+    const result = await db.internetService.deleteMany({
+      where: { id, companyId: user.companyId },
+    });
+
+    if (result.count > 0) {
+      await writeAudit({
+        companyId: user.companyId,
+        actorId: user.id,
+        action: "DELETE",
+        entityType: "InternetService",
+        entityId: id,
+        before: { serviceCode: existing.serviceCode },
+      });
+    }
+
     return new Response(null, { status: 204 });
   } catch (err) {
     return errorResponse(err);

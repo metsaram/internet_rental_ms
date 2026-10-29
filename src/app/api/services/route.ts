@@ -76,6 +76,7 @@ export async function GET(req: Request) {
         shop: { select: { id: true, name: true, code: true } },
         provider: { select: { id: true, name: true, code: true } },
         plan: { select: { id: true, name: true } },
+        _count: { select: { contracts: true } },
       },
       orderBy,
       take: 500,
@@ -110,6 +111,7 @@ export async function GET(req: Request) {
         installedAt: r.installedAt,
         // username is sensitive — return only whether it is set.
         hasCredentials: !!r.username,
+        contractsCount: r._count?.contracts ?? 0,
         branch: r.branch,
         shop: r.shop,
         provider: r.provider,

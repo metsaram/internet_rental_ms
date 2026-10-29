@@ -60,5 +60,8 @@ bun.lock
 
 /playwright-report/
 /test-results/
-/test
 /tests
+.env
+.env
+*.lock
+*.lock

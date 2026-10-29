@@ -55,12 +55,18 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { formatMoney, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+type ProviderMin = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 type ContractMin = {
   id: string;
   contractNumber: string;
   serviceCode: string;
   branch: { name: string; code: string } | null;
-  provider: { name: string; code: string } | null;
+  provider: { id?: string; name: string; code: string } | null;
   monthlyFee: string;
   currency: string;
 };
@@ -71,7 +77,7 @@ type Invoice = {
   contractId: string;
   contractNumber: string;
   branch: { name: string; code: string } | null;
-  provider: { name: string; code: string } | null;
+  provider: { id: string; name: string; code: string } | null;
   serviceCode: string;
   invoiceDate: string;
   periodStart: string | null;
@@ -114,6 +120,7 @@ export function InvoicesView() {
   const qc = useQueryClient();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
+  const [providerFilter, setProviderFilter] = React.useState<string>("ALL");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Invoice | null>(null);
   const [detail, setDetail] = React.useState<Invoice | null>(null);
@@ -122,11 +129,12 @@ export function InvoicesView() {
   const [deleting, setDeleting] = React.useState<Invoice | null>(null);
 
   const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
-    queryKey: ["invoices", search, statusFilter],
+    queryKey: ["invoices", search, statusFilter, providerFilter],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (search) qs.set("search", search);
       if (statusFilter !== "ALL") qs.set("status", statusFilter);
+      if (providerFilter !== "ALL") qs.set("providerId", providerFilter);
       return api<Invoice[]>(`/api/invoices?${qs.toString()}`);
     },
   });
@@ -134,14 +142,29 @@ export function InvoicesView() {
     queryKey: ["contracts"],
     queryFn: () => api<ContractMin[]>("/api/contracts"),
   });
+  const { data: providers = [], isLoading: isProvidersLoading } = useQuery<ProviderMin[]>({
+    queryKey: ["providers-min"],
+    queryFn: () => api<ProviderMin[]>("/api/providers?min=true"),
+  });
 
   const filtered = React.useMemo(() => {
-    if (!search) return invoices;
+    let list = invoices;
+    if (providerFilter !== "ALL") {
+      list = list.filter((i) => i.provider?.id === providerFilter);
+    }
+    if (!search) return list;
     const s = search.toLowerCase();
-    return invoices.filter((i) =>
-      [i.invoiceNumber, i.contractNumber, i.branch?.name].some((v) => v?.toLowerCase().includes(s))
+    return list.filter((i) =>
+      [
+        i.invoiceNumber,
+        i.contractNumber,
+        i.serviceCode,
+        i.branch?.name,
+        i.provider?.name,
+        i.provider?.code,
+      ].some((v) => v?.toLowerCase().includes(s))
     );
-  }, [invoices, search]);
+  }, [invoices, providerFilter, search]);
 
   const createMut = async (data: Record<string, unknown>) => {
     await api("/api/invoices", { method: "POST", body: JSON.stringify(data) });
@@ -369,12 +392,30 @@ export function InvoicesView() {
         emptyMessage="No invoices match your filters."
         search={{ value: search, onChange: setSearch, placeholder: "Search invoices..." }}
         toolbar={
-          <FilterSelect
-            value={statusFilter as any}
-            onChange={(v) => setStatusFilter(v as string)}
-            options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label }))}
-            placeholder="Status"
-          />
+          <>
+            <FilterSelect
+              value={statusFilter as any}
+              onChange={(v) => setStatusFilter(v as string)}
+              options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label }))}
+              placeholder="Select Status"
+              showPlaceholderOnAll
+              allLabel="All statuses"
+              disabled={isLoading}
+            />
+            <FilterSelect
+              value={providerFilter as any}
+              onChange={(v) => setProviderFilter(v as string)}
+              options={providers.map((p) => ({
+                value: p.id,
+                label: `${p.code} — ${p.name}`,
+              }))}
+              placeholder="Select Provider"
+              showPlaceholderOnAll
+              allLabel="All providers"
+              className="w-[11rem] sm:w-[13rem]"
+              disabled={isLoading || isProvidersLoading}
+            />
+          </>
         }
       />
 
@@ -417,7 +458,7 @@ export function InvoicesView() {
         confirmText="Void invoice"
         destructive
         loading={false}
-        onConfirm={() => voiding && voidMut(voiding.id)}
+        onConfirm={() => { if (voiding) return voidMut(voiding.id); }}
       />
       <ConfirmDialog
         open={!!deleting}
@@ -427,7 +468,7 @@ export function InvoicesView() {
         confirmText="Delete"
         destructive
         loading={false}
-        onConfirm={() => deleting && deleteMut(deleting.id)}
+        onConfirm={() => { if (deleting) return deleteMut(deleting.id); }}
       />
     </div>
   );

@@ -33,12 +33,14 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const search = url.searchParams.get("search")?.trim() ?? "";
     const status = url.searchParams.get("status") ?? "ALL";
+    const providerId = url.searchParams.get("providerId") ?? url.searchParams.get("provider") ?? "ALL";
     const min = url.searchParams.get("min") === "true";
     const sort = url.searchParams.get("sort") ?? "newest";
 
     const where: Prisma.InternetServiceWhereInput = {
       companyId: user.companyId,
       ...(status !== "ALL" ? { status: status as any } : {}),
+      ...(providerId !== "ALL" ? { providerId } : {}),
       ...(search
         ? {
             OR: [

@@ -238,6 +238,7 @@ export function ContractsView() {
         <Checkbox
           checked={allSelected}
           onCheckedChange={toggleAll}
+          disabled={isLoading}
           aria-label="Select all"
           className="size-4"
         />
@@ -246,6 +247,7 @@ export function ContractsView() {
         <Checkbox
           checked={selected.has(c.id)}
           onCheckedChange={() => toggleSelect(c.id)}
+          disabled={isLoading}
           onClick={(e) => e.stopPropagation()}
           aria-label={`Select ${c.contractNumber}`}
           className="size-4"
@@ -540,7 +542,10 @@ export function ContractsView() {
             value={statusFilter as any}
             onChange={(v) => setStatusFilter(v as string)}
             options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label }))}
-            placeholder="Status"
+            placeholder="Select Status"
+            showPlaceholderOnAll
+            allLabel="All statuses"
+            disabled={isLoading}
           />
         }
       />

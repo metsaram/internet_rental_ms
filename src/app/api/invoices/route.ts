@@ -34,15 +34,29 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const search = url.searchParams.get("search")?.toLowerCase() ?? "";
     const status = url.searchParams.get("status") ?? "ALL";
+    const providerId = url.searchParams.get("providerId") ?? url.searchParams.get("provider") ?? "ALL";
 
     const where: Prisma.InvoiceWhereInput = {
       companyId: user.companyId,
-      ...(status !== "ALL" ? { status } : {}),
+      ...(status !== "ALL" ? { status: status as any } : {}),
+      ...(providerId !== "ALL"
+        ? {
+            contract: {
+              service: {
+                providerId,
+              },
+            },
+          }
+        : {}),
       ...(search
         ? {
             OR: [
               { invoiceNumber: { contains: search, mode: "insensitive" } },
               { contract: { contractNumber: { contains: search, mode: "insensitive" } } },
+              { contract: { service: { serviceCode: { contains: search, mode: "insensitive" } } } },
+              { contract: { service: { branch: { name: { contains: search, mode: "insensitive" } } } } },
+              { contract: { service: { provider: { name: { contains: search, mode: "insensitive" } } } } },
+              { contract: { service: { provider: { code: { contains: search, mode: "insensitive" } } } } },
             ],
           }
         : {}),

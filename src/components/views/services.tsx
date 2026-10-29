@@ -63,30 +63,36 @@ export function ServicesView() {
   const qc = useQueryClient();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
+  const [providerFilter, setProviderFilter] = React.useState<string>("ALL");
   const [sort, setSort] = React.useState<string>("newest");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Service | null>(null);
   const [deleting, setDeleting] = React.useState<Service | null>(null);
 
   const { data: services = [], isLoading } = useQuery<Service[]>({
-    queryKey: ["services", search, statusFilter, sort],
+    queryKey: ["services", search, statusFilter, providerFilter, sort],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (search) qs.set("search", search);
       if (statusFilter !== "ALL") qs.set("status", statusFilter);
+      if (providerFilter !== "ALL") qs.set("providerId", providerFilter);
       if (sort) qs.set("sort", sort);
       return api<Service[]>(`/api/services?${qs.toString()}`);
     },
   });
   const { data: branches = [] } = useQuery<Branch[]>({ queryKey: ["branches-min"], queryFn: () => api<Branch[]>("/api/branches?min=true") });
   const { data: shops = [] } = useQuery<Shop[]>({ queryKey: ["shops-min"], queryFn: () => api<Shop[]>("/api/shops?min=true") });
-  const { data: providers = [] } = useQuery<Provider[]>({ queryKey: ["providers-min"], queryFn: () => api<Provider[]>("/api/providers?min=true") });
+  const { data: providers = [], isLoading: isProvidersLoading } = useQuery<Provider[]>({ queryKey: ["providers-min"], queryFn: () => api<Provider[]>("/api/providers?min=true") });
   const { data: plans = [] } = useQuery<Plan[]>({ queryKey: ["plans-min"], queryFn: () => api<Plan[]>("/api/plans?min=true") });
 
   const filtered = React.useMemo(() => {
-    if (!search) return services;
+    let list = services;
+    if (providerFilter !== "ALL") {
+      list = list.filter((sv) => sv.provider?.id === providerFilter);
+    }
+    if (!search) return list;
     const s = search.toLowerCase();
-    return services.filter((sv) =>
+    return list.filter((sv) =>
       [
         sv.serviceCode,
         sv.accountId,
@@ -103,7 +109,7 @@ export function ServicesView() {
         sv.plan?.name,
       ].some((v) => v?.toLowerCase().includes(s))
     );
-  }, [services, search]);
+  }, [services, providerFilter, search]);
 
   const createMut = async (data: Record<string, unknown>) => {
     await api("/api/services", { method: "POST", body: JSON.stringify(data) });
@@ -234,13 +240,30 @@ export function ServicesView() {
               value={statusFilter as any}
               onChange={(v) => setStatusFilter(v as string)}
               options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label }))}
-              placeholder="Status"
+              placeholder="Select Status"
+              showPlaceholderOnAll
+              allLabel="All statuses"
+              disabled={isLoading}
+            />
+            <FilterSelect
+              value={providerFilter as any}
+              onChange={(v) => setProviderFilter(v as string)}
+              options={providers.map((p) => ({
+                value: p.id,
+                label: `${p.code} — ${p.name}`,
+              }))}
+              placeholder="Select Provider"
+              showPlaceholderOnAll
+              allLabel="All providers"
+              className="w-[11rem] sm:w-[13rem]"
+              disabled={isLoading || isProvidersLoading}
             />
             <FilterSelect
               value={sort as any}
               onChange={(v) => setSort(v as string)}
               options={SORT_OPTS.map((s) => ({ value: s.value, label: s.label }))}
               placeholder="Sort"
+              disabled={isLoading}
             />
           </div>
         }
@@ -265,7 +288,7 @@ export function ServicesView() {
         description={deleting ? `Delete "${deleting.serviceCode}"? Services with contracts cannot be deleted.` : ""}
         confirmText="Delete"
         destructive
-        onConfirm={() => deleting && deleteMut(deleting.id)}
+        onConfirm={() => { if (deleting) return deleteMut(deleting.id); }}
       />
     </div>
   );

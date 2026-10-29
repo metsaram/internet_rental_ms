@@ -1241,25 +1241,39 @@ export function FilterSelect<T extends string>({
   onChange,
   options,
   placeholder,
+  allLabel = "All",
+  showPlaceholderOnAll = false,
+  disabled = false,
   className,
 }: {
   value: T | "ALL";
   onChange: (v: T | "ALL") => void;
   options: { value: T; label: string }[];
   placeholder?: string;
+  allLabel?: string;
+  showPlaceholderOnAll?: boolean;
+  disabled?: boolean;
   className?: string;
 }) {
+  const isPlaceholder =
+    value === "ALL" &&
+    (showPlaceholderOnAll || !!(placeholder && placeholder.toLowerCase().startsWith("select")));
+
   return (
     <Select
-      value={value}
-      onValueChange={(v) => onChange(v as T | "ALL")}
+      value={isPlaceholder ? "" : value}
+      onValueChange={(v) => onChange((v || "ALL") as T | "ALL")}
+      disabled={disabled}
     >
-      <SelectTrigger className={cn("h-8 w-[10rem] text-xs", className)}>
+      <SelectTrigger
+        className={cn("h-8 w-[10rem] text-xs", className)}
+        disabled={disabled}
+      >
         <SelectValue placeholder={placeholder ?? "Filter"} />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="ALL" className="text-xs">
-          All
+          {allLabel}
         </SelectItem>
         {options.map((o) => (
           <SelectItem key={o.value} value={o.value} className="text-xs">

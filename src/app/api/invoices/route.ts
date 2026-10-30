@@ -40,6 +40,33 @@ export async function GET(req: Request) {
     const status = url.searchParams.get("status") ?? "ALL";
     const providerId = url.searchParams.get("providerId") ?? url.searchParams.get("provider") ?? "ALL";
 
+    // Build filter conditions safely without relying on relational 'service' field on Invoice
+    let serviceIdFilter: string[] | null = null;
+    if (providerId !== "ALL") {
+      const matchingServices = await db.internetService.findMany({
+        where: { companyId: user.companyId, providerId },
+        select: { id: true },
+      });
+      serviceIdFilter = matchingServices.map((s) => s.id);
+    }
+
+    let searchServiceIds: string[] = [];
+    if (search) {
+      const matched = await db.internetService.findMany({
+        where: {
+          companyId: user.companyId,
+          OR: [
+            { serviceCode: { contains: search, mode: "insensitive" } },
+            { branch: { name: { contains: search, mode: "insensitive" } } },
+            { provider: { name: { contains: search, mode: "insensitive" } } },
+            { provider: { code: { contains: search, mode: "insensitive" } } },
+          ],
+        },
+        select: { id: true },
+      });
+      searchServiceIds = matched.map((s) => s.id);
+    }
+
     const where: Prisma.InvoiceWhereInput = {
       companyId: user.companyId,
       ...(status !== "ALL" ? { status: status as any } : {}),
@@ -47,7 +74,7 @@ export async function GET(req: Request) {
         ? {
             OR: [
               { contract: { service: { providerId } } },
-              { service: { providerId } },
+              { serviceId: { in: serviceIdFilter ?? [] } },
             ],
           }
         : {}),
@@ -60,10 +87,7 @@ export async function GET(req: Request) {
               { contract: { service: { branch: { name: { contains: search, mode: "insensitive" } } } } },
               { contract: { service: { provider: { name: { contains: search, mode: "insensitive" } } } } },
               { contract: { service: { provider: { code: { contains: search, mode: "insensitive" } } } } },
-              { service: { serviceCode: { contains: search, mode: "insensitive" } } },
-              { service: { branch: { name: { contains: search, mode: "insensitive" } } } },
-              { service: { provider: { name: { contains: search, mode: "insensitive" } } } },
-              { service: { provider: { code: { contains: search, mode: "insensitive" } } } },
+              ...(searchServiceIds.length > 0 ? [{ serviceId: { in: searchServiceIds } }] : []),
             ],
           }
         : {}),
@@ -87,15 +111,6 @@ export async function GET(req: Request) {
             },
           },
         },
-        service: {
-          select: {
-            id: true,
-            serviceCode: true,
-            branch: { select: { id: true, name: true, code: true } },
-            shop: { select: { id: true, name: true, code: true } },
-            provider: { select: { id: true, name: true, code: true } },
-          },
-        },
         createdBy: { select: { id: true, name: true, email: true } },
         allocations: { include: { payment: { select: { status: true, reference: true, method: true, paymentDate: true } } } },
       },
@@ -103,20 +118,40 @@ export async function GET(req: Request) {
       take: 500,
     });
 
+    // Batch-fetch any direct services linked to invoices without contract
+    const directServiceIds = Array.from(
+      new Set(rows.map((r: any) => r.serviceId).filter((id): id is string => Boolean(id)))
+    );
+
+    const directServices = directServiceIds.length > 0
+      ? await db.internetService.findMany({
+          where: { id: { in: directServiceIds } },
+          select: {
+            id: true,
+            serviceCode: true,
+            branch: { select: { id: true, name: true, code: true } },
+            shop: { select: { id: true, name: true, code: true } },
+            provider: { select: { id: true, name: true, code: true } },
+          },
+        })
+      : [];
+
+    const serviceMap = new Map(directServices.map((s) => [s.id, s]));
+
     const now = new Date();
     return NextResponse.json(
-      rows.map((r) => {
+      rows.map((r: any) => {
         const allocated = outstandingBalance(r, r.allocations);
         const allocatedSum = r.allocations
-          .filter((a) => a.payment?.status !== "VOID")
-          .reduce((acc, a) => acc.plus(a.amount), new Decimal(0));
+          .filter((a: any) => a.payment?.status !== "VOID")
+          .reduce((acc: any, a: any) => acc.plus(a.amount), new Decimal(0));
         let voidReason: string | null = null;
         if (r.notes && r.status === "VOID") {
           const match = r.notes.match(/\[Void reason\]:\s*(.+)$/m);
           if (match) voidReason = match[1].trim();
         }
 
-        const svc = r.service ?? r.contract?.service;
+        const svc = (r.serviceId ? serviceMap.get(r.serviceId) : null) ?? r.contract?.service;
 
         return {
           id: r.id,

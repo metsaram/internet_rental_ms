@@ -72,6 +72,7 @@ type ProviderMin = {
 type ContractMin = {
   id: string;
   contractNumber: string;
+  serviceId?: string;
   serviceCode: string;
   startDate?: string;
   endDate?: string;
@@ -159,7 +160,13 @@ export function InvoicesView() {
   const [voiding, setVoiding] = React.useState<Invoice | null>(null);
   const [deleting, setDeleting] = React.useState<Invoice | null>(null);
 
-  const { data: invoices = [], isLoading } = useQuery<Invoice[]>({
+  const {
+    data: invoices = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<Invoice[]>({
     queryKey: ["invoices", search, statusFilter, providerFilter],
     queryFn: () => {
       const qs = new URLSearchParams();
@@ -188,23 +195,22 @@ export function InvoicesView() {
   const useContract = company?.useContract ?? true;
 
   const filtered = React.useMemo(() => {
-    let list = invoices;
-    if (providerFilter !== "ALL") {
-      list = list.filter((i) => i.provider?.id === providerFilter);
-    }
-    if (!search) return list;
+    if (!search) return invoices;
     const s = search.toLowerCase();
-    return list.filter((i) =>
+    return invoices.filter((i) =>
       [
         i.invoiceNumber,
         i.contractNumber,
         i.serviceCode,
         i.branch?.name,
+        i.branch?.code,
+        i.shop?.name,
+        i.shop?.code,
         i.provider?.name,
         i.provider?.code,
       ].some((v) => v?.toLowerCase().includes(s))
     );
-  }, [invoices, providerFilter, search]);
+  }, [invoices, search]);
 
   const createMut = async (data: Record<string, unknown>) => {
     await api("/api/invoices", { method: "POST", body: JSON.stringify(data) });
@@ -255,7 +261,15 @@ export function InvoicesView() {
       cell: (i) => (
         <div>
           <div className="font-medium">{i.invoiceNumber}</div>
-          <div className="text-[11px] text-muted-foreground">{i.contractNumber}</div>
+          <div className="text-[11px] text-muted-foreground font-mono">
+            {i.contractNumber && i.contractNumber !== "—" ? (
+              <span>{i.contractNumber}{i.serviceCode && i.serviceCode !== "—" ? ` · ${i.serviceCode}` : ""}</span>
+            ) : i.serviceCode && i.serviceCode !== "—" ? (
+              <span>{i.serviceCode}</span>
+            ) : (
+              "—"
+            )}
+          </div>
         </div>
       ),
     },
@@ -415,11 +429,37 @@ export function InvoicesView() {
         title="Invoices & Payments"
         description="Bill contracts per period, record payments with allocations, and track outstanding balances. Voiding preserves financial history."
         actions={
-          <Button onClick={() => { setEditing(null); setDialogOpen(true); }} disabled={contracts.length === 0}>
-            <Plus className="size-4" /> New invoice
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              title="Refresh invoices"
+              onClick={() => {
+                refetch();
+                qc.invalidateQueries({ queryKey: ["invoices"] });
+              }}
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("size-4", isLoading && "animate-spin")} />
+            </Button>
+            <Button
+              onClick={() => { setEditing(null); setDialogOpen(true); }}
+              disabled={useContract ? contracts.length === 0 : services.length === 0}
+            >
+              <Plus className="size-4" /> New invoice
+            </Button>
+          </div>
         }
       />
+
+      {isError && (
+        <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+          <span>Failed to load invoices: {(error as Error)?.message || "Session error. Please refresh."}</span>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* Outstanding balance summary strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -452,7 +492,11 @@ export function InvoicesView() {
         rowKey={(i) => i.id}
         loading={isLoading}
         onRowClick={(i) => setDetail(i)}
-        emptyMessage="No invoices match your filters."
+        emptyMessage={
+          invoices.length === 0
+            ? "No invoices found in your company. Click 'New invoice' to create one."
+            : "No invoices match your active filters or search."
+        }
         search={{ value: search, onChange: setSearch, placeholder: "Search invoices..." }}
         toolbar={
           <>
@@ -609,8 +653,11 @@ function InvoiceForm({
         onOpenChange(false);
         return;
       }
-      setContractId(editing.contractId ?? "");
-      setServiceId((editing as any).serviceId ?? "");
+      const resolvedContractId = editing.contractId ?? "";
+      const linkedContract = contracts.find((c) => c.id === resolvedContractId);
+      const resolvedServiceId = (editing as any).serviceId || linkedContract?.serviceId || "";
+      setContractId(resolvedContractId);
+      setServiceId(resolvedServiceId);
       setInvoiceNumber(editing.invoiceNumber);
       setInvoiceDate(editing.invoiceDate.slice(0, 10));
       setStartDate(editing.periodStart?.slice(0, 10) ?? "");
@@ -629,8 +676,7 @@ function InvoiceForm({
       setStatus(editing.status);
       setNotes(editing.notes ?? "");
 
-      const linkedContract = contracts.find((c) => c.id === editing.contractId);
-      const linkedService = services.find((s) => s.id === (editing as any).serviceId);
+      const linkedService = services.find((s) => s.id === resolvedServiceId);
 
       let initDuration: number | string = 12;
       let initFreeMonths: number | string = 0;
@@ -654,17 +700,37 @@ function InvoiceForm({
         initMonthlyFee = initDuration > 0 ? Number(editing.subtotal) / initDuration : Number(editing.subtotal);
       }
 
-      setDuration(initDuration);
-      setFreeMonths(initFreeMonths);
-      setFeeBasis("MONTHLY");
-      setFeeInput(initMonthlyFee);
+      // If the invoice's stored period exceeds paid duration, calculate promotional free months
+      if (editing.periodStart && editing.periodEnd) {
+        const s = new Date(editing.periodStart);
+        const e = new Date(editing.periodEnd);
+        const totalPeriodMonths = Math.max(1, (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()));
+        if (totalPeriodMonths > Number(initDuration)) {
+          initFreeMonths = totalPeriodMonths - Number(initDuration);
+        }
+      }
 
+      // If installation fee exists, calculate scheduled monthly fee accurately
       const installMatch = editing.notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
       const existingInstallFee = installMatch
         ? Number(installMatch[1])
         : (editing as any).installationFee
           ? Number((editing as any).installationFee)
           : 0;
+
+      const scheduledPortion = Math.max(0, Number(editing.subtotal) - existingInstallFee);
+      if (Number(initDuration) > 0) {
+        const calculatedMonthly = Number((scheduledPortion / Number(initDuration)).toFixed(2));
+        if (Number(initMonthlyFee) * Number(initDuration) !== scheduledPortion && calculatedMonthly > 0) {
+          initMonthlyFee = calculatedMonthly;
+        }
+      }
+
+      setDuration(initDuration);
+      setFreeMonths(initFreeMonths);
+      setFeeBasis("MONTHLY");
+      setFeeInput(initMonthlyFee);
+
       if (existingInstallFee > 0) {
         setHasInstallationFee(true);
         setInstallationFee(existingInstallFee);
@@ -1307,19 +1373,70 @@ function InvoiceDetailSheet({
               </div>
             )}
 
-            <DetailGrid
-              rows={[
-                ["Contract", detail.contract?.contractNumber ?? "— (No contract)"],
-                ["Service", detail.service?.serviceCode ?? detail.contract?.service?.serviceCode ?? detail.serviceCode ?? "—"],
-                ["Branch", detail.service?.branch?.name ?? detail.contract?.service?.branch?.name ?? detail.branch?.name ?? "—"],
-                ["Shop", detail.service?.shop?.name ?? detail.contract?.service?.shop?.name ?? detail.shop?.name ?? "—"],
-                ["Provider", detail.service?.provider?.name ?? detail.contract?.service?.provider?.name ?? detail.provider?.name ?? "—"],
-                ["Invoice date", formatDate(detail.invoiceDate)],
-                ["Due date", formatDate(detail.dueDate)],
-                ["Period", detail.periodStart ? `${formatDate(detail.periodStart)} → ${formatDate(detail.periodEnd)}` : "—"],
-                ["Created by", detail.createdBy?.name ?? detail.createdBy?.email ?? "—"],
-              ]}
-            />
+            {(() => {
+              const svc = detail.service ?? detail.contract?.service;
+              const branch = svc?.branch ?? detail.branch;
+              const shop = svc?.shop ?? detail.shop;
+              const provider = svc?.provider ?? detail.provider;
+              const serviceCode = svc?.serviceCode ?? detail.serviceCode ?? "—";
+              return (
+                <DetailGrid
+                  rows={[
+                    ["Contract", detail.contract?.contractNumber ?? "— (No contract)"],
+                    ["Service", <span key="svc" className="font-mono font-medium">{serviceCode}</span>],
+                    [
+                      "Branch",
+                      branch?.name ? (
+                        <div key="br">
+                          <span className="font-medium">{branch.name}</span>
+                          {branch.code && (
+                            <span className="ml-1.5 text-[11px] text-muted-foreground font-mono">
+                              ({branch.code})
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      ),
+                    ],
+                    [
+                      "Shop",
+                      shop?.name ? (
+                        <div key="sh">
+                          <span className="font-medium">{shop.name}</span>
+                          {shop.code && (
+                            <span className="ml-1.5 text-[11px] text-muted-foreground font-mono">
+                              ({shop.code})
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      ),
+                    ],
+                    [
+                      "Provider",
+                      provider?.name ? (
+                        <div key="pr">
+                          <span className="font-medium">{provider.name}</span>
+                          {provider.code && (
+                            <span className="ml-1.5 text-[11px] text-muted-foreground font-mono">
+                              ({provider.code})
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        "—"
+                      ),
+                    ],
+                    ["Invoice date", formatDate(detail.invoiceDate)],
+                    ["Due date", formatDate(detail.dueDate)],
+                    ["Period", detail.periodStart ? `${formatDate(detail.periodStart)} → ${formatDate(detail.periodEnd)}` : "—"],
+                    ["Created by", detail.createdBy?.name ?? detail.createdBy?.email ?? "—"],
+                  ]}
+                />
+              );
+            })()}
 
             {(() => {
               const installMatch = detail.notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);

@@ -550,4 +550,103 @@ describe("Service installation fee option & calculations", () => {
     const badgeText = startDate && endDate ? `${startDate} → ${endDate}` : `${totalMonths} Months`;
     expect(badgeText).toBe("2026-03-01 → 2026-10-01");
   });
+
+  describe("Old Invoice Structure Compatibility & Migration", () => {
+    it("deduces serviceId from contract when old invoice has serviceId: null", () => {
+      const oldInvoice = {
+        id: "inv-old-1",
+        invoiceNumber: "INV-2026-4170",
+        contractId: "ctr-2026-2587",
+        serviceId: null,
+      };
+
+      const contracts = [
+        { id: "ctr-2026-2587", contractNumber: "CT-2026-2587", serviceId: "svc-2075" },
+      ];
+
+      const resolvedContractId = oldInvoice.contractId ?? "";
+      const linkedContract = contracts.find((c) => c.id === resolvedContractId);
+      const resolvedServiceId = (oldInvoice as any).serviceId || linkedContract?.serviceId || "";
+
+      expect(resolvedContractId).toBe("ctr-2026-2587");
+      expect(resolvedServiceId).toBe("svc-2075");
+    });
+
+    it("recovers promotional free months and matches stored timeline for old invoice with 14-month span", () => {
+      // Historical invoice INV-2026-4170:
+      // periodStart: 2026-11-27, periodEnd: 2028-01-27, subtotal: 726 (12 * 60.50), tax: 72.60
+      const oldInvoice = {
+        periodStart: "2026-11-27T00:00:00.000Z",
+        periodEnd: "2028-01-27T00:00:00.000Z",
+        subtotal: "726",
+        tax: "72.6",
+      };
+
+      const linkedContract = {
+        durationMonths: 12,
+        freeMonths: 0,
+        monthlyFee: "60.5",
+      };
+
+      let initDuration: number = Math.max(1, (linkedContract.durationMonths || 12) - Number(linkedContract.freeMonths || 0));
+      let initFreeMonths = linkedContract.freeMonths || 0;
+      let initMonthlyFee = Number(linkedContract.monthlyFee);
+
+      // Deduce promo free months
+      if (oldInvoice.periodStart && oldInvoice.periodEnd) {
+        const s = new Date(oldInvoice.periodStart);
+        const e = new Date(oldInvoice.periodEnd);
+        const totalPeriodMonths = Math.max(1, (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()));
+        if (totalPeriodMonths > initDuration) {
+          initFreeMonths = totalPeriodMonths - initDuration;
+        }
+      }
+
+      expect(initDuration).toBe(12);
+      expect(initFreeMonths).toBe(2);
+
+      // Verify computed timeline matches old periodEnd
+      const { totalMonths, endDate } = computeTimeline("2026-11-27", initDuration, initFreeMonths);
+      expect(totalMonths).toBe(14);
+      expect(endDate).toBe("2028-01-27");
+
+      // Verify financial calculation reproduces subtotal, tax, and total
+      const fin = computeFinancials(initMonthlyFee, initDuration, initFreeMonths, 10, null, 0);
+      expect(fin.paidMonths).toBe(12);
+      expect(fin.scheduled).toBe(726);
+      expect(fin.subtotal).toBe(726);
+      expect(fin.autoTax).toBe(72.6);
+      expect(fin.total).toBe(798.6);
+    });
+
+    it("correctly handles old invoices without contracts using direct service linkage", () => {
+      const contractFreeInvoice = {
+        id: "inv-direct-svc",
+        contractId: null,
+        serviceId: "svc-direct-10",
+        periodStart: "2026-05-01",
+        periodEnd: "2027-05-01",
+        subtotal: "1200",
+      };
+
+      const services = [
+        {
+          id: "svc-direct-10",
+          serviceCode: "SVC-DIRECT-10",
+          monthlyFee: "100",
+          durationMonths: 12,
+          freeMonths: 0,
+        },
+      ];
+
+      const resolvedContractId = contractFreeInvoice.contractId ?? "";
+      const resolvedServiceId = contractFreeInvoice.serviceId ?? "";
+      const linkedService = services.find((s) => s.id === resolvedServiceId);
+
+      expect(resolvedContractId).toBe("");
+      expect(resolvedServiceId).toBe("svc-direct-10");
+      expect(linkedService?.monthlyFee).toBe("100");
+    });
+  });
 });
+

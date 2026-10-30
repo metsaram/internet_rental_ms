@@ -60,10 +60,15 @@ A `forEach` + `await` caused a parse error that broke the **entire app**
 ### Rule 4: After `prisma db push`, restart the dev server
 
 `prisma generate` regenerates the Prisma client, but the running dev server
-caches the old client in Node's `require` cache. After any schema change:
-1. `bun run db:push` (regenerates client)
-2. Kill + restart the dev server (`pkill -f "next dev"` then `bun run dev`)
-3. Re-seed if `--accept-data-loss` wiped data (`bun run db:seed`)
+caches the old client in Node's `require` cache. On Windows, the running Next.js/Turbopack
+process also holds an exclusive OS file lock on `node_modules/.prisma/client/query_engine-windows.dll.node`,
+preventing `prisma generate` renames with `EPERM`.
+After schema changes:
+1. If the dev server cannot be stopped immediately, decouple newly added model relations
+   by batch querying target models with scalar IDs (`db.targetModel.findMany({ where: { id: { in: ids } } })`)
+   rather than relational `include: { ... }` on the parent model.
+2. When restarting: kill + restart the dev server (`bun run dev` / `npm run dev`)
+3. `bun run db:push` or `npx prisma generate` to recompile client typings cleanly.
 
 ### Rule 5: Every API route must enforce company scope
 
@@ -901,6 +906,14 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 - **Output generated**: Comprehensive assessment of legacy docs identifying `docs-implementation-plan/` (23 phase prompt files), monolithic `worklog.md` (1,060 lines), and ephemeral subagent prompt files in `agents/`.
 - **Timestamp**: 2026-10-20T21:57:30+07:00
 - **Status**: Completed
+
+#### [2026-10-30T22:30:00+07:00] Old Invoice Migration, Structure Compatibility & List Display Resilience
+- **Task description**: Migrate existing/old invoices (`INV-2026-4170`) to current structure (linking direct `serviceId`, normalizing 2-decimal tax/total, syncing `InternetService` schedule & billing). Enhance `PATCH /api/invoices/[id]` and `GET /api/invoices/[id]` to support relational updates. Enhance `InvoicesView` list display with refresh button, error banner, and contract+service code visibility.
+- **Context used**: `scripts/migrate-old-invoices.ts`, `src/app/api/invoices/[id]/route.ts`, `src/components/views/invoices.tsx`, `test/invoice-schedule.test.tsx`.
+- **Output generated**: Executed database migration, added 3 unit tests (198/198 passing), updated `Invoice` data table columns, added manual refresh button and error recovery.
+- **Timestamp**: 2026-10-30T22:30:00+07:00
+- **Status**: Completed
+
 
 #### [2026-10-20T21:54:40+07:00] Establish Standardized docs/ Documentation Architecture & 5-Step RAG Protocol
 - **Task description**: Formally establish the comprehensive `docs/` hierarchy (`overview/`, `guides/`, `changelog/`, `task_logs/`, `migrations/`), update AI agent workflow to 5 steps including Database Migrations and Documentation Updates, and implement the Golden Rule.

@@ -13,6 +13,8 @@ import { Decimal } from "@prisma/client/runtime/library";
 import { z } from "zod";
 
 const updateSchema = z.object({
+  contractId: z.string().optional().nullable(),
+  serviceId: z.string().optional().nullable(),
   invoiceNumber: z.string().min(1).max(64).optional(),
   invoiceDate: z.string().min(1).optional(),
   periodStart: z.string().optional().nullable(),
@@ -41,6 +43,7 @@ export async function GET(_req: Request, { params }: Params) {
         contract: {
           select: {
             id: true,
+            serviceId: true,
             contractNumber: true,
             currency: true,
             service: {
@@ -54,15 +57,6 @@ export async function GET(_req: Request, { params }: Params) {
             },
           },
         },
-        service: {
-          select: {
-            id: true,
-            serviceCode: true,
-            branch: { select: { name: true, code: true } },
-            shop: { select: { name: true, code: true } },
-            provider: { select: { name: true, code: true } },
-          },
-        },
         createdBy: { select: { name: true, email: true } },
         allocations: {
           include: {
@@ -73,6 +67,28 @@ export async function GET(_req: Request, { params }: Params) {
       },
     });
     if (!inv || inv.companyId !== user.companyId) throw new HttpError(404, "Invoice not found");
+
+    let directService: {
+      id: string;
+      serviceCode: string;
+      branch: { name: string; code: string } | null;
+      shop: { name: string; code: string } | null;
+      provider: { name: string; code: string } | null;
+    } | null = null;
+
+    if (inv.serviceId) {
+      directService = await db.internetService.findUnique({
+        where: { id: inv.serviceId },
+        select: {
+          id: true,
+          serviceCode: true,
+          branch: { select: { name: true, code: true } },
+          shop: { select: { name: true, code: true } },
+          provider: { select: { name: true, code: true } },
+        },
+      });
+    }
+
     const allocatedSum = inv.allocations
       .filter((a) => a.payment?.status !== "VOID")
       .reduce((acc, a) => acc.plus(a.amount), new Decimal(0));
@@ -84,10 +100,12 @@ export async function GET(_req: Request, { params }: Params) {
       if (match) voidReason = match[1].trim();
     }
 
-    const svc = inv.service ?? inv.contract?.service;
+    const svc = directService ?? inv.contract?.service;
 
     return NextResponse.json({
       ...inv,
+      contractId: inv.contractId ?? null,
+      serviceId: inv.serviceId ?? inv.contract?.serviceId ?? inv.contract?.service?.id ?? null,
       contractNumber: inv.contract?.contractNumber ?? "—",
       serviceCode: svc?.serviceCode ?? "—",
       branch: svc?.branch ?? null,
@@ -147,6 +165,47 @@ export async function PATCH(req: Request, { params }: Params) {
     if (body.status) data.status = body.status;
     if (body.dueDate !== undefined) data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
     if (body.notes !== undefined) data.notes = body.notes ?? null;
+
+    if (body.contractId !== undefined) {
+      if (body.contractId) {
+        const contract = await db.internetContract.findUnique({
+          where: { id: body.contractId },
+          select: { id: true, companyId: true, serviceId: true },
+        });
+        if (!contract || contract.companyId !== user.companyId) {
+          throw new HttpError(404, "Contract not found");
+        }
+        data.contract = { connect: { id: body.contractId } };
+        (data as any).serviceId = contract.serviceId;
+      } else {
+        data.contract = { disconnect: true };
+        if (body.serviceId) {
+          const svc = await db.internetService.findUnique({
+            where: { id: body.serviceId },
+            select: { id: true, companyId: true },
+          });
+          if (!svc || svc.companyId !== user.companyId) {
+            throw new HttpError(404, "Service not found");
+          }
+          (data as any).serviceId = body.serviceId;
+        } else {
+          (data as any).serviceId = null;
+        }
+      }
+    } else if (body.serviceId !== undefined) {
+      if (body.serviceId) {
+        const svc = await db.internetService.findUnique({
+          where: { id: body.serviceId },
+          select: { id: true, companyId: true },
+        });
+        if (!svc || svc.companyId !== user.companyId) {
+          throw new HttpError(404, "Service not found");
+        }
+        (data as any).serviceId = body.serviceId;
+      } else {
+        (data as any).serviceId = null;
+      }
+    }
 
     const updated = await db.invoice.update({ where: { id }, data });
     await writeAudit({

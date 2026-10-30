@@ -27,6 +27,7 @@ export async function PATCH(req: Request) {
       phone?: string | null;
       email?: string | null;
       currency?: string;
+      useContract?: boolean;
     }>(req);
 
     const before = await db.company.findUnique({ where: { id: user.companyId } });
@@ -40,6 +41,7 @@ export async function PATCH(req: Request) {
       phone: body.phone ?? before.phone,
       email: body.email ?? before.email,
       currency: body.currency?.trim() || before.currency,
+      useContract: body.useContract ?? before.useContract,
     };
 
     const after = await db.company.update({ where: { id: user.companyId }, data });

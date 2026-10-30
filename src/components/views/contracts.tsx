@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Eye,
   Paperclip,
+  Wrench,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
@@ -103,14 +104,6 @@ const STATUS_OPTS = [
   { value: "RENEWED", label: "Renewed" },
 ] as const;
 
-function formatBillingCycle(cycle?: string) {
-  if (cycle === "ANNUAL" || cycle === "YEARLY") return "Yearly";
-  if (cycle === "SEMI_ANNUAL") return "Semi-annual";
-  if (cycle === "QUARTERLY") return "Quarterly";
-  if (cycle === "MONTHLY") return "Monthly";
-  return cycle ?? "Yearly";
-}
-
 export function ContractsView() {
   const { data: session } = useSession();
   const currency = (session?.user as any)?.companyCurrency ?? "USD";
@@ -145,7 +138,7 @@ export function ContractsView() {
     if (!search) return contracts;
     const s = search.toLowerCase();
     return contracts.filter((c) =>
-      [c.contractNumber, c.serviceCode, c.branch?.name, c.provider?.name, c.billingCycle].some(
+      [c.contractNumber, c.serviceCode, c.branch?.name, c.provider?.name].some(
         (v) => v?.toLowerCase().includes(s)
       )
     );
@@ -330,7 +323,7 @@ export function ContractsView() {
     },
     {
       key: "fee",
-      header: "Fee & Cycle",
+      header: "Monthly Fee",
       width: 140,
       minWidth: 110,
       maxWidth: 190,
@@ -339,19 +332,6 @@ export function ContractsView() {
           <div className="text-sm font-semibold tabular-nums text-foreground">
             {formatMoney(c.monthlyFee, c.currency)}
             <span className="text-[11px] font-normal text-muted-foreground">/mo</span>
-          </div>
-          <div className="mt-0.5">
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-[9px] px-1.5 py-0 h-4 font-normal",
-                c.billingCycle === "ANNUAL" || c.billingCycle === "YEARLY"
-                  ? "bg-primary/5 text-primary border-primary/20"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              {formatBillingCycle(c.billingCycle)}
-            </Badge>
           </div>
         </div>
       ),
@@ -632,12 +612,34 @@ function ContractForm({
   const [startDate, setStartDate] = React.useState("");
   const [duration, setDuration] = React.useState<number | string>(12);
   const [freeMonths, setFreeMonths] = React.useState<number | string>(0);
-  const [monthlyFee, setMonthlyFee] = React.useState<number | string>(0);
+  const [feeBasis, setFeeBasis] = React.useState<"MONTHLY" | "YEARLY">("MONTHLY");
+  const [feeInput, setFeeInput] = React.useState<number | string>(0);
+  const [hasInstallationFee, setHasInstallationFee] = React.useState(false);
+  const [installationFee, setInstallationFee] = React.useState<number | string>(0);
   const [cur, setCur] = React.useState(currency);
-  const [billingCycle, setBillingCycle] = React.useState("ANNUAL");
   const [status, setStatus] = React.useState("DRAFT");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+
+  const handleFeeBasisChange = (newBasis: "MONTHLY" | "YEARLY") => {
+    if (newBasis === feeBasis) return;
+    setFeeBasis(newBasis);
+    if (feeInput !== "" && !isNaN(Number(feeInput))) {
+      const num = Number(feeInput);
+      if (newBasis === "YEARLY") {
+        setFeeInput(Number((num * 12).toFixed(2)));
+      } else {
+        setFeeInput(Number((num / 12).toFixed(2)));
+      }
+    }
+  };
+
+  // Derived agreed monthly fee based on feeBasis (MONTHLY vs YEARLY)
+  const monthlyFee = React.useMemo(() => {
+    if (feeInput === "" || isNaN(Number(feeInput))) return 0;
+    const num = Number(feeInput);
+    return feeBasis === "YEARLY" ? (num > 0 ? num / 12 : 0) : num;
+  }, [feeInput, feeBasis]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -648,20 +650,31 @@ function ContractForm({
       const baseDuration = Math.max(1, editing.durationMonths - (editing.freeMonths || 0));
       setDuration(baseDuration);
       setFreeMonths(editing.freeMonths || 0);
-      setMonthlyFee(Number(editing.monthlyFee));
+      setFeeBasis("MONTHLY");
+      setFeeInput(Number(editing.monthlyFee));
       setCur(editing.currency);
-      setBillingCycle(editing.billingCycle);
       setStatus(editing.status);
       setNotes(editing.notes ?? "");
+
+      const installMatch = editing.notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
+      if (installMatch && Number(installMatch[1]) > 0) {
+        setHasInstallationFee(true);
+        setInstallationFee(Number(installMatch[1]));
+      } else {
+        setHasInstallationFee(false);
+        setInstallationFee(0);
+      }
     } else {
       setServiceId("");
       setContractNumber(`CT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
       setStartDate(new Date().toISOString().slice(0, 10));
       setDuration(12);
       setFreeMonths(0);
-      setMonthlyFee(0);
+      setFeeBasis("MONTHLY");
+      setFeeInput(0);
+      setHasInstallationFee(false);
+      setInstallationFee(0);
       setCur(currency);
-      setBillingCycle("ANNUAL");
       setStatus("DRAFT");
       setNotes("");
     }
@@ -682,7 +695,9 @@ function ContractForm({
   // Price is only calculated on the contracted paid duration (free months are zero price)
   const paidMonths = Math.max(0, Number(duration || 0));
   const scheduled = Number(monthlyFee || 0) * paidMonths;
-  const effective = totalMonths > 0 ? scheduled / totalMonths : 0;
+  const installAmount = hasInstallationFee ? Math.max(0, Number(installationFee || 0)) : 0;
+  const subtotal = scheduled + installAmount;
+  const effective = totalMonths > 0 ? subtotal / totalMonths : 0;
 
   const isFormValid = Boolean(
     serviceId?.trim() &&
@@ -691,12 +706,13 @@ function ContractForm({
     duration !== "" &&
     !isNaN(Number(duration)) &&
     Number(duration) > 0 &&
-    monthlyFee !== "" &&
-    monthlyFee !== null &&
-    monthlyFee !== undefined &&
-    !isNaN(Number(monthlyFee)) &&
-    Number(monthlyFee) >= 0 &&
-    (freeMonths === undefined || freeMonths === "" || (!isNaN(Number(freeMonths)) && Number(freeMonths) >= 0))
+    feeInput !== "" &&
+    feeInput !== null &&
+    feeInput !== undefined &&
+    !isNaN(Number(feeInput)) &&
+    Number(feeInput) >= 0 &&
+    (freeMonths === undefined || freeMonths === "" || (!isNaN(Number(freeMonths)) && Number(freeMonths) >= 0)) &&
+    (!hasInstallationFee || (installationFee !== "" && !isNaN(Number(installationFee)) && Number(installationFee) >= 0))
   );
 
   const submit = async () => {
@@ -705,6 +721,11 @@ function ContractForm({
     if (!serviceId) return setError("Please select an installed service");
     if (!contractNumber.trim()) return setError("Contract number is required");
     if (Number(freeMonths || 0) < 0) return setError("Free months cannot be negative");
+    if (hasInstallationFee && Number(installationFee || 0) < 0) return setError("Installation fee cannot be negative");
+    let cleanNotes = notes.replace(/\n?\[Installation fee\]:\s*[0-9.]+/g, "").trim();
+    if (hasInstallationFee && installAmount > 0) {
+      cleanNotes = cleanNotes ? `${cleanNotes}\n[Installation fee]: ${installAmount}` : `[Installation fee]: ${installAmount}`;
+    }
     const payload: Record<string, unknown> = {
       serviceId,
       contractNumber: contractNumber.trim(),
@@ -714,9 +735,9 @@ function ContractForm({
       freeMonths: Number(freeMonths || 0),
       monthlyFee: Number(monthlyFee || 0),
       currency: cur,
-      billingCycle,
+      billingCycle: editing?.billingCycle ?? "ANNUAL",
       status,
-      notes: notes.trim() || null,
+      notes: cleanNotes || null,
     };
     await onSubmit(payload);
   };
@@ -726,7 +747,7 @@ function ContractForm({
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? `Edit contract — ${editing?.contractNumber}` : "Create New Contract"}
-      description="Configure commercial agreement terms, scheduled period, and billing cycle. Pricing remains locked to this contract."
+      description="Configure commercial agreement terms and scheduled period. Pricing remains locked to this contract."
       submitText={isEdit ? "Save changes" : "Create contract"}
       submitDisabled={!isFormValid}
       onSubmit={submit}
@@ -800,29 +821,114 @@ function ContractForm({
 
         {/* Section 3: Financial Terms & Billing Cycle */}
         <div className="rounded-lg border bg-card/40 p-4 space-y-4">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <DollarSign className="size-3.5 text-primary" />
-            3. Financial Terms & Billing
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <DollarSign className="size-3.5 text-primary" />
+              3. Financial Terms &amp; Billing
+            </div>
+            {/* Quick pill switcher for Fee Basis */}
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => handleFeeBasisChange("MONTHLY")}
+                className={cn(
+                  "rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  feeBasis === "MONTHLY"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Monthly fee
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFeeBasisChange("YEARLY")}
+                className={cn(
+                  "rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  feeBasis === "YEARLY"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Yearly fee
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Field label="Agreed Monthly fee" required hint="Recurring cost">
-              <Input type="number" min={0} step="0.01" value={monthlyFee} onChange={(e) => setMonthlyFee(e.target.value === "" ? "" : Number(e.target.value))} />
-            </Field>
-            <Field label="Currency" hint="3-letter code">
-              <Input value={cur} onChange={(e) => setCur(e.target.value.toUpperCase().slice(0, 3))} maxLength={3} />
-            </Field>
-            <Field label="Billing cycle" hint="Defaults to Yearly">
-              <Select value={billingCycle} onValueChange={setBillingCycle}>
+            <Field label="Fee calculation" hint="Input basis">
+              <Select value={feeBasis} onValueChange={(v) => handleFeeBasisChange(v as "MONTHLY" | "YEARLY")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ANNUAL">Yearly</SelectItem>
-                  <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  <SelectItem value="QUARTERLY">Quarterly</SelectItem>
-                  <SelectItem value="SEMI_ANNUAL">Semi-annual</SelectItem>
+                  <SelectItem value="MONTHLY">Monthly fee</SelectItem>
+                  <SelectItem value="YEARLY">Yearly fee</SelectItem>
                 </SelectContent>
               </Select>
             </Field>
+
+            <Field
+              label={feeBasis === "YEARLY" ? "Agreed Yearly fee" : "Agreed Monthly fee"}
+              required
+              hint={
+                feeBasis === "YEARLY"
+                  ? `≈ ${formatMoney(monthlyFee, cur)}/mo`
+                  : `≈ ${formatMoney(monthlyFee * 12, cur)}/yr`
+              }
+            >
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={feeInput}
+                onChange={(e) => setFeeInput(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </Field>
+
+            <Field label="Currency" hint="3-letter code">
+              <Input value={cur} onChange={(e) => setCur(e.target.value.toUpperCase().slice(0, 3))} maxLength={3} />
+            </Field>
+          </div>
+
+          {/* Service Installation Fee Option */}
+          <div className="pt-3 border-t">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border bg-background/60 p-3">
+              <label
+                htmlFor="ct-has-install-fee"
+                className="flex items-center gap-2.5 text-sm font-medium cursor-pointer select-none"
+              >
+                <Checkbox
+                  id="ct-has-install-fee"
+                  checked={hasInstallationFee}
+                  onCheckedChange={(v) => {
+                    const checked = Boolean(v);
+                    setHasInstallationFee(checked);
+                    if (!checked) setInstallationFee(0);
+                  }}
+                />
+                <span className="flex items-center gap-1.5 text-foreground">
+                  <Wrench className="size-3.5 text-primary" />
+                  Service installation fee
+                </span>
+              </label>
+
+              <div className="flex items-center gap-2 sm:w-64">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Amount ({cur}):</span>
+                <Input
+                  id="ct-install-fee-amount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  disabled={!hasInstallationFee}
+                  value={hasInstallationFee ? installationFee : ""}
+                  onChange={(e) => setInstallationFee(e.target.value === "" ? "" : Number(e.target.value))}
+                  className={cn(
+                    "h-8 text-sm",
+                    !hasInstallationFee && "bg-muted/40 cursor-not-allowed opacity-50"
+                  )}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -834,16 +940,19 @@ function ContractForm({
                 <Calculator className="size-3.5" />
                 Live Cost Projection
               </div>
-              <Badge variant="outline" className="text-[10px] bg-background">
-                Cycle: {formatBillingCycle(billingCycle)}
+              <Badge variant="outline" className="text-[10px] bg-background font-mono">
+                {startDate && endDate ? `${startDate} → ${endDate}` : `${totalMonths} Months`}
               </Badge>
             </div>
-            <div className="grid grid-cols-3 gap-3 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
               <Preview
                 label="Billable Months"
-                value={freeMonths > 0 ? `${paidMonths} of ${totalMonths}m (${freeMonths}m free)` : `${paidMonths} of ${duration}m`}
+                value={Number(freeMonths || 0) > 0 ? `${paidMonths} of ${totalMonths}m (${freeMonths}m free)` : `${paidMonths} of ${duration}m`}
               />
               <Preview label="Scheduled Total" value={formatMoney(scheduled, cur)} />
+              {installAmount > 0 ? (
+                <Preview label="Installation Fee" value={formatMoney(installAmount, cur)} />
+              ) : null}
               <Preview label="Effective Monthly" value={`${formatMoney(effective, cur)}/mo`} />
             </div>
           </CardContent>
@@ -911,7 +1020,7 @@ function ContractDetailSheet({
             <div className="flex items-center gap-1.5 shrink-0">
               {contract && <StatusBadge status={contract.status} />}
               <Badge variant="outline" className="text-[10px] bg-primary/5 text-primary border-primary/20">
-                {formatBillingCycle(contract?.billingCycle)}
+                {contract?.durationMonths} Months
               </Badge>
             </div>
           </div>
@@ -989,8 +1098,10 @@ function ContractDetailSheet({
                       <p className="font-medium mt-0.5">{detail.freeMonths} months</p>
                     </div>
                     <div>
-                      <p className="text-[10px] uppercase text-muted-foreground">Billing Cycle</p>
-                      <p className="font-medium mt-0.5 text-primary">{formatBillingCycle(detail.billingCycle)}</p>
+                      <p className="text-[10px] uppercase text-muted-foreground">Billable Period</p>
+                      <p className="font-medium mt-0.5 text-primary">
+                        {Math.max(1, detail.durationMonths - (detail.freeMonths || 0))} months paid
+                      </p>
                     </div>
                     <div>
                       <p className="text-[10px] uppercase text-muted-foreground">Created By</p>
@@ -1000,19 +1111,28 @@ function ContractDetailSheet({
                 </div>
 
                 {/* Financial Summary Card */}
-                <Card className="border-primary/20 bg-primary/5 shadow-xs">
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
-                      <Calculator className="size-3.5" />
-                      Financial Projection
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-sm pt-1">
-                      <Preview label="Monthly Fee" value={formatMoney(detail.monthlyFee, detail.currency)} />
-                      <Preview label="Effective / Mo" value={formatMoney(detail.costs.effectiveMonthly, detail.currency)} />
-                      <Preview label="Scheduled Total" value={formatMoney(detail.costs.scheduledTotal, detail.currency)} />
-                    </div>
-                  </CardContent>
-                </Card>
+                {(() => {
+                  const installMatch = detail.notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
+                  const installFee = installMatch ? Number(installMatch[1]) : 0;
+                  return (
+                    <Card className="border-primary/20 bg-primary/5 shadow-xs">
+                      <CardContent className="p-4 space-y-2">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                          <Calculator className="size-3.5" />
+                          Financial Projection
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm pt-1">
+                          <Preview label="Monthly Fee" value={formatMoney(detail.monthlyFee, detail.currency)} />
+                          {installFee > 0 && (
+                            <Preview label="Installation Fee" value={formatMoney(installFee, detail.currency)} />
+                          )}
+                          <Preview label="Effective / Mo" value={formatMoney(detail.costs.effectiveMonthly, detail.currency)} />
+                          <Preview label="Scheduled Total" value={formatMoney(detail.costs.scheduledTotal, detail.currency)} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
 
                 {/* Notes if available */}
                 {detail.notes && (

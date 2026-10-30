@@ -25,6 +25,8 @@ const updateSchema = z.object({
   status: z.enum(["DRAFT", "ISSUED", "PAID", "OVERDUE", "PARTIAL"]).optional(),
   dueDate: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  scheduledMonths: z.number().int().min(1).optional().nullable(),
+  installationFee: z.number().nonnegative().optional().nullable(),
 });
 
 type Params = { params: Promise<{ id: string }> };
@@ -46,9 +48,19 @@ export async function GET(_req: Request, { params }: Params) {
                 id: true,
                 serviceCode: true,
                 branch: { select: { name: true, code: true } },
+                shop: { select: { name: true, code: true } },
                 provider: { select: { name: true, code: true } },
               },
             },
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            serviceCode: true,
+            branch: { select: { name: true, code: true } },
+            shop: { select: { name: true, code: true } },
+            provider: { select: { name: true, code: true } },
           },
         },
         createdBy: { select: { name: true, email: true } },
@@ -72,8 +84,15 @@ export async function GET(_req: Request, { params }: Params) {
       if (match) voidReason = match[1].trim();
     }
 
+    const svc = inv.service ?? inv.contract?.service;
+
     return NextResponse.json({
       ...inv,
+      contractNumber: inv.contract?.contractNumber ?? "—",
+      serviceCode: svc?.serviceCode ?? "—",
+      branch: svc?.branch ?? null,
+      shop: svc?.shop ?? null,
+      provider: svc?.provider ?? null,
       subtotal: inv.subtotal.toString(),
       tax: inv.tax.toString(),
       discount: inv.discount.toString(),

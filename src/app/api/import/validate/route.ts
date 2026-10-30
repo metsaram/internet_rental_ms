@@ -384,6 +384,50 @@ export async function POST(req: Request) {
             stats.serviceCode.matchedCount++;
           }
         }
+
+        // Schedule & Fee checks (optional on service, validated when mapped)
+        if (body.columnMap.durationMonths && rowData.durationMonths !== undefined && rowData.durationMonths !== null && rowData.durationMonths !== "") {
+          const dur = Number(rowData.durationMonths);
+          const free = body.columnMap.freeMonths && rowData.freeMonths !== undefined && rowData.freeMonths !== null && rowData.freeMonths !== ""
+            ? Number(rowData.freeMonths)
+            : body.defaultFreeMonths;
+          if (dur <= 0 || isNaN(dur)) {
+            issues.push({
+              row: rowIndex,
+              field: "durationMonths",
+              fieldLabel: "Duration (months)",
+              value: rowData.durationMonths,
+              message: "Duration must be a positive number",
+              severity: "error",
+            });
+            invalidRowIndices.add(rowIndex);
+          } else if (free > dur) {
+            issues.push({
+              row: rowIndex,
+              field: "freeMonths",
+              fieldLabel: "Free months",
+              value: free,
+              message: `Free months (${free}) cannot exceed total duration (${dur})`,
+              severity: "error",
+            });
+            invalidRowIndices.add(rowIndex);
+          }
+        }
+
+        if (body.columnMap.monthlyFee && rowData.monthlyFee !== undefined && rowData.monthlyFee !== null && rowData.monthlyFee !== "") {
+          const fee = Number(rowData.monthlyFee);
+          if (isNaN(fee) || fee < 0) {
+            issues.push({
+              row: rowIndex,
+              field: "monthlyFee",
+              fieldLabel: "Monthly fee",
+              value: rowData.monthlyFee,
+              message: "Monthly fee must be a non-negative number",
+              severity: "error",
+            });
+            invalidRowIndices.add(rowIndex);
+          }
+        }
       }
 
       // 2. Validate Contract imports

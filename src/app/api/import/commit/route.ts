@@ -225,6 +225,17 @@ export async function POST(req: Request) {
         }
 
         if (errors.length === 0 && branchId && providerId) {
+          const start = (coerced.startDate as Date) ?? null;
+          const dur = coerced.durationMonths ? Number(coerced.durationMonths) : null;
+          const free = coerced.freeMonths !== null && coerced.freeMonths !== undefined
+            ? Number(coerced.freeMonths)
+            : (body.defaultFreeMonths ?? 0);
+          let end: Date | null = null;
+          if (start && dur) {
+            end = new Date(start);
+            end.setMonth(end.getMonth() + dur + free);
+          }
+
           validServices.push({
             companyId: user.companyId,
             branchId,
@@ -239,6 +250,15 @@ export async function POST(req: Request) {
             ipAddress: (coerced.ipAddress as string) ?? null,
             ipType: (coerced.ipType as any) ?? "DYNAMIC",
             status: (coerced.status as any) ?? "PENDING",
+            startDate: start,
+            endDate: end,
+            durationMonths: dur,
+            freeMonths: free,
+            monthlyFee: coerced.monthlyFee !== null && coerced.monthlyFee !== undefined
+              ? new Prisma.Decimal(Number(coerced.monthlyFee))
+              : new Prisma.Decimal(0),
+            currency: String(coerced.currency ?? user.companyCurrency),
+            billingCycle: (coerced.billingCycle === "YEARLY" ? "ANNUAL" : (coerced.billingCycle as any) ?? "ANNUAL"),
           });
         }
       }

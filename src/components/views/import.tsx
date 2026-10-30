@@ -19,6 +19,9 @@ import {
   Wifi,
   Database,
   Layers,
+  Calendar,
+  DollarSign,
+  Network,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -148,6 +151,18 @@ export function ImportView() {
     queryKey: ["import-jobs"],
     queryFn: () => api<ImportJob[]>("/api/import/jobs"),
   });
+
+  const { data: company } = useQuery<{ useContract: boolean }>({
+    queryKey: ["company"],
+    queryFn: () => api<{ useContract: boolean }>("/api/company"),
+  });
+  const useContract = company?.useContract ?? true;
+
+  React.useEffect(() => {
+    if (company && !company.useContract) {
+      setEntityType("service");
+    }
+  }, [company]);
 
   // Debounced live validation whenever columnMap, defaultFreeMonths, or entityType changes
   React.useEffect(() => {
@@ -332,8 +347,12 @@ export function ImportView() {
                 <Select value={entityType} onValueChange={(v) => setEntityType(v as ImportEntityType)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="contract">Contracts</SelectItem>
-                    <SelectItem value="service">Internet services</SelectItem>
+                    <SelectItem value="service">
+                      Internet services {useContract ? "" : "(with Schedule & Billing)"}
+                    </SelectItem>
+                    <SelectItem value="contract">
+                      Contracts {useContract ? "(Standard)" : "(Optional)"}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </Field>
@@ -371,20 +390,71 @@ export function ImportView() {
             <CardHeader>
               <CardTitle className="text-sm">Expected fields</CardTitle>
               <CardDescription className="text-xs">
-                {entityType === "contract" ? "Contract import" : "Service import"} — headers auto-matched.
+                {entityType === "contract" ? "Contract import" : "Service import (with Schedule & Billing)"} — headers auto-matched.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="space-y-1.5">
-                {fields.map((f) => (
-                  <div key={f.key} className="flex items-center justify-between gap-2 text-xs">
-                    <span className={cn(f.required ? "font-medium" : "text-muted-foreground")}>
-                      {f.label}
-                    </span>
-                    {f.required && <Badge variant="outline" className="text-[9px]">required</Badge>}
+            <CardContent className="space-y-3">
+              {entityType === "service" ? (
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <p className="mb-1 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Network className="size-3.5 text-primary" />
+                      1. Service &amp; Site Identification
+                    </p>
+                    <div className="space-y-1">
+                      {fields.slice(0, 12).map((f) => (
+                        <div key={f.key} className="flex items-center justify-between gap-2 text-xs">
+                          <span className={cn(f.required ? "font-medium" : "text-muted-foreground")}>
+                            {f.label}
+                          </span>
+                          {f.required && <Badge variant="outline" className="text-[9px]">required</Badge>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className="border-t pt-2">
+                    <p className="mb-1 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Calendar className="size-3.5 text-primary" />
+                      2. Schedule &amp; Duration
+                    </p>
+                    <div className="space-y-1">
+                      {fields.slice(12, 15).map((f) => (
+                        <div key={f.key} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-muted-foreground">{f.label}</span>
+                          <span className="text-[10px] text-muted-foreground/70">{f.hint}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-2">
+                    <p className="mb-1 font-semibold text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <DollarSign className="size-3.5 text-primary" />
+                      3. Financial Terms &amp; Billing
+                    </p>
+                    <div className="space-y-1">
+                      {fields.slice(15).map((f) => (
+                        <div key={f.key} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-muted-foreground">{f.label}</span>
+                          <span className="text-[10px] text-muted-foreground/70">{f.hint}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {fields.map((f) => (
+                    <div key={f.key} className="flex items-center justify-between gap-2 text-xs">
+                      <span className={cn(f.required ? "font-medium" : "text-muted-foreground")}>
+                        {f.label}
+                      </span>
+                      {f.required && <Badge variant="outline" className="text-[9px]">required</Badge>}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="border-t pt-2">
                 <a
                   href={`/api/template/${entityType}`}

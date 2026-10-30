@@ -432,7 +432,6 @@ function RenewDialog({
   const [freeMonths, setFreeMonths] = React.useState<number | string>(0);
   const [monthlyFee, setMonthlyFee] = React.useState<number | string>(0);
   const [currency, setCurrency] = React.useState("USD");
-  const [billingCycle, setBillingCycle] = React.useState("ANNUAL");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
@@ -446,7 +445,6 @@ function RenewDialog({
     setFreeMonths(0);
     setMonthlyFee(Number(oldC.monthlyFee));
     setCurrency(oldC.currency && oldC.currency !== "THB" ? oldC.currency : "USD");
-    setBillingCycle(oldC.billingCycle || "ANNUAL");
     setNotes(renewal.notes ?? "");
     setError(null);
   }, [renewal, oldC]);
@@ -490,7 +488,7 @@ function RenewDialog({
         freeMonths: Number(freeMonths || 0),
         monthlyFee: Number(monthlyFee || 0),
         currency,
-        billingCycle,
+        billingCycle: oldC.billingCycle || "ANNUAL",
         notes: notes.trim() || null,
       });
     } catch (e) {
@@ -537,20 +535,9 @@ function RenewDialog({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
           <Field label="New contract number" required>
             <Input value={contractNumber} onChange={(e) => setContractNumber(e.target.value)} />
-          </Field>
-          <Field label="Billing cycle">
-            <Select value={billingCycle} onValueChange={setBillingCycle}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ANNUAL">Yearly</SelectItem>
-                <SelectItem value="MONTHLY">Monthly</SelectItem>
-                <SelectItem value="QUARTERLY">Quarterly</SelectItem>
-                <SelectItem value="SEMI_ANNUAL">Semi-annual</SelectItem>
-              </SelectContent>
-            </Select>
           </Field>
         </div>
 

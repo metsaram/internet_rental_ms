@@ -11,8 +11,9 @@ export async function GET() {
     const cid = user.companyId;
   const now = new Date();
 
-  const [branches, shops, services, providers, plans, contractsRaw, invoicesRaw, paymentsRaw, renewalsRaw, recentAudit] =
+  const [company, branches, shops, services, providers, plans, contractsRaw, servicesWithSpend, invoicesRaw, paymentsRaw, renewalsRaw, recentAudit] =
     await Promise.all([
+      db.company.findUnique({ where: { id: cid }, select: { useContract: true, currency: true } }),
       db.branch.count({ where: { companyId: cid } }),
       db.shop.count({ where: { companyId: cid } }),
       db.internetService.count({ where: { companyId: cid } }),
@@ -30,6 +31,18 @@ export async function GET() {
               provider: { select: { id: true, name: true, code: true } },
             },
           },
+        },
+      }),
+      db.internetService.findMany({
+        where: { companyId: cid, status: { in: ["ACTIVE", "PENDING"] } },
+        select: {
+          id: true,
+          serviceCode: true,
+          monthlyFee: true,
+          currency: true,
+          branch: { select: { id: true, name: true, code: true } },
+          shop: { select: { id: true, name: true, code: true } },
+          provider: { select: { id: true, name: true, code: true } },
         },
       }),
       db.invoice.findMany({
@@ -107,6 +120,36 @@ export async function GET() {
     entry.expected = entry.expected.plus(r._costs.monthlyFee);
     entry.count += 1;
     byBranch.set(key, entry);
+  }
+
+  // If company operates in contract-free mode or has no active contracts, aggregate directly from services
+  const useContractMode = company?.useContract ?? true;
+  if (!useContractMode || active.length === 0) {
+    for (const s of servicesWithSpend) {
+      const fee = s.monthlyFee ? Number(s.monthlyFee) : 0;
+      if (fee <= 0) continue;
+      const cur = s.currency ?? user.companyCurrency ?? "USD";
+      const curEntry = byCurrency.get(cur) ?? { expected: new Decimal(0), effective: new Decimal(0) };
+      curEntry.expected = curEntry.expected.plus(fee);
+      curEntry.effective = curEntry.effective.plus(fee);
+      byCurrency.set(cur, curEntry);
+
+      const pKey = s.provider?.id ?? "unknown";
+      const pName = s.provider?.name ?? "Unknown";
+      const pCode = s.provider?.code ?? "?";
+      const pEntry = byProvider.get(pKey) ?? { provider: pName, code: pCode, expected: new Decimal(0), count: 0 };
+      pEntry.expected = pEntry.expected.plus(fee);
+      pEntry.count += 1;
+      byProvider.set(pKey, pEntry);
+
+      const bKey = s.branch?.id ?? "unknown";
+      const bName = s.branch?.name ?? "Unknown";
+      const bCode = s.branch?.code ?? "?";
+      const bEntry = byBranch.get(bKey) ?? { branch: bName, code: bCode, expected: new Decimal(0), count: 0 };
+      bEntry.expected = bEntry.expected.plus(fee);
+      bEntry.count += 1;
+      byBranch.set(bKey, bEntry);
+    }
   }
 
   // Renewals within next 60 days (active+expiring, soon), ordered by end date.

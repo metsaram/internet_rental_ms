@@ -118,6 +118,34 @@ Across all UI views (DataTables, Select dropdowns, ConfirmDialogs, Edit modals, 
 - **Dialogs & Sheet Headers**: Format confirmation messages and titles as `${name} — ${code}` or `Edit entity ${name}`.
 - **Dashboard Charts**: Use the entity name (`name: item.name || item.code`) for chart legends and tooltips.
 
+### Rule 11: Schedule, Fee Calculation Option (Monthly/Yearly), and Tax Parity
+
+In both `InvoiceForm` (`invoices.tsx`) and `ContractForm` (`contracts.tsx`):
+1. **Schedule & Duration**: `startDate`, `duration` (months), `freeMonths`, and `endDate = startDate + duration + freeMonths` (free months extend the timeline at $0 cost).
+2. **Schedule-Based Billing (No Billing Cycle)**: All billing schedules and cost projections are strictly derived from Schedule & Duration (`startDate` to `endDate`). Legacy "Billing cycle" selectors are omitted from forms and tables. Financial terms use a clean 3-column layout:
+   - `Fee calculation` (Monthly fee / Yearly fee basis)
+   - `Agreed Monthly fee` / `Agreed Yearly fee`
+   - `Currency`
+   Live cost projection badges display the exact active schedule (`startDate → endDate`).
+3. **Fee Calculation Option (Monthly vs Yearly fee input)**:
+   - Provide a quick pill toggle `[ Monthly fee ] [ Yearly fee ]` and a dropdown `Fee calculation` ("Monthly fee" / "Yearly fee").
+   - Dynamic label updates to `Agreed Monthly fee` or `Agreed Yearly fee`.
+   - On basis change, scale existing input automatically (`* 12` or `/ 12`).
+   - Display a live equivalent hint (`≈ $60.50/mo` or `≈ $726.00/yr`).
+   - Derive monthly fee: `feeBasis === "YEARLY" ? (feeInput > 0 ? feeInput / 12 : 0) : feeInput`.
+   - Subtotal is computed strictly as `monthlyFee * duration`.
+4. **Service Installation Fee Option**:
+   - Option checkbox: `<Checkbox />` labeled "Service installation fee".
+   - Input amount: disabled when unchecked, enabled when checked.
+   - Base subtotal calculation: `subtotal = scheduled + installationFee`.
+   - Tax (10%) applies to the combined subtotal: `(subtotal * taxRate) / 100`.
+   - Live Cost Projection & itemized summary breakdown show both the scheduled service fee and the installation fee.
+5. **Tax Calculation (Default 10%, Price Excluded)**:
+   - Auto-calculate tax default 10% on top of subtotal (`(subtotal * taxRate) / 100`).
+   - Allow user rate adjustment and dollar override with a "Reset (10%)" button.
+   - Total Payable = `subtotal + tax - discount`.
+6. **Contract-Free Mode**: When `Company.useContract = false`, invoices link directly to `InternetService` via `serviceId`, prefilling schedule & financial terms.
+
 ---
 
 ## 3. Directory Structure
@@ -246,13 +274,14 @@ Across all UI views (DataTables, Select dropdowns, ConfirmDialogs, Edit modals, 
 - `cleanupBuckets(maxAgeMs)` → periodic stale-bucket cleanup (auto-runs every 5min).
 - Swap to Redis/Upstash for multi-instance.
 
-### `import-fields.ts` — Excel import field definitions (server-only)
 - `CONTRACT_FIELDS` + `SERVICE_FIELDS` — array of `{key, label, required, type, enumValues, hint}`.
+  - `SERVICE_FIELDS` includes full Schedule & Duration (`startDate`, `durationMonths`, `freeMonths`) and Financial Terms & Billing (`monthlyFee`, `currency`, `billingCycle`) to support contract-free workflows.
 - `getFields(entityType)` → field array for the entity.
 - `autoMatchHeader(header)` → fuzzy-matches spreadsheet headers to target
-  fields (e.g. "Contract #" → `contractNumber`, "ISP" → `providerCode`).
+  fields (e.g. "Contract #" → `contractNumber`, "ISP" → `providerCode`, "Fee" / "Price" → `monthlyFee`, "Duration" → `durationMonths`, "Billing Cycle" → `billingCycle`).
 - `coerceValue(raw, type)` → type-coerces cell values (handles Excel serial
   dates, number strings with commas, enum uppercasing).
+- Contract-free invoicing: `Invoice` supports linking directly to `serviceId` with `contractId` optional (`Company.useContract = false`). Invoices attribute expenditures directly to branches and shops via `service`.
 
 ### `format.ts` — Client-safe formatters (NO Prisma imports)
 - `formatMoney(amount, currency)` → `"$1,234.50"` (currency symbols per ISO).
@@ -710,6 +739,21 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 - **Timestamp**: 2026-10-29T17:25:00+07:00
 - **Status**: Completed
 
+#### [2026-10-30T19:05:00+07:00] Settings: useContract Toggle + Invoice Schedule & Duration Feature
+- **Task description**: (1) Add a company-level "Require contract for invoices" boolean toggle to Settings so invoices can optionally not require a contract link. (2) Add a "Schedule & Duration" quick-fill panel to the New Invoice form that auto-calculates period start, period end, and subtotal from a selected month + duration.
+- **Context used**: `prisma/schema.prisma`, `src/app/api/company/route.ts`, `src/app/api/invoices/route.ts`, `src/components/views/settings.tsx`, `src/components/views/invoices.tsx`, `test/invoice-schedule.test.tsx`.
+- **Output generated / modified**:
+  - Added `useContract Boolean @default(true)` to `Company` Prisma model; pushed schema via `bun run db:push`.
+  - Migration file: `db/2026-10-30/companies/add_use_contract.sql`.
+  - Updated `GET + PATCH /api/company` to expose and accept `useContract`.
+  - Updated `POST /api/invoices`: `contractId` is now optional; dynamically requires/relaxes based on company `useContract` setting; strips client-only `scheduledMonths` from audit payload.
+  - Settings view: added `Switch` toggle with label "Require contract for invoices" in company profile card; wired to `form.useContract`, submitted on Save.
+  - Invoice form: added `useContract` prop — contract field marked optional with hint text; "— No contract —" sentinel added to dropdown when optional. Added Schedule & Duration panel (start month + duration months input + Apply button + live preview showing date range and subtotal).
+  - `applySchedule` uses `Date.UTC()` to avoid local-timezone off-by-one in `toISOString()`.
+  - Created `test/invoice-schedule.test.tsx` (16/16 tests passing): 9 schedule date tests + 7 form-validity guard tests.
+- **Timestamp**: 2026-10-30T19:05:00+07:00
+- **Status**: Completed
+
 #### [2026-10-29T17:15:00+07:00] Invoices: Auto-Update Invoice Status to PAID on Full Payment Allocation
 - **Task description**: When payment allocation amount equals or exceeds the invoice total, automatically update the invoice status in the database to PAID (and PARTIAL if partially allocated). Automatically re-evaluate statuses if payments are voided.
 - **Context used**: `src/app/api/payments/route.ts`, `src/app/api/payments/[id]/route.ts`, `src/components/shared/status-badge.tsx`, `src/components/views/invoices.tsx`, `test/billing.test.ts`, `test/status-badge.test.tsx`.
@@ -828,6 +872,13 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
   - Updated import validation master data badges in `import.tsx` to show name bold and code in secondary font-mono.
   - Documented Rule 10 in `AI_AGENT_GUIDE.md`, updated `docs/guides/developer_guide.md`, `docs/guides/ai_agent_guide.md`, `docs/changelog/2026-10.md`, and `docs/task_logs/2026-10-29.md`.
 - **Timestamp**: 2026-10-29T16:15:00+07:00
+- **Status**: Completed
+
+#### [2026-10-30T20:40:00+07:00] Invoice Schedule & Finance Structure & Calculation Parity with Contract
+- **Task description**: Standardize the Invoice creation/editing modal (`InvoiceForm` in `src/components/views/invoices.tsx`) to match the exact structure, cards, inputs, and real-time calculations of `ContractForm`: Section 2: Schedule & Duration (`startDate`, `duration`, `freeMonths`, `endDate`), Section 3: Financial Terms & Billing (`monthlyFee`, `currency`, `billingCycle`), Section 4: Live Cost Projection (`billableMonths`, `scheduledTotal`, `effectiveMonthly`), and adjustments (Tax / VAT, Discount, Total Payable).
+- **Context used**: `src/components/views/contracts.tsx`, `src/components/views/invoices.tsx`, `test/invoice-schedule.test.tsx`.
+- **Output generated**: Replaced old quick-fill and disconnected dates with structured cards matching `contracts.tsx`. Added automatic prefill on contract or service selection. Ported UTC-safe end date and scheduled cost calculations. Updated test suite `test/invoice-schedule.test.tsx` (all 28 tests passing).
+- **Timestamp**: 2026-10-30T20:40:00+07:00
 - **Status**: Completed
 
 #### [2026-10-22T21:45:00+07:00] Complete Playwright E2E Testing Infrastructure & Production CI/CD

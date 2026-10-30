@@ -3,12 +3,13 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { Building2, ShieldCheck, UserCircle2, Save, Lock, Bell, Clock, Database, FileCheck, Activity, Plus, CheckCircle2, AlertCircle, AlertTriangle, Info, Sparkles } from "lucide-react";
+import { Building2, ShieldCheck, UserCircle2, Save, Lock, Bell, Clock, Database, FileCheck, Activity, Plus, CheckCircle2, AlertCircle, AlertTriangle, Info, Sparkles, FileSignature } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,6 +34,7 @@ type Company = {
   phone: string | null;
   email: string | null;
   currency: string;
+  useContract: boolean;
   status: string;
 };
 
@@ -69,6 +71,7 @@ export function SettingsView() {
           phone: form.phone,
           email: form.email,
           currency: form.currency,
+          useContract: form.useContract,
         }),
       });
       toast.success("Company profile saved");
@@ -197,6 +200,30 @@ export function SettingsView() {
                       />
                     </div>
                   </div>
+                  {/* Use Contract toggle */}
+                  <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <Label
+                        htmlFor="use-contract-toggle"
+                        className="flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                      >
+                        <FileSignature className="size-3.5 text-primary" />
+                        Require contract for invoices
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        When enabled, every invoice must be linked to a contract.
+                        Disable to allow standalone invoices without a contract reference.
+                      </p>
+                    </div>
+                    <Switch
+                      id="use-contract-toggle"
+                      checked={form.useContract}
+                      disabled={!isAdmin}
+                      onCheckedChange={(v) => setForm({ ...form, useContract: v })}
+                      aria-label="Require contract for invoices"
+                    />
+                  </div>
+
                   {isAdmin && (
                     <div className="flex justify-end">
                       <Button onClick={save} disabled={savingState}>

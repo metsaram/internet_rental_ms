@@ -15,11 +15,17 @@ import {
   X,
   FileText,
   Image as ImageIcon,
+  CalendarRange,
+  RefreshCw,
+  Calendar,
+  DollarSign,
+  Wrench,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -67,18 +73,40 @@ type ContractMin = {
   id: string;
   contractNumber: string;
   serviceCode: string;
+  startDate?: string;
+  endDate?: string;
+  durationMonths?: number;
+  freeMonths?: number;
+  billingCycle?: string;
   branch: { name: string; code: string } | null;
   provider: { id?: string; name: string; code: string } | null;
   monthlyFee: string;
   currency: string;
 };
 
+type ServiceMin = {
+  id: string;
+  serviceCode: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  durationMonths?: number | null;
+  freeMonths?: number | null;
+  monthlyFee?: string | number | null;
+  currency?: string | null;
+  billingCycle?: string | null;
+  branch: { id: string; name: string; code: string } | null;
+  shop: { id: string; name: string; code: string } | null;
+  provider: { id: string; name: string; code: string } | null;
+};
+
 type Invoice = {
   id: string;
   invoiceNumber: string;
-  contractId: string;
+  contractId: string | null;
   contractNumber: string;
+  serviceId?: string | null;
   branch: { name: string; code: string } | null;
+  shop?: { name: string; code: string } | null;
   provider: { id: string; name: string; code: string } | null;
   serviceCode: string;
   invoiceDate: string;
@@ -145,10 +173,19 @@ export function InvoicesView() {
     queryKey: ["contracts"],
     queryFn: () => api<ContractMin[]>("/api/contracts"),
   });
+  const { data: services = [] } = useQuery<ServiceMin[]>({
+    queryKey: ["services-min"],
+    queryFn: () => api<ServiceMin[]>("/api/services?min=true"),
+  });
   const { data: providers = [], isLoading: isProvidersLoading } = useQuery<ProviderMin[]>({
     queryKey: ["providers-min"],
     queryFn: () => api<ProviderMin[]>("/api/providers?min=true"),
   });
+  const { data: company } = useQuery<{ useContract: boolean }>({
+    queryKey: ["company"],
+    queryFn: () => api<{ useContract: boolean }>("/api/company"),
+  });
+  const useContract = company?.useContract ?? true;
 
   const filtered = React.useMemo(() => {
     let list = invoices;
@@ -451,7 +488,9 @@ export function InvoicesView() {
         onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
         editing={editing}
         contracts={contracts}
+        services={services}
         currency={currency}
+        useContract={useContract}
         onSubmit={async (data) => {
           if (editing) await updateMut({ id: editing.id, data });
           else await createMut(data);
@@ -510,29 +549,57 @@ function SummaryStat({ label, value, tone }: { label: string; value: string; ton
 // ---------------------------------------------------------------------------
 
 function InvoiceForm({
-  open, onOpenChange, editing, contracts, currency, onSubmit,
+  open, onOpenChange, editing, contracts, services, currency, useContract, onSubmit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: Invoice | null;
   contracts: ContractMin[];
+  services: ServiceMin[];
   currency: string;
+  useContract: boolean;
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
 }) {
   const isEdit = !!editing;
   const [contractId, setContractId] = React.useState("");
+  const [serviceId, setServiceId] = React.useState("");
   const [invoiceNumber, setInvoiceNumber] = React.useState("");
   const [invoiceDate, setInvoiceDate] = React.useState("");
-  const [periodStart, setPeriodStart] = React.useState("");
-  const [periodEnd, setPeriodEnd] = React.useState("");
-  const [subtotal, setSubtotal] = React.useState<number | string>(0);
-  const [tax, setTax] = React.useState<number | string>(0);
-  const [discount, setDiscount] = React.useState<number | string>(0);
+  const [startDate, setStartDate] = React.useState("");
+  const [duration, setDuration] = React.useState<number | string>(12);
+  const [freeMonths, setFreeMonths] = React.useState<number | string>(0);
+  const [feeBasis, setFeeBasis] = React.useState<"MONTHLY" | "YEARLY">("MONTHLY");
+  const [feeInput, setFeeInput] = React.useState<number | string>(0);
+  const [hasInstallationFee, setHasInstallationFee] = React.useState(false);
+  const [installationFee, setInstallationFee] = React.useState<number | string>(0);
   const [cur, setCur] = React.useState(currency);
+  const [taxRate, setTaxRate] = React.useState<number | string>(10);
+  const [taxManual, setTaxManual] = React.useState<number | string | null>(null);
+  const [discount, setDiscount] = React.useState<number | string>(0);
   const [status, setStatus] = React.useState("DRAFT");
   const [dueDate, setDueDate] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+
+  const handleFeeBasisChange = (newBasis: "MONTHLY" | "YEARLY") => {
+    if (newBasis === feeBasis) return;
+    setFeeBasis(newBasis);
+    if (feeInput !== "" && !isNaN(Number(feeInput))) {
+      const num = Number(feeInput);
+      if (newBasis === "YEARLY") {
+        setFeeInput(Number((num * 12).toFixed(2)));
+      } else {
+        setFeeInput(Number((num / 12).toFixed(2)));
+      }
+    }
+  };
+
+  // Derived agreed monthly fee based on feeBasis (MONTHLY vs YEARLY)
+  const monthlyFee = React.useMemo(() => {
+    if (feeInput === "" || isNaN(Number(feeInput))) return 0;
+    const num = Number(feeInput);
+    return feeBasis === "YEARLY" ? (num > 0 ? num / 12 : 0) : num;
+  }, [feeInput, feeBasis]);
 
   React.useEffect(() => {
     if (!open) return;
@@ -542,78 +609,224 @@ function InvoiceForm({
         onOpenChange(false);
         return;
       }
-      setContractId(editing.contractId);
+      setContractId(editing.contractId ?? "");
+      setServiceId((editing as any).serviceId ?? "");
       setInvoiceNumber(editing.invoiceNumber);
       setInvoiceDate(editing.invoiceDate.slice(0, 10));
-      setPeriodStart(editing.periodStart?.slice(0, 10) ?? "");
-      setPeriodEnd(editing.periodEnd?.slice(0, 10) ?? "");
-      setSubtotal(Number(editing.subtotal));
-      setTax(Number(editing.tax));
+      setStartDate(editing.periodStart?.slice(0, 10) ?? "");
+      setDueDate(editing.dueDate?.slice(0, 10) ?? "");
+      const existingTax = Number(editing.tax);
+      setTaxManual(existingTax);
+      const existingSubtotal = Number(editing.subtotal);
+      if (existingSubtotal > 0 && existingTax >= 0) {
+        const calculatedRate = (existingTax / existingSubtotal) * 100;
+        setTaxRate(Number(calculatedRate.toFixed(1)));
+      } else {
+        setTaxRate(10);
+      }
       setDiscount(Number(editing.discount));
       setCur(editing.currency);
       setStatus(editing.status);
-      setDueDate(editing.dueDate?.slice(0, 10) ?? "");
       setNotes(editing.notes ?? "");
+
+      const linkedContract = contracts.find((c) => c.id === editing.contractId);
+      const linkedService = services.find((s) => s.id === (editing as any).serviceId);
+
+      let initDuration: number | string = 12;
+      let initFreeMonths: number | string = 0;
+      let initMonthlyFee: number | string = Number(editing.subtotal);
+
+      if (linkedContract) {
+        initFreeMonths = linkedContract.freeMonths || 0;
+        initDuration = Math.max(1, (linkedContract.durationMonths || 12) - Number(initFreeMonths));
+        initMonthlyFee = Number(linkedContract.monthlyFee);
+      } else if (linkedService) {
+        initFreeMonths = linkedService.freeMonths || 0;
+        initDuration = Math.max(1, (linkedService.durationMonths || 12) - Number(initFreeMonths));
+        if (linkedService.monthlyFee && Number(linkedService.monthlyFee) > 0) {
+          initMonthlyFee = Number(linkedService.monthlyFee);
+        }
+      } else if (editing.periodStart && editing.periodEnd) {
+        const s = new Date(editing.periodStart);
+        const e = new Date(editing.periodEnd);
+        const mDiff = Math.max(1, (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()));
+        initDuration = mDiff;
+        initMonthlyFee = initDuration > 0 ? Number(editing.subtotal) / initDuration : Number(editing.subtotal);
+      }
+
+      setDuration(initDuration);
+      setFreeMonths(initFreeMonths);
+      setFeeBasis("MONTHLY");
+      setFeeInput(initMonthlyFee);
+
+      const installMatch = editing.notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
+      const existingInstallFee = installMatch
+        ? Number(installMatch[1])
+        : (editing as any).installationFee
+          ? Number((editing as any).installationFee)
+          : 0;
+      if (existingInstallFee > 0) {
+        setHasInstallationFee(true);
+        setInstallationFee(existingInstallFee);
+      } else {
+        setHasInstallationFee(false);
+        setInstallationFee(0);
+      }
     } else {
       setContractId("");
+      setServiceId("");
       setInvoiceNumber(`INV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
       setInvoiceDate(new Date().toISOString().slice(0, 10));
-      setPeriodStart(""); setPeriodEnd("");
-      setSubtotal(0); setTax(0); setDiscount(0);
-      setCur(currency); setStatus("DRAFT");
+      setStartDate(new Date().toISOString().slice(0, 10));
+      setDuration(12);
+      setFreeMonths(0);
+      setFeeBasis("MONTHLY");
+      setFeeInput(0);
+      setHasInstallationFee(false);
+      setInstallationFee(0);
+      setCur(currency);
+      setTaxRate(10);
+      setTaxManual(null);
+      setDiscount(0);
+      setStatus("DRAFT");
       setDueDate("");
       setNotes("");
     }
     setError(null);
-  }, [open, editing, currency]);
+  }, [open, editing, currency, contracts, services]);
 
-  const total = Math.max(0, Number(subtotal || 0) + Number(tax || 0) - Number(discount || 0));
+  // Total contract timeline = paid duration + free months
+  const totalMonths = Math.max(0, Number(duration || 0) + Number(freeMonths || 0));
 
-  // When a contract is selected, prefill subtotal from its monthlyFee.
+  // Auto-compute end date from start + duration + free months (free months extend the contract period)
+  const endDate = React.useMemo(() => {
+    if (!startDate) return "";
+    const [y, m, d] = startDate.split("-").map(Number);
+    if (!y || !m || !d) {
+      const dt = new Date(startDate);
+      dt.setMonth(dt.getMonth() + totalMonths);
+      return dt.toISOString().slice(0, 10);
+    }
+    const dt = new Date(Date.UTC(y, m - 1 + totalMonths, d));
+    return dt.toISOString().slice(0, 10);
+  }, [startDate, totalMonths]);
+
+  // Price is only calculated on the contracted paid duration (free months are zero price)
+  const paidMonths = Math.max(0, Number(duration || 0));
+  const scheduled = Number(monthlyFee || 0) * paidMonths;
+  const installAmount = hasInstallationFee ? Math.max(0, Number(installationFee || 0)) : 0;
+  const subtotal = scheduled + installAmount;
+  const effective = totalMonths > 0 ? subtotal / totalMonths : 0;
+  // Auto-calculate tax default 10% (price excluded: added on top of subtotal)
+  const autoTax = Number(((subtotal * Number(taxRate || 0)) / 100).toFixed(2));
+  const currentTax = taxManual !== null ? taxManual : autoTax;
+  const total = Math.max(0, subtotal + Number(currentTax || 0) - Number(discount || 0));
+
+  // When a contract is selected, prefill schedule & finance from contract
   const onContractChange = (id: string) => {
-    setContractId(id);
-    if (!isEdit) {
-      const c = contracts.find((x) => x.id === id);
+    const resolvedId = id === "none" ? "" : id;
+    setContractId(resolvedId);
+    if (!isEdit && resolvedId) {
+      const c = contracts.find((x) => x.id === resolvedId);
       if (c) {
-        setSubtotal(Number(c.monthlyFee));
+        if (c.startDate) setStartDate(c.startDate.slice(0, 10));
+        const free = c.freeMonths || 0;
+        const baseDuration = Math.max(1, (c.durationMonths || 12) - free);
+        setDuration(baseDuration);
+        setFreeMonths(free);
+        const mFee = Number(c.monthlyFee);
+        setFeeInput(feeBasis === "YEARLY" ? Number((mFee * 12).toFixed(2)) : mFee);
         setCur(c.currency);
+
+        const cInstall = (c as any).notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
+        if (cInstall && Number(cInstall[1]) > 0) {
+          setHasInstallationFee(true);
+          setInstallationFee(Number(cInstall[1]));
+        }
       }
     }
   };
 
+  // When an installed service is selected directly (no-contract mode), prefill schedule & finance from service
+  const onServiceChange = (id: string) => {
+    const resolvedId = id === "none" ? "" : id;
+    setServiceId(resolvedId);
+    if (!isEdit && resolvedId) {
+      const s = services.find((x) => x.id === resolvedId);
+      if (s) {
+        if (s.startDate) setStartDate(s.startDate.slice(0, 10));
+        const free = s.freeMonths || 0;
+        const baseDuration = Math.max(1, (s.durationMonths || 12) - free);
+        setDuration(baseDuration);
+        setFreeMonths(free);
+        if (s.monthlyFee !== null && s.monthlyFee !== undefined && Number(s.monthlyFee) > 0) {
+          const mFee = Number(s.monthlyFee);
+          setFeeInput(feeBasis === "YEARLY" ? Number((mFee * 12).toFixed(2)) : mFee);
+        }
+        if (s.currency) {
+          setCur(s.currency);
+        }
+
+        const sInstall = (s as any).notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
+        if (sInstall && Number(sInstall[1]) > 0) {
+          setHasInstallationFee(true);
+          setInstallationFee(Number(sInstall[1]));
+        }
+      }
+    }
+  };
+
+  const hasTarget = useContract ? Boolean(contractId?.trim()) : Boolean(contractId?.trim() || serviceId?.trim());
+
   const isFormValid = Boolean(
-    contractId?.trim() &&
+    hasTarget &&
     invoiceNumber?.trim() &&
     invoiceDate?.trim() &&
-    subtotal !== "" &&
-    subtotal !== null &&
-    subtotal !== undefined &&
-    !isNaN(Number(subtotal)) &&
-    Number(subtotal) >= 0 &&
-    (tax === "" || (!isNaN(Number(tax)) && Number(tax) >= 0)) &&
+    startDate?.trim() &&
+    duration !== "" &&
+    !isNaN(Number(duration)) &&
+    Number(duration) > 0 &&
+    feeInput !== "" &&
+    feeInput !== null &&
+    feeInput !== undefined &&
+    !isNaN(Number(feeInput)) &&
+    Number(feeInput) >= 0 &&
+    (freeMonths === undefined || freeMonths === "" || (!isNaN(Number(freeMonths)) && Number(freeMonths) >= 0)) &&
+    (!hasInstallationFee || (installationFee !== "" && !isNaN(Number(installationFee)) && Number(installationFee) >= 0)) &&
+    (currentTax === "" || (!isNaN(Number(currentTax)) && Number(currentTax) >= 0)) &&
     (discount === "" || (!isNaN(Number(discount)) && Number(discount) >= 0))
   );
 
   const submit = async () => {
     setError(null);
     if (!isFormValid) return;
-    if (!contractId) return setError("Please select a contract");
+    if (useContract && !contractId) return setError("Please select a contract");
+    if (!useContract && !contractId && !serviceId) return setError("Please select an installed service");
     if (!invoiceNumber.trim()) return setError("Invoice number is required");
+    if (Number(freeMonths || 0) < 0) return setError("Free months cannot be negative");
+    if (hasInstallationFee && Number(installationFee || 0) < 0) return setError("Installation fee cannot be negative");
     try {
+      let cleanNotes = notes.replace(/\n?\[Installation fee\]:\s*[0-9.]+/g, "").trim();
+      if (hasInstallationFee && installAmount > 0) {
+        cleanNotes = cleanNotes ? `${cleanNotes}\n[Installation fee]: ${installAmount}` : `[Installation fee]: ${installAmount}`;
+      }
       await onSubmit({
-        contractId,
+        contractId: contractId || null,
+        serviceId: serviceId || null,
         invoiceNumber: invoiceNumber.trim(),
         invoiceDate,
-        periodStart: periodStart || null,
-        periodEnd: periodEnd || null,
-        subtotal: Number(subtotal || 0),
-        tax: Number(tax || 0),
+        periodStart: startDate || null,
+        periodEnd: endDate || null,
+        subtotal,
+        tax: Number(currentTax || 0),
         discount: Number(discount || 0),
         total,
         currency: cur,
         status,
         dueDate: dueDate || null,
-        notes: notes.trim() || null,
+        notes: cleanNotes || null,
+        scheduledMonths: totalMonths,
+        installationFee: installAmount,
       });
     } catch (e) {
       console.error("[InvoiceForm submit error]:", e);
@@ -627,31 +840,75 @@ function InvoiceForm({
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? `Edit invoice ${editing?.invoiceNumber}` : "New invoice"}
-      description="Bill a contract for a period. Total = subtotal + tax − discount. Catalog plan prices don't bind here — set the real billed amount."
+      description={useContract ? "Bill a contract for a period. Total = subtotal + tax − discount." : "Record provider invoice for an installed service. Track spend by branch and shop."}
       submitText={isEdit ? "Save changes" : "Create invoice"}
       submitDisabled={!isFormValid}
       onSubmit={submit}
       size="lg"
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         {error && (
           <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
             {error}
           </div>
         )}
-        <Field label="Contract" required>
-          <SearchableSelect
-            value={contractId}
-            onValueChange={onContractChange}
-            disabled={isEdit}
-            placeholder="Select contract..."
-            options={contracts.map((c) => ({
-              value: c.id,
-              label: `${c.contractNumber} — ${c.serviceCode} · ${c.branch?.name ?? "—"} (${formatMoney(c.monthlyFee, c.currency)}/mo)`,
-            }))}
-          />
-        </Field>
 
+        {/* Contract Mode: Contract selector required */}
+        {useContract && (
+          <Field label="Contract" required>
+            <SearchableSelect
+              value={contractId}
+              onValueChange={onContractChange}
+              disabled={isEdit}
+              placeholder="Select contract..."
+              options={contracts.map((c) => ({
+                value: c.id,
+                label: `${c.contractNumber} — ${c.serviceCode} · ${c.branch?.name ?? "—"} (${formatMoney(c.monthlyFee, c.currency)}/mo)`,
+              }))}
+            />
+          </Field>
+        )}
+
+        {/* Contract-Free Mode: Installed Service selector required, Contract optional */}
+        {!useContract && (
+          <div className="space-y-3 rounded-lg border bg-card/40 p-3.5">
+            <Field label="Installed Service" required hint="Select which service/branch this invoice bills">
+              <SearchableSelect
+                value={serviceId || "none"}
+                onValueChange={onServiceChange}
+                disabled={isEdit}
+                placeholder="Select installed service..."
+                options={[
+                  { value: "none", label: "— Select installed service —" },
+                  ...services.map((s) => ({
+                    value: s.id,
+                    label: `${s.serviceCode} — ${s.branch?.name ?? "Branch"}${s.shop?.name ? ` / ${s.shop.name}` : ""} · ${s.provider?.name ?? "Provider"}${s.monthlyFee ? ` (${formatMoney(s.monthlyFee, s.currency ?? cur)}/mo)` : ""}`,
+                  })),
+                ]}
+              />
+            </Field>
+
+            {contracts.length > 0 && (
+              <Field label="Contract (optional)" hint="Commercial contract linking (optional)">
+                <SearchableSelect
+                  value={contractId || "none"}
+                  onValueChange={onContractChange}
+                  disabled={isEdit}
+                  placeholder="— No contract —"
+                  options={[
+                    { value: "none", label: "— No contract —" },
+                    ...contracts.map((c) => ({
+                      value: c.id,
+                      label: `${c.contractNumber} — ${c.serviceCode} · ${c.branch?.name ?? "—"}`,
+                    })),
+                  ]}
+                />
+              </Field>
+            )}
+          </div>
+        )}
+
+        {/* Section 1: Invoice Identification & Dates */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Invoice number" htmlFor="inv-number" required>
             <Input id="inv-number" isCode value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
@@ -666,7 +923,6 @@ function InvoiceForm({
           </Field>
         </div>
 
-        {/* Invoice & Due Dates */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Invoice date" htmlFor="inv-date" required>
             <DatePicker id="inv-date" value={invoiceDate} onChange={setInvoiceDate} placeholder="Select date" />
@@ -676,42 +932,294 @@ function InvoiceForm({
           </Field>
         </div>
 
-        {/* Service / Billing Period */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Period start" htmlFor="inv-period-start" hint="Billing coverage start">
-            <DatePicker id="inv-period-start" value={periodStart} onChange={setPeriodStart} placeholder="Select start date" />
-          </Field>
-          <Field label="Period end" htmlFor="inv-period-end" hint="Billing coverage end">
-            <DatePicker id="inv-period-end" value={periodEnd} onChange={setPeriodEnd} placeholder="Select end date" />
-          </Field>
+        {/* Section 2: Schedule & Duration */}
+        <div className="rounded-lg border bg-card/40 p-4 space-y-4">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Calendar className="size-3.5 text-primary" />
+            2. Schedule &amp; Duration
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Start date" required>
+              <DatePicker value={startDate} onChange={setStartDate} placeholder="Select date" />
+            </Field>
+            <Field label="Duration (months)" required>
+              <Input
+                type="number"
+                min={1}
+                max={120}
+                value={duration}
+                onChange={(e) => setDuration(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Free months" hint="Zero-fee extension">
+              <Input
+                type="number"
+                min={0}
+                max={120}
+                value={freeMonths}
+                onChange={(e) => setFreeMonths(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </Field>
+            <Field label="End date" hint="Auto-calculated (extended by free months)">
+              <DatePicker value={endDate} disabled className="bg-muted/40 cursor-not-allowed opacity-90" />
+            </Field>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Field label="Subtotal" htmlFor="inv-subtotal" required>
-            <Input id="inv-subtotal" type="number" min={0} step="0.01" value={subtotal} onChange={(e) => setSubtotal(e.target.value === "" ? "" : Number(e.target.value))} />
-          </Field>
-          <Field label="Tax / VAT" htmlFor="inv-tax">
-            <Input id="inv-tax" type="number" min={0} step="0.01" value={tax} onChange={(e) => setTax(e.target.value === "" ? "" : Number(e.target.value))} />
-          </Field>
-          <Field label="Discount" htmlFor="inv-discount">
-            <Input id="inv-discount" type="number" min={0} step="0.01" value={discount} onChange={(e) => setDiscount(e.target.value === "" ? "" : Number(e.target.value))} />
-          </Field>
-          <Field label="Currency" htmlFor="inv-currency">
-            <Input id="inv-currency" value={cur} maxLength={3} onChange={(e) => setCur(e.target.value.toUpperCase())} />
-          </Field>
-        </div>
-
-        <Card className="bg-muted/30">
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Calculator className="size-4 text-primary" />
-              Total
+        {/* Section 3: Financial Terms & Billing */}
+        <div className="rounded-lg border bg-card/40 p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <DollarSign className="size-3.5 text-primary" />
+              3. Financial Terms &amp; Billing
             </div>
-            <div className="text-xl font-semibold tabular-nums">{formatMoney(total, cur)}</div>
+            {/* Quick pill switcher for Fee Basis */}
+            <div className="flex items-center rounded-lg border bg-muted/40 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => handleFeeBasisChange("MONTHLY")}
+                className={cn(
+                  "rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  feeBasis === "MONTHLY"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Monthly fee
+              </button>
+              <button
+                type="button"
+                onClick={() => handleFeeBasisChange("YEARLY")}
+                className={cn(
+                  "rounded-md px-2.5 py-1 font-medium transition-colors cursor-pointer",
+                  feeBasis === "YEARLY"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Yearly fee
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Field label="Fee calculation" hint="Input basis">
+              <Select value={feeBasis} onValueChange={(v) => handleFeeBasisChange(v as "MONTHLY" | "YEARLY")}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MONTHLY">Monthly fee</SelectItem>
+                  <SelectItem value="YEARLY">Yearly fee</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field
+              label={feeBasis === "YEARLY" ? "Agreed Yearly fee" : "Agreed Monthly fee"}
+              required
+              hint={
+                feeBasis === "YEARLY"
+                  ? `≈ ${formatMoney(monthlyFee, cur)}/mo`
+                  : `≈ ${formatMoney(monthlyFee * 12, cur)}/yr`
+              }
+            >
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={feeInput}
+                onChange={(e) => setFeeInput(e.target.value === "" ? "" : Number(e.target.value))}
+              />
+            </Field>
+
+            <Field label="Currency" hint="3-letter code">
+              <Input
+                value={cur}
+                onChange={(e) => setCur(e.target.value.toUpperCase().slice(0, 3))}
+                maxLength={3}
+              />
+            </Field>
+          </div>
+
+          {/* Service Installation Fee Option */}
+          <div className="pt-3 border-t">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border bg-background/60 p-3">
+              <label
+                htmlFor="inv-has-install-fee"
+                className="flex items-center gap-2.5 text-sm font-medium cursor-pointer select-none"
+              >
+                <Checkbox
+                  id="inv-has-install-fee"
+                  checked={hasInstallationFee}
+                  onCheckedChange={(v) => {
+                    const checked = Boolean(v);
+                    setHasInstallationFee(checked);
+                    if (!checked) setInstallationFee(0);
+                  }}
+                />
+                <span className="flex items-center gap-1.5 text-foreground">
+                  <Wrench className="size-3.5 text-primary" />
+                  Service installation fee
+                </span>
+              </label>
+
+              <div className="flex items-center gap-2 sm:w-64">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">Amount ({cur}):</span>
+                <Input
+                  id="inv-install-fee-amount"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  disabled={!hasInstallationFee}
+                  value={hasInstallationFee ? installationFee : ""}
+                  onChange={(e) => setInstallationFee(e.target.value === "" ? "" : Number(e.target.value))}
+                  className={cn(
+                    "h-8 text-sm",
+                    !hasInstallationFee && "bg-muted/40 cursor-not-allowed opacity-50"
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 4: Live Cost Projection Card */}
+        <Card className="border-primary/20 bg-primary/5 shadow-xs">
+          <CardContent className="p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                <Calculator className="size-3.5" />
+                Live Cost Projection
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-background font-mono">
+                {startDate && endDate ? `${startDate} → ${endDate}` : `${totalMonths} Months`}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <Preview
+                label="Billable Months"
+                value={Number(freeMonths || 0) > 0 ? `${paidMonths} of ${totalMonths}m (${freeMonths}m free)` : `${paidMonths} of ${duration || 0}m`}
+              />
+              <Preview label="Scheduled Total" value={formatMoney(scheduled, cur)} />
+              {installAmount > 0 ? (
+                <Preview label="Installation Fee" value={formatMoney(installAmount, cur)} />
+              ) : null}
+              <Preview label="Effective Monthly" value={`${formatMoney(effective, cur)}/mo`} />
+            </div>
           </CardContent>
         </Card>
 
-        <Field label="Notes">
+        {/* Section 5: Adjustments (Tax / VAT, Discount) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field
+            label="Tax Rate (%)"
+            htmlFor="inv-tax-rate"
+            hint="Price excluded (default 10%)"
+          >
+            <div className="relative">
+              <Input
+                id="inv-tax-rate"
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                value={taxRate}
+                onChange={(e) => {
+                  setTaxRate(e.target.value);
+                  setTaxManual(null);
+                }}
+                className="pr-8"
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-semibold">
+                %
+              </span>
+            </div>
+          </Field>
+
+          <Field
+            label="Tax / VAT amount"
+            htmlFor="inv-tax"
+            hint={
+              taxManual !== null ? (
+                <span className="flex items-center justify-between text-[11px]">
+                  <span>Custom amount</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaxManual(null);
+                      setTaxRate(10);
+                    }}
+                    className="text-primary hover:underline font-medium cursor-pointer"
+                  >
+                    Reset (10%)
+                  </button>
+                </span>
+              ) : (
+                `Auto: ${taxRate || 0}% of subtotal`
+              )
+            }
+          >
+            <Input
+              id="inv-tax"
+              type="number"
+              min={0}
+              step="0.01"
+              value={currentTax}
+              onChange={(e) => setTaxManual(e.target.value === "" ? "" : Number(e.target.value))}
+            />
+          </Field>
+
+          <Field label="Discount" htmlFor="inv-discount" hint="Optional deduction">
+            <Input
+              id="inv-discount"
+              type="number"
+              min={0}
+              step="0.01"
+              value={discount}
+              onChange={(e) => setDiscount(e.target.value === "" ? "" : Number(e.target.value))}
+            />
+          </Field>
+        </div>
+
+        {/* Section 6: Grand Total Payable */}
+        <Card className="bg-muted/30 border">
+          <CardContent className="p-4 space-y-2.5">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Scheduled Service ({paidMonths}m):</span>
+              <span className="font-mono font-medium text-foreground">{formatMoney(scheduled, cur)}</span>
+            </div>
+            {installAmount > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Service Installation Fee:</span>
+                <span className="font-mono font-medium text-foreground">+{formatMoney(installAmount, cur)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Subtotal (Price Excluded):</span>
+              <span className="font-mono font-medium text-foreground">{formatMoney(subtotal, cur)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>Tax / VAT ({taxManual !== null ? "Custom" : `${taxRate}%`}):</span>
+              <span className="font-mono font-medium text-emerald-600 dark:text-emerald-400">+{formatMoney(currentTax, cur)}</span>
+            </div>
+            {Number(discount || 0) > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Discount:</span>
+                <span className="font-mono font-medium text-rose-600 dark:text-rose-400">−{formatMoney(discount, cur)}</span>
+              </div>
+            )}
+            <div className="border-t pt-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Receipt className="size-4 text-primary" />
+                Total Payable (Subtotal + Tax − Discount)
+              </div>
+              <div className="text-xl font-bold tabular-nums text-primary">{formatMoney(total, cur)}</div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Field label="Notes" hint="Optional invoice notes or payment instructions">
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>
       </div>
@@ -755,7 +1263,7 @@ function InvoiceDetailSheet({
             {invoice?.invoiceNumber}
           </SheetTitle>
           <SheetDescription>
-            {invoice?.contractNumber} · {invoice?.provider?.name}
+            {invoice?.contractNumber && invoice.contractNumber !== "—" ? `${invoice.contractNumber} · ` : ""}{invoice?.provider?.name ?? "Provider"}
           </SheetDescription>
         </SheetHeader>
 
@@ -801,9 +1309,11 @@ function InvoiceDetailSheet({
 
             <DetailGrid
               rows={[
-                ["Contract", detail.contract.contractNumber],
-                ["Branch", detail.contract.service.branch?.name ?? "—"],
-                ["Provider", detail.contract.service.provider?.name ?? "—"],
+                ["Contract", detail.contract?.contractNumber ?? "— (No contract)"],
+                ["Service", detail.service?.serviceCode ?? detail.contract?.service?.serviceCode ?? detail.serviceCode ?? "—"],
+                ["Branch", detail.service?.branch?.name ?? detail.contract?.service?.branch?.name ?? detail.branch?.name ?? "—"],
+                ["Shop", detail.service?.shop?.name ?? detail.contract?.service?.shop?.name ?? detail.shop?.name ?? "—"],
+                ["Provider", detail.service?.provider?.name ?? detail.contract?.service?.provider?.name ?? detail.provider?.name ?? "—"],
                 ["Invoice date", formatDate(detail.invoiceDate)],
                 ["Due date", formatDate(detail.dueDate)],
                 ["Period", detail.periodStart ? `${formatDate(detail.periodStart)} → ${formatDate(detail.periodEnd)}` : "—"],
@@ -811,22 +1321,35 @@ function InvoiceDetailSheet({
               ]}
             />
 
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 space-y-2">
-                <p className="flex items-center gap-2 text-sm font-medium">
-                  <Calculator className="size-4 text-primary" />
-                  Amounts
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <Preview label="Subtotal" value={formatMoney(detail.subtotal, detail.currency)} />
-                  <Preview label="Tax" value={formatMoney(detail.tax, detail.currency)} />
-                  <Preview label="Discount" value={formatMoney(detail.discount, detail.currency)} />
-                  <Preview label="Total" value={formatMoney(detail.total, detail.currency)} />
-                  <Preview label="Allocated" value={formatMoney(detail.allocated, detail.currency)} />
-                  <Preview label="Outstanding" value={formatMoney(detail.outstanding, detail.currency)} />
-                </div>
-              </CardContent>
-            </Card>
+            {(() => {
+              const installMatch = detail.notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
+              const installFee = installMatch
+                ? Number(installMatch[1])
+                : (detail as any).installationFee
+                  ? Number((detail as any).installationFee)
+                  : 0;
+              return (
+                <Card className="bg-muted/30">
+                  <CardContent className="p-4 space-y-2">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <Calculator className="size-4 text-primary" />
+                      Amounts
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {installFee > 0 && (
+                        <Preview label="Installation fee" value={formatMoney(installFee, detail.currency)} />
+                      )}
+                      <Preview label="Subtotal" value={formatMoney(detail.subtotal, detail.currency)} />
+                      <Preview label="Tax" value={formatMoney(detail.tax, detail.currency)} />
+                      <Preview label="Discount" value={formatMoney(detail.discount, detail.currency)} />
+                      <Preview label="Total" value={formatMoney(detail.total, detail.currency)} />
+                      <Preview label="Allocated" value={formatMoney(detail.allocated, detail.currency)} />
+                      <Preview label="Outstanding" value={formatMoney(detail.outstanding, detail.currency)} />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
 
             {detail.notes && (
               <div>

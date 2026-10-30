@@ -33,6 +33,7 @@ export const CONTRACT_FIELDS: ImportField[] = [
 ];
 
 export const SERVICE_FIELDS: ImportField[] = [
+  // 1. Service & Site Identification
   { key: "serviceCode", label: "Service code", required: true, type: "string" },
   { key: "branchCode", label: "Branch code", required: true, type: "string", hint: "Must match an existing branch code" },
   { key: "shopCode", label: "Shop code", type: "string", hint: "Optional; must match an existing shop" },
@@ -45,6 +46,14 @@ export const SERVICE_FIELDS: ImportField[] = [
   { key: "ipAddress", label: "IP address", type: "string" },
   { key: "ipType", label: "IP type", type: "enum", enumValues: ["STATIC", "DYNAMIC", "CGNAT"], hint: "Default DYNAMIC" },
   { key: "status", label: "Status", type: "enum", enumValues: ["ACTIVE", "PENDING", "SUSPENDED", "TERMINATED"], hint: "Default PENDING" },
+  // 2. Schedule & Duration
+  { key: "startDate", label: "Start date", type: "date", hint: "Commencement date" },
+  { key: "durationMonths", label: "Duration (months)", type: "number", hint: "Contract / term length in months" },
+  { key: "freeMonths", label: "Free months", type: "number", hint: "Default 0" },
+  // 3. Financial Terms & Billing
+  { key: "monthlyFee", label: "Monthly fee", type: "number", hint: "Agreed monthly recurring cost" },
+  { key: "currency", label: "Currency", type: "string", hint: "Default company currency (USD)" },
+  { key: "billingCycle", label: "Billing cycle", type: "enum", enumValues: ["ANNUAL", "YEARLY", "MONTHLY", "QUARTERLY", "SEMI_ANNUAL"], hint: "Default ANNUAL (Yearly)" },
 ];
 
 export function getFields(entityType: ImportEntityType): ImportField[] {
@@ -87,14 +96,23 @@ export function autoMatchHeader(header: string): string | null {
     circuitid: "ispServiceId",
     circuitno: "ispServiceId",
     start: "startDate",
+    startdate: "startDate",
     begin: "startDate",
     months: "durationMonths",
     duration: "durationMonths",
+    durationmonths: "durationMonths",
+    term: "durationMonths",
     fee: "monthlyFee",
+    monthlyfee: "monthlyFee",
+    monthlycost: "monthlyFee",
+    cost: "monthlyFee",
     price: "monthlyFee",
     amount: "monthlyFee",
     free: "freeMonths",
+    freemonths: "freeMonths",
     cur: "currency",
+    billingcycle: "billingCycle",
+    cycle: "billingCycle",
     branch: "branchCode",
     shop: "shopCode",
     provider: "providerCode",

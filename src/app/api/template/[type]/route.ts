@@ -74,6 +74,12 @@ function generateFallbackTemplate(type: "contract" | "service", currency = "USD"
         "IP Address": "10.0.10.5",
         "IP Type": "STATIC",
         Status: "ACTIVE",
+        "Start Date": "2026-01-01",
+        "Duration Months": 12,
+        "Free Months": 1,
+        "Monthly Fee": 790,
+        Currency: currency,
+        "Billing Cycle": "MONTHLY",
       },
       {
         "Service Code": "SVC-IMP-002",
@@ -87,6 +93,12 @@ function generateFallbackTemplate(type: "contract" | "service", currency = "USD"
         "IP Address": "",
         "IP Type": "DYNAMIC",
         Status: "ACTIVE",
+        "Start Date": "2026-02-01",
+        "Duration Months": 12,
+        "Free Months": 0,
+        "Monthly Fee": 1290,
+        Currency: currency,
+        "Billing Cycle": "MONTHLY",
       },
       {
         "Service Code": "SVC-IMP-003",
@@ -100,6 +112,12 @@ function generateFallbackTemplate(type: "contract" | "service", currency = "USD"
         "IP Address": "10.0.30.2",
         "IP Type": "STATIC",
         Status: "PENDING",
+        "Start Date": "2026-03-01",
+        "Duration Months": 12,
+        "Free Months": 0,
+        "Monthly Fee": 890,
+        Currency: currency,
+        "Billing Cycle": "MONTHLY",
       },
     ];
     const ws = XLSX.utils.json_to_sheet(data);
@@ -115,6 +133,12 @@ function generateFallbackTemplate(type: "contract" | "service", currency = "USD"
       { wch: 16 },
       { wch: 12 },
       { wch: 12 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 16 },
     ];
     XLSX.utils.book_append_sheet(wb, ws, "Services");
   }

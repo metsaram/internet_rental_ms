@@ -78,7 +78,7 @@ export function LoginScreen() {
         return;
       }
       resetIdleTimeoutStorage();
-      toast.success("Authentication successful! Welcome to NetRent.");
+      //toast.success("Authentication successful! Welcome to NetRent.");
       await update();
       router.refresh();
     } catch {

@@ -144,6 +144,28 @@ export interface DatePickerProps {
    * Aria label for the picker.
    */
   "aria-label"?: string;
+  /**
+   * Layout of the calendar caption.
+   * - "dropdown": shows Month and Year dropdown selectors.
+   * - "label": shows static label with previous/next arrows.
+   * Defaults to "dropdown".
+   */
+  captionLayout?: "label" | "dropdown" | "dropdown-months" | "dropdown-years";
+  /**
+   * Number of years in the past and future for the dropdown selectors.
+   * Defaults to 5 years (current year - 5 to current year + 5).
+   */
+  yearRange?: number;
+  /**
+   * Earliest month allowable in the calendar/dropdown.
+   * Overrides yearRange if provided, or derived from `min`.
+   */
+  startMonth?: Date;
+  /**
+   * Latest month allowable in the calendar/dropdown.
+   * Overrides yearRange if provided, or derived from `max`.
+   */
+  endMonth?: Date;
 }
 
 export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
@@ -170,6 +192,10 @@ export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
       popoverClassName,
       required,
       "aria-label": ariaLabel,
+      captionLayout = "dropdown",
+      yearRange = 5,
+      startMonth,
+      endMonth,
     },
     ref
   ) {
@@ -273,6 +299,31 @@ export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
       return (date: Date) => matchers.some((m) => m(date));
     }, [min, max, disabledDays]);
 
+    // Resolve start and end months for dropdown selectors (default +/- 5 years, expanded to parsedDate or min/max)
+    const resolvedStartMonth = React.useMemo(() => {
+      if (startMonth) return startMonth;
+      if (min) {
+        const minD = parseDateString(min);
+        if (minD) return new Date(minD.getFullYear(), minD.getMonth(), 1);
+      }
+      const baseYear = new Date().getFullYear();
+      const refYear = parsedDate ? parsedDate.getFullYear() : baseYear;
+      const startYear = Math.min(baseYear - yearRange, refYear);
+      return new Date(startYear, 0, 1);
+    }, [startMonth, min, parsedDate, yearRange]);
+
+    const resolvedEndMonth = React.useMemo(() => {
+      if (endMonth) return endMonth;
+      if (max) {
+        const maxD = parseDateString(max);
+        if (maxD) return new Date(maxD.getFullYear(), maxD.getMonth(), 1);
+      }
+      const baseYear = new Date().getFullYear();
+      const refYear = parsedDate ? parsedDate.getFullYear() : baseYear;
+      const endYear = Math.max(baseYear + yearRange, refYear);
+      return new Date(endYear, 11, 31);
+    }, [endMonth, max, parsedDate, yearRange]);
+
     const formattedDisplay = React.useMemo(() => {
       if (!parsedDate) return null;
       try {
@@ -356,6 +407,9 @@ export const DatePicker = React.forwardRef<HTMLButtonElement, DatePickerProps>(
               onSelect={handleDaySelect}
               defaultMonth={parsedDate}
               disabled={disabledMatcher}
+              captionLayout={captionLayout}
+              startMonth={resolvedStartMonth}
+              endMonth={resolvedEndMonth}
               initialFocus
             />
           </PopoverContent>
@@ -378,6 +432,10 @@ export interface DateRangePickerProps {
   className?: string;
   popoverClassName?: string;
   align?: "start" | "center" | "end";
+  captionLayout?: "label" | "dropdown" | "dropdown-months" | "dropdown-years";
+  yearRange?: number;
+  startMonth?: Date;
+  endMonth?: Date;
 }
 
 export function DateRangePicker({
@@ -391,8 +449,25 @@ export function DateRangePicker({
   className,
   popoverClassName,
   align = "start",
+  captionLayout = "label",
+  yearRange = 5,
+  startMonth,
+  endMonth,
 }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
+
+  const baseYear = new Date().getFullYear();
+  const resolvedStartMonth = React.useMemo(() => {
+    if (startMonth) return startMonth;
+    const refYear = value?.from ? value.from.getFullYear() : baseYear;
+    return new Date(Math.min(baseYear - yearRange, refYear), 0, 1);
+  }, [startMonth, value?.from, baseYear, yearRange]);
+
+  const resolvedEndMonth = React.useMemo(() => {
+    if (endMonth) return endMonth;
+    const refYear = value?.to ? value.to.getFullYear() : value?.from ? value.from.getFullYear() : baseYear;
+    return new Date(Math.max(baseYear + yearRange, refYear), 11, 31);
+  }, [endMonth, value?.to, value?.from, baseYear, yearRange]);
 
   const displayText = React.useMemo(() => {
     if (!value?.from) return null;
@@ -447,6 +522,9 @@ export function DateRangePicker({
           onSelect={onChange}
           numberOfMonths={2}
           defaultMonth={value?.from}
+          captionLayout={captionLayout}
+          startMonth={resolvedStartMonth}
+          endMonth={resolvedEndMonth}
           initialFocus
         />
       </PopoverContent>

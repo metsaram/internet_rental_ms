@@ -120,6 +120,56 @@ describe("DatePicker Component", () => {
     await userEvent.click(clearBtn);
     expect(capturedValue).toBe("");
   });
+
+  it("renders month and year dropdown selectors with 5-year default range when opened", async () => {
+    const currentYear = new Date().getFullYear();
+    render(<DatePicker value={`${currentYear}-10-24`} />);
+
+    // Open the popover
+    const trigger = screen.getByRole("button", { name: /oct 24/i });
+    await userEvent.click(trigger);
+
+    // Assert that month and year dropdowns are rendered
+    const monthSelect = screen.getByLabelText("Choose the Month") as HTMLSelectElement;
+    const yearSelect = screen.getByLabelText("Choose the Year") as HTMLSelectElement;
+    expect(monthSelect).toBeInTheDocument();
+    expect(yearSelect).toBeInTheDocument();
+
+    // Verify month options (formatted with formatMonthDropdown as short names)
+    const monthOptions = Array.from(monthSelect.options).map((o) => o.text);
+    expect(monthOptions).toContain("Jan");
+    expect(monthOptions).toContain("Oct");
+    expect(monthOptions).toContain("Dec");
+
+    // Verify year options span 5 years in the past to 5 years in the future
+    const yearOptions = Array.from(yearSelect.options).map((o) => parseInt(o.value, 10));
+    expect(yearOptions).toContain(currentYear - 5);
+    expect(yearOptions).toContain(currentYear);
+    expect(yearOptions).toContain(currentYear + 5);
+    expect(yearOptions[0]).toBeLessThanOrEqual(currentYear - 5);
+    expect(yearOptions[yearOptions.length - 1]).toBeGreaterThanOrEqual(currentYear + 5);
+  });
+
+  it("automatically expands year range to include selected date beyond 5 years", async () => {
+    render(<DatePicker value="2012-05-15" />);
+
+    const trigger = screen.getByRole("button", { name: /may 15, 2012/i });
+    await userEvent.click(trigger);
+
+    const yearSelect = screen.getByLabelText("Choose the Year") as HTMLSelectElement;
+    const yearOptions = Array.from(yearSelect.options).map((o) => parseInt(o.value, 10));
+    expect(yearOptions).toContain(2012);
+  });
+
+  it("supports captionLayout='label' when dropdown selector is not needed", async () => {
+    render(<DatePicker value="2026-10-24" captionLayout="label" />);
+
+    const trigger = screen.getByRole("button", { name: /oct 24, 2026/i });
+    await userEvent.click(trigger);
+
+    expect(screen.queryByLabelText("Choose the Month")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Choose the Year")).not.toBeInTheDocument();
+  });
 });
 
 describe("DateRangePicker Component", () => {

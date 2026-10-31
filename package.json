@@ -23,8 +23,10 @@
     "db:migrate-sqlite": "bun run scripts/migrate-sqlite-to-supabase.mjs",
     "db:reset": "prisma migrate reset",
     "db:seed": "bun run prisma/seed.ts",
+    "db:clean-data": "node scripts/clear-data.mjs",
     "storage:upload-templates": "bun run scripts/upload-templates-to-supabase.ts",
-    "storage:upload-payments": "bun run scripts/upload-payments-to-supabase.ts"
+    "storage:upload-payments": "bun run scripts/upload-payments-to-supabase.ts",
+    "migrate:invoices": "bun run scripts/migrate-old-invoices.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1154.0",

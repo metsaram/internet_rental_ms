@@ -93,12 +93,12 @@ async function main() {
 
   // Shops ------------------------------------------------------------------
   const shopDefs: Array<{ branchIdx: number; code: string; name: string; type: any }> = [
-    { branchIdx: 0, code: "SUK-A1", name: "Shop A1 - Electronics", type: "UNIT" },
+    { branchIdx: 0, code: "SUK-A1", name: "Shop A1 - Electronics", type: "GARAGE" },
     { branchIdx: 0, code: "SUK-B2", name: "Kiosk B2 - Coffee", type: "KIOSK" },
     { branchIdx: 1, code: "SIL-01", name: "Office 01 - Finance", type: "OFFICE" },
     { branchIdx: 1, code: "SIL-02", name: "Restaurant 02", type: "RESTAURANT" },
-    { branchIdx: 2, code: "CNX-01", name: "Shop 01 - Fashion", type: "UNIT" },
-    { branchIdx: 3, code: "HKT-01", name: "Shop 01 - Souvenirs", type: "UNIT" },
+    { branchIdx: 2, code: "CNX-01", name: "Shop 01 - Fashion", type: "GARAGE" },
+    { branchIdx: 3, code: "HKT-01", name: "Shop 01 - Souvenirs", type: "GARAGE" },
   ];
   const shops = await Promise.all(
     shopDefs.map((s) =>
@@ -167,23 +167,26 @@ async function main() {
   );
 
   // Services ---------------------------------------------------------------
-  const serviceDefs: Array<{ branchIdx: number; shopIdx?: number; pIdx: number; planIdx: number; code: string; acct: string; addr: string; ip?: string; ipType?: any; user?: string; status?: any; circuitRole?: any }> = [
-    { branchIdx: 0, shopIdx: 0, pIdx: 0, planIdx: 0, code: "SVC-0001", acct: "AIS-100001", addr: "Sukhumvit, Shop A1", ip: "10.0.1.5", ipType: "STATIC", user: "ais_user_001", status: "ACTIVE", circuitRole: "PRIMARY" },
-    { branchIdx: 0, shopIdx: 1, pIdx: 0, planIdx: 1, code: "SVC-0002", acct: "AIS-100002", addr: "Sukhumvit, Kiosk B2", ip: "10.0.1.6", ipType: "STATIC", user: "ais_user_002", status: "ACTIVE", circuitRole: "STANDALONE" },
-    { branchIdx: 1, shopIdx: 2, pIdx: 1, planIdx: 3, code: "SVC-0003", acct: "TRUE-200001", addr: "Silom, Office 01", ip: "10.0.2.5", ipType: "STATIC", user: "true_user_001", status: "ACTIVE", circuitRole: "PRIMARY" },
-    { branchIdx: 1, shopIdx: 3, pIdx: 1, planIdx: 4, code: "SVC-0004", acct: "TRUE-200002", addr: "Silom, Restaurant 02", ipType: "DYNAMIC", status: "ACTIVE", circuitRole: "STANDALONE" },
-    { branchIdx: 2, shopIdx: 4, pIdx: 2, planIdx: 5, code: "SVC-0005", acct: "3BB-300001", addr: "Nimman, Shop 01", ipType: "DYNAMIC", status: "ACTIVE", circuitRole: "STANDALONE" },
-    { branchIdx: 3, shopIdx: 5, pIdx: 3, planIdx: 6, code: "SVC-0006", acct: "TOT-400001", addr: "Patong, Shop 01", ipType: "CGNAT", status: "ACTIVE", circuitRole: "STANDALONE" },
+  const serviceDefs: Array<{ branchIdx: number; shopIdx?: number; pIdx: number; planIdx: number; code: string; acct: string; cid?: string; sid?: string; addr: string; ip?: string; ipType?: any; user?: string; status?: any; circuitRole?: any }> = [
+    { branchIdx: 0, shopIdx: 0, pIdx: 0, planIdx: 0, code: "SVC-0001", acct: "AIS-100001", cid: "CID-AIS-9001", sid: "SID-880191", addr: "Sukhumvit, Shop A1", ip: "10.0.1.5", ipType: "STATIC", user: "ais_user_001", status: "ACTIVE", circuitRole: "PRIMARY" },
+    { branchIdx: 0, shopIdx: 1, pIdx: 0, planIdx: 1, code: "SVC-0002", acct: "AIS-100002", cid: "CID-AIS-9002", sid: "SID-880192", addr: "Sukhumvit, Kiosk B2", ip: "10.0.1.6", ipType: "STATIC", user: "ais_user_002", status: "ACTIVE", circuitRole: "STANDALONE" },
+    { branchIdx: 1, shopIdx: 2, pIdx: 1, planIdx: 3, code: "SVC-0003", acct: "TRUE-200001", cid: "CID-TRUE-7001", sid: "SID-441201", addr: "Silom, Office 01", ip: "10.0.2.5", ipType: "STATIC", user: "true_user_001", status: "ACTIVE", circuitRole: "PRIMARY" },
+    { branchIdx: 1, shopIdx: 3, pIdx: 1, planIdx: 4, code: "SVC-0004", acct: "TRUE-200002", cid: "CID-TRUE-7002", sid: "SID-441202", addr: "Silom, Restaurant 02", ipType: "DYNAMIC", status: "ACTIVE", circuitRole: "STANDALONE" },
+    { branchIdx: 2, shopIdx: 4, pIdx: 2, planIdx: 5, code: "SVC-0005", acct: "3BB-300001", cid: "CID-3BB-5001", sid: "SID-772911", addr: "Nimman, Shop 01", ipType: "DYNAMIC", status: "ACTIVE", circuitRole: "STANDALONE" },
+    { branchIdx: 3, shopIdx: 5, pIdx: 3, planIdx: 6, code: "SVC-0006", acct: "TOT-400001", cid: "CID-NT-3001", sid: "SID-220910", addr: "Patong, Shop 01", ipType: "CGNAT", status: "ACTIVE", circuitRole: "STANDALONE" },
     // a branch-only service (no shop) — primary backbone
-    { branchIdx: 0, pIdx: 0, planIdx: 2, code: "SVC-0007", acct: "AIS-100007", addr: "Sukhumvit, Branch backbone", ip: "10.0.1.1", ipType: "STATIC", user: "ais_admin_007", status: "ACTIVE", circuitRole: "PRIMARY" },
+    { branchIdx: 0, pIdx: 0, planIdx: 2, code: "SVC-0007", acct: "AIS-100007", cid: "CID-AIS-9007", sid: "SID-880197", addr: "Sukhumvit, Branch backbone", ip: "10.0.1.1", ipType: "STATIC", user: "ais_admin_007", status: "ACTIVE", circuitRole: "PRIMARY" },
     // backup line (suspended) for Silom — provides redundancy for SVC-0003
-    { branchIdx: 1, pIdx: 2, planIdx: 5, code: "SVC-0008", acct: "3BB-300008", addr: "Silom, backup line", ipType: "DYNAMIC", status: "SUSPENDED", circuitRole: "BACKUP" },
+    { branchIdx: 1, pIdx: 2, planIdx: 5, code: "SVC-0008", acct: "3BB-300008", cid: "CID-3BB-5008", sid: "SID-772918", addr: "Silom, backup line", ipType: "DYNAMIC", status: "SUSPENDED", circuitRole: "BACKUP" },
   ];
   const services = await Promise.all(
     serviceDefs.map((s) =>
       prisma.internetService.upsert({
         where: { companyId_serviceCode: { companyId: company.id, serviceCode: s.code } },
-        update: {},
+        update: {
+          customerId: s.cid ?? null,
+          ispServiceId: s.sid ?? null,
+        },
         create: {
           companyId: company.id,
           branchId: branches[s.branchIdx].id,
@@ -192,6 +195,8 @@ async function main() {
           planId: plans[s.planIdx].id,
           serviceCode: s.code,
           accountId: s.acct,
+          customerId: s.cid ?? null,
+          ispServiceId: s.sid ?? null,
           installationAddress: s.addr,
           ipAddress: s.ip ?? null,
           ipType: s.ipType ?? "DYNAMIC",

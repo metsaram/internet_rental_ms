@@ -24,9 +24,10 @@ model Company {
   city      String?
   phone     String?
   email     String?
-  currency  String   @default("USD")
-  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
-  createdAt DateTime @default(now())
+  currency    String   @default("USD")
+  useContract Boolean  @default(true) // if false, invoices don't require a contract
+  status      String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt   DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   users     User[]
@@ -111,10 +112,18 @@ model Branch {
 }
 
 enum ShopType {
-  UNIT
   KIOSK
   OFFICE
   RESTAURANT
+  COFFEE
+  MART
+  RETAIL
+  PHARMACY
+  SALON
+  FITNESS
+  CLINIC
+  STORAGE
+  GARAGE
   OTHER
 }
 
@@ -124,7 +133,7 @@ model Shop {
   branchId      String
   code          String
   name          String
-  type          ShopType @default(UNIT)
+  type          ShopType @default(GARAGE)
   contactPerson String?
   phone         String?
   email         String?
@@ -261,6 +270,13 @@ model InternetService {
   status            ServiceStatus @default(PENDING)
   circuitRole       CircuitRole    @default(STANDALONE) // Phase 5: PRIMARY/BACKUP/STANDALONE
   installedAt       DateTime?
+  startDate         DateTime?
+  endDate           DateTime?
+  durationMonths    Int?
+  freeMonths        Int?           @default(0)
+  monthlyFee        Decimal?       @default(0)
+  currency          String?        @default("USD")
+  billingCycle      BillingCycle?  @default(ANNUAL)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -270,6 +286,7 @@ model InternetService {
   provider  InternetProvider  @relation(fields: [providerId], references: [id], onDelete: Restrict)
   plan      InternetPlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
   contracts InternetContract[]
+  invoices  Invoice[]
   outages   OutageIncident[]
 
   @@unique([companyId, serviceCode])
@@ -445,7 +462,8 @@ enum PaymentStatus {
 model Invoice {
   id               String        @id @default(cuid())
   companyId        String
-  contractId       String
+  contractId       String?
+  serviceId        String?
   invoiceNumber    String
   invoiceDate      DateTime      @default(now())
   periodStart      DateTime?
@@ -456,19 +474,21 @@ model Invoice {
   total            Decimal       @default(0)
   currency         String        @default("USD")
   status           InvoiceStatus @default(DRAFT)
-  dueDate         DateTime?
+  dueDate          DateTime?
   notes            String?
   createdById      String
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
   company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contract  InternetContract   @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  contract  InternetContract?  @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  service   InternetService?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   createdBy User               @relation("InvoiceAuthor", fields: [createdById], references: [id], onDelete: Cascade)
   allocations PaymentAllocation[]
 
   @@unique([companyId, invoiceNumber])
   @@index([companyId, contractId])
+  @@index([companyId, serviceId])
   @@index([companyId, status])
   @@index([dueDate])
   @@map("invoices")

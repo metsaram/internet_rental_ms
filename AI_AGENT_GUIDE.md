@@ -907,6 +907,13 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 - **Timestamp**: 2026-10-20T21:57:30+07:00
 - **Status**: Completed
 
+#### [2026-10-31T17:35:00+07:00] Fix Dashboard Load & Production Company Update Error (Unknown field useContract on Company)
+- **Task description**: Resolve dashboard loading error and company update error `Unknown field useContract for update/select statement on model Company` thrown by Prisma in `src/app/api/dashboard/route.ts` and `src/app/api/company/route.ts`.
+- **Context used**: `prisma/schema.prisma`, `package.json`, `.zscripts/build.sh`, `.next/standalone`, `@prisma/client`.
+- **Output generated**: Regenerated Prisma client via `bun run db:generate`. Added `"postinstall": "prisma generate"` and `prisma generate &&` to `"build"` script in `package.json` plus `.zscripts/build.sh`. Verified `db.company.update` and `db.company.findUnique` succeed with `useContract` against PostgreSQL. All 198 tests passing.
+- **Timestamp**: 2026-10-31T17:35:00+07:00
+- **Status**: Completed
+
 #### [2026-10-30T22:30:00+07:00] Old Invoice Migration, Structure Compatibility & List Display Resilience
 - **Task description**: Migrate existing/old invoices (`INV-2026-4170`) to current structure (linking direct `serviceId`, normalizing 2-decimal tax/total, syncing `InternetService` schedule & billing). Enhance `PATCH /api/invoices/[id]` and `GET /api/invoices/[id]` to support relational updates. Enhance `InvoicesView` list display with refresh button, error banner, and contract+service code visibility.
 - **Context used**: `scripts/migrate-old-invoices.ts`, `src/app/api/invoices/[id]/route.ts`, `src/components/views/invoices.tsx`, `test/invoice-schedule.test.tsx`.

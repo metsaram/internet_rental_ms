@@ -35,6 +35,10 @@ mkdir -p "$BUILD_DIR"
 echo "📦 安装依赖..."
 bun install
 
+# 生成 Prisma 客户端
+echo "💎 生成 Prisma Client..."
+bun run db:generate
+
 # 构建 Next.js 应用
 echo "🔨 构建 Next.js 应用..."
 bun run build

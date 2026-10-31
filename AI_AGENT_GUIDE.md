@@ -439,6 +439,14 @@ Appearance (toggle theme), Account (sign out).
 ### `shortcuts-help.tsx` — `ShortcutsHelp` + `useShortcutsHelp()`
 Dialog showing all keyboard shortcuts (Global + Tables groups). `?` key toggles.
 
+### `bank-slip-uploader.tsx` — `BankSlipUploader`
+Bank reference slip upload component with comprehensive clipboard integration:
+- **Direct Clipboard Paste**: Intercepts `Ctrl+V` (or `Cmd+V`) keyboard shortcut anywhere in the modal or when dropzone is focused, validating image MIME types (PNG, JPEG, WEBP, GIF) and PDF up to 5MB.
+- **Right-Click Context Menu**: Uses Radix `ContextMenu` to provide "Paste from clipboard" (`Ctrl+V`), "Browse file...", and "Remove image" right-click options.
+- **Dedicated "Paste image" Button**: Visual button using `navigator.clipboard.read()` for one-click pasting (e.g. copied from Telegram, browser, or Snipping Tool).
+- **Preview & Management**: Thumbnail image preview, file metadata (name & formatted size), replace actions, and remove button.
+- Comprehensive unit test suite in `test/bank-slip-uploader.test.tsx` (18 tests).
+
 ### `attachments-panel.tsx` — `AttachmentsPanel`
 Reusable upload/download/delete panel for any entity. Drag-and-drop dropzone,
 category Select, file list with MIME icon / size / uploader / time / download

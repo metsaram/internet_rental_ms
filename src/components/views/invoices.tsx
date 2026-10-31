@@ -62,6 +62,7 @@ import { FormDialog, Field } from "@/components/shared/form-dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { VoidInvoiceDialog } from "@/components/shared/void-invoice-dialog";
 import { AttachmentsPanel } from "@/components/shared/attachments-panel";
+import { BankSlipUploader } from "@/components/shared/bank-slip-uploader";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatMoney, formatDate } from "@/lib/format";
@@ -1763,7 +1764,6 @@ function RecordPaymentDialog({
   const [slipPreview, setSlipPreview] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     if (invoice) {
@@ -1818,7 +1818,6 @@ function RecordPaymentDialog({
       return null;
     });
     setSlipFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const isFormValid = Boolean(
@@ -1926,85 +1925,16 @@ function RecordPaymentDialog({
         {/* Bank Transaction Slip / Reference Image Upload */}
         <Field
           label="Bank reference slip image"
-          hint="Upload bank transaction screenshot or receipt (PNG, JPG, WEBP, PDF up to 5MB)"
+          hint="Upload or paste bank transaction screenshot or receipt (PNG, JPG, WEBP, PDF up to 5MB)"
         >
-          {slipFile ? (
-            <div className="relative flex items-center gap-3 rounded-lg border bg-muted/20 p-2.5">
-              {slipPreview ? (
-                <img
-                  src={slipPreview}
-                  alt="Bank slip preview"
-                  className="size-14 rounded-md border object-cover bg-background shrink-0"
-                />
-              ) : (
-                <div className="flex size-14 items-center justify-center rounded-md border bg-background shrink-0">
-                  <FileText className="size-6 text-muted-foreground" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-foreground">{slipFile.name}</p>
-                <p className="text-[11px] text-muted-foreground">
-                  {(slipFile.size / 1024).toFixed(1)} KB · Ready to save with payment
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={removeSlip}
-                className="size-7 text-muted-foreground hover:text-destructive"
-                title="Remove image"
-              >
-                <X className="size-3.5" />
-              </Button>
-            </div>
-          ) : (
-            <div>
-              <input
-                ref={fileInputRef}
-                id="bank-slip-file"
-                type="file"
-                accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) handleSlipSelect(e.target.files[0]);
-                }}
-              />
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    fileInputRef.current?.click();
-                  }
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (e.dataTransfer.files?.[0]) handleSlipSelect(e.dataTransfer.files[0]);
-                }}
-                className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-input bg-muted/10 p-3 text-center transition-colors hover:bg-muted/25 hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Upload className="size-4" />
-                </div>
-                <div>
-                  <p className="text-xs font-medium text-foreground">
-                    Upload bank transaction slip / receipt
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    Drag & drop or browse image (PNG, JPG, WEBP, PDF up to 5MB)
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <BankSlipUploader
+            file={slipFile}
+            previewUrl={slipPreview}
+            onSelect={handleSlipSelect}
+            onRemove={removeSlip}
+            onError={setError}
+            disabled={saving}
+          />
         </Field>
 
         <Field label="Notes" htmlFor="pay-notes">

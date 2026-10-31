@@ -202,6 +202,11 @@ describe("DashboardView Upcoming renewals & expiries refactor", () => {
     expect(screen.queryByText("Upcoming renewals & expiries")).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /go to invoices/i }).length).toBe(2);
 
+    // Verify duplicate bottom renewals strip is not rendered when useContract is false
+    expect(screen.queryByText("Upcoming renewals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Overdue renewals")).not.toBeInTheDocument();
+    expect(screen.queryByText("Completed renewals")).not.toBeInTheDocument();
+
     // Verify Recent invoice record
     expect(screen.getByText("INV-2026-9001")).toBeInTheDocument();
     expect(screen.getByText("SVC-FIBER-01")).toBeInTheDocument();

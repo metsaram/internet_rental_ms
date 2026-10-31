@@ -141,7 +141,39 @@ export function DashboardView() {
 
   const c = data?.counts;
   const billing = data?.billing;
-  const useContract = data?.useContract ?? true;
+
+  // Zero-flicker contract mode resolution cascade:
+  // 1. Live dashboard query (data?.useContract)
+  // 2. Shared company query cache (companyData?.useContract)
+  // 3. Authenticated session token (session?.user?.companyUseContract)
+  // 4. Synchronous local storage cache (netrent_use_contract)
+  const sessionUseContract = (session?.user as any)?.companyUseContract;
+  const [cachedUseContract, setCachedUseContract] = React.useState<boolean | undefined>(() => {
+    if (typeof window === "undefined") return undefined;
+    const v = localStorage.getItem("netrent_use_contract");
+    return v !== null ? v === "true" : undefined;
+  });
+
+  const { data: companyData } = useQuery<{ useContract: boolean }>({
+    queryKey: ["company"],
+    queryFn: () => api<{ useContract: boolean }>("/api/company"),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const useContract =
+    data?.useContract ??
+    companyData?.useContract ??
+    sessionUseContract ??
+    cachedUseContract ??
+    true;
+
+  React.useEffect(() => {
+    const val = data?.useContract ?? companyData?.useContract ?? sessionUseContract;
+    if (val !== undefined && typeof window !== "undefined") {
+      localStorage.setItem("netrent_use_contract", String(val));
+      setCachedUseContract(val);
+    }
+  }, [data?.useContract, companyData?.useContract, sessionUseContract]);
   const cost =
     data?.costByCurrency?.[0] ?? {
       currency,
@@ -224,13 +256,13 @@ export function DashboardView() {
         },
         {
           label: "Pending",
-          value: (c?.pendingInvoices ?? 0) + (c?.partialInvoices ?? 0),
+          value: c?.pendingInvoices ?? 0,
           icon: Clock,
           tone: "text-amber-600 bg-amber-500/10 ring-amber-500/20",
         },
         {
           label: "Overdue",
-          value: billing?.overdueCount ?? c?.overdueInvoices ?? 0,
+          value: c?.overdueInvoices ?? 0,
           icon: XCircle,
           tone: "text-rose-600 bg-rose-500/10 ring-rose-500/20",
         },
@@ -382,9 +414,9 @@ export function DashboardView() {
               >
                 <s.icon className="size-4 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-lg font-semibold leading-tight">
-                    {isLoading ? "—" : s.value}
-                  </p>
+                  <div className="text-lg font-semibold leading-tight">
+                    {isLoading ? <Skeleton className="h-5 w-8 my-0.5" /> : s.value}
+                  </div>
                   <p className="text-[11px] truncate">{s.label}</p>
                 </div>
               </div>
@@ -533,8 +565,8 @@ export function DashboardView() {
         </Card>
       </div>
 
-      {/* Renewals or Invoices summary strip + table */}
-      {useContract ? (
+      {/* Renewals summary strip (only when contracts are required) */}
+      {useContract && (
         <div className="grid grid-cols-3 gap-3">
           <RenewalTile
             label="Upcoming renewals"
@@ -559,33 +591,6 @@ export function DashboardView() {
             icon={CheckCircle2}
             loading={isLoading}
             hash="renewals"
-          />
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-3">
-          <RenewalTile
-            label="Paid invoices"
-            value={c?.paidInvoices ?? 0}
-            tone="emerald"
-            icon={CheckCircle2}
-            loading={isLoading}
-            hash="invoices"
-          />
-          <RenewalTile
-            label="Pending invoices"
-            value={(c?.pendingInvoices ?? 0) + (c?.partialInvoices ?? 0)}
-            tone="amber"
-            icon={Clock}
-            loading={isLoading}
-            hash="invoices"
-          />
-          <RenewalTile
-            label="Overdue invoices"
-            value={billing?.overdueCount ?? c?.overdueInvoices ?? 0}
-            tone="rose"
-            icon={AlertTriangle}
-            loading={isLoading}
-            hash="invoices"
           />
         </div>
       )}

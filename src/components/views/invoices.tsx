@@ -620,7 +620,7 @@ function InvoiceForm({
   const [taxRate, setTaxRate] = React.useState<number | string>(10);
   const [taxManual, setTaxManual] = React.useState<number | string | null>(null);
   const [discount, setDiscount] = React.useState<number | string>(0);
-  const [status, setStatus] = React.useState("DRAFT");
+  const [status, setStatus] = React.useState("ISSUED");
   const [dueDate, setDueDate] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -754,7 +754,7 @@ function InvoiceForm({
       setTaxRate(10);
       setTaxManual(null);
       setDiscount(0);
-      setStatus("DRAFT");
+      setStatus("ISSUED");
       setDueDate("");
       setNotes("");
     }
@@ -980,7 +980,7 @@ function InvoiceForm({
             <Input id="inv-number" isCode value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
           </Field>
           <Field label="Status">
-            <Select value={status} onValueChange={setStatus} disabled={isEdit}>
+            <Select value={status} onValueChange={setStatus} disabled={isEdit && editing?.status !== "DRAFT"}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STATUS_OPTS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}

@@ -194,6 +194,7 @@ export async function GET() {
   let outstandingTotal = new Decimal(0);
   let invoicedTotal = new Decimal(0);
   let collectedTotal = new Decimal(0);
+  let activeInvoicesCount = 0;
   let overdueCount = 0;
   let paidCount = 0;
   let pendingCount = 0;
@@ -201,15 +202,21 @@ export async function GET() {
   let draftCount = 0;
   for (const inv of invoicesRaw) {
     if (inv.status === "VOID") continue;
+    activeInvoicesCount += 1;
     invoicedTotal = invoicedTotal.plus(inv.total);
     const outstanding = outstandingBalance(inv, inv.allocations);
     outstandingTotal = outstandingTotal.plus(outstanding);
     const derived = deriveInvoiceStatus(inv, inv.allocations, now);
-    if (derived === "overdue") overdueCount += 1;
-    else if (derived === "paid") paidCount += 1;
-    else if (derived === "partial") partialCount += 1;
-    else if (derived === "pending") pendingCount += 1;
-    else if (derived === "draft") draftCount += 1;
+    if (derived === "overdue") {
+      overdueCount += 1;
+    } else if (derived === "paid") {
+      paidCount += 1;
+    } else {
+      // All unpaid, active invoices awaiting payment
+      pendingCount += 1;
+      if (derived === "partial") partialCount += 1;
+      else if (derived === "draft") draftCount += 1;
+    }
   }
   for (const p of paymentsRaw) {
     collectedTotal = collectedTotal.plus(p.amount);
@@ -251,7 +258,7 @@ export async function GET() {
       expiringSoon: expiring.length,
       expired: expired.length,
       upcoming: upcoming.length,
-      invoices: invoicesRaw.length,
+      invoices: activeInvoicesCount,
       paidInvoices: paidCount,
       pendingInvoices: pendingCount,
       partialInvoices: partialCount,

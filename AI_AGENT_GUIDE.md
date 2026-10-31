@@ -907,6 +907,27 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 - **Timestamp**: 2026-10-20T21:57:30+07:00
 - **Status**: Completed
 
+#### [2026-10-31T20:00:00+07:00] Fix Dashboard Loading Skeleton Flashing Contract in Invoice Mode
+- **Task description**: Eliminate contract-mode visual flash during dashboard skeleton loading when operating in contract-free mode (`useContract: false`).
+- **Context used**: `src/lib/auth.ts`, `src/components/views/settings.tsx`, `src/components/views/dashboard.tsx`, `test/dashboard-loading-skeleton.test.tsx`.
+- **Output generated**: Added `companyUseContract` to NextAuth token/session with fallback database fetch. Added synchronous `localStorage` caching (`netrent_use_contract`) and shared `["company"]` query cache to resolve `useContract` before API finishes. Replaced em-dash text with `<Skeleton className="h-5 w-8 my-0.5" />` in `statusCards`. Fixed nested HTML `<div>` in `<p>` hydration issue. Created unit test suite `test/dashboard-loading-skeleton.test.tsx` verifying invoice skeleton rendering on initial load (219/219 tests passing).
+- **Timestamp**: 2026-10-31T20:00:00+07:00
+- **Status**: Completed
+
+#### [2026-10-31T19:50:00+07:00] Consolidate Dashboard Invoice Status to Single Source of Truth & Remove Duplicate Bottom Cards
+- **Task description**: Consolidate dashboard invoice status counts into a single source of truth in `/api/dashboard` and remove duplicate bottom card strip when contracts are not required.
+- **Context used**: `src/app/api/dashboard/route.ts`, `src/components/views/dashboard.tsx`, `test/dashboard-renewals.test.tsx`.
+- **Output generated**: Unified active invoice count (`counts.invoices = activeInvoicesCount`) and guaranteed `paidInvoices + pendingInvoices + overdueInvoices === invoices`. Removed duplicate bottom invoice status strip when `useContract === false`. Simplified frontend cards to consume from single source of truth `c`. Added unit test assertion in `test/dashboard-renewals.test.tsx` (218/218 tests passing).
+- **Timestamp**: 2026-10-31T19:50:00+07:00
+- **Status**: Completed
+
+#### [2026-10-31T19:25:00+07:00] Fix Dashboard Pending Invoices Calculation & Status Defaults
+- **Task description**: Resolve issue where dashboard showed 0 Pending invoices despite unpaid invoices existing in database.
+- **Context used**: `src/app/api/dashboard/route.ts`, `src/components/views/dashboard.tsx`, `src/components/views/invoices.tsx`.
+- **Output generated**: Updated dashboard API to count `derived === "issued"` under pending invoices. Updated dashboard 2x2 status card to include uncollected draft invoices so Paid + Pending + Overdue equals Total invoices. Defaulted new invoices to `"ISSUED"` and allowed editing status of draft invoices. All 24 test suites (218 tests) passing.
+- **Timestamp**: 2026-10-31T19:25:00+07:00
+- **Status**: Completed
+
 #### [2026-10-31T18:45:00+07:00] Fix Invoice Edit & Save Prisma Client Relation Error
 - **Task description**: Resolve runtime error when editing and saving an invoice (`Unknown argument serviceId. Did you mean service?` on `db.invoice.update`).
 - **Context used**: `src/app/api/invoices/[id]/route.ts`, `test/invoice-update.test.ts`.

@@ -84,7 +84,11 @@ export function SettingsView() {
         await update({
           companyName: updated.name,
           companyCurrency: updated.currency,
+          companyUseContract: updated.useContract,
         });
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("netrent_use_contract", String(updated.useContract));
       }
     } catch (e) {
       toast.error((e as Error).message);

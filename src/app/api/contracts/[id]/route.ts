@@ -53,7 +53,11 @@ export async function GET(_req: Request, { params }: Params) {
     });
     if (!r || r.companyId !== user.companyId) throw new HttpError(404, "Contract not found");
     const costs = computeContractCosts(r);
-    const derived = deriveContractStatus(r);
+    const company = await db.company.findUnique({
+      where: { id: user.companyId },
+      select: { warningDays: true },
+    });
+    const derived = deriveContractStatus(r, new Date(), company?.warningDays ?? 30);
     // Also fetch contract history for this service (prior/renewed terms).
     const history = await db.internetContract.findMany({
       where: { serviceId: r.serviceId, companyId: user.companyId },

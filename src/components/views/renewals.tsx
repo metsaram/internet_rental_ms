@@ -93,6 +93,7 @@ type Renewal = {
 type RenewalsResponse = {
   rows: Renewal[];
   counts: { upcoming: number; overdue: number; completed: number };
+  warningDays?: number;
 };
 
 type TabKey = "upcoming" | "overdue" | "completed";
@@ -137,6 +138,7 @@ export function RenewalsView() {
     qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
 
+  const warningDays = data?.warningDays ?? 30;
   const rows = data?.rows ?? [];
   const counts = data?.counts ?? { upcoming: 0, overdue: 0, completed: 0 };
 
@@ -212,7 +214,7 @@ export function RenewalsView() {
           title={`No ${tab} renewals`}
           description={
             tab === "upcoming"
-              ? "Contracts ending within the next 30 days will appear here."
+              ? `Contracts ending within the next ${warningDays} days will appear here.`
               : tab === "overdue"
                 ? "Contracts past their end date without a renewal decision will appear here."
                 : "Completed renewals (old → new contract links) will appear here."

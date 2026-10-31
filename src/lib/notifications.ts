@@ -24,6 +24,12 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
   const now = new Date();
   const created: Array<{ id: string; type: string; title: string }> = [];
 
+  const company = await db.company.findUnique({
+    where: { id: companyId },
+    select: { warningDays: true },
+  });
+  const warningDays = company?.warningDays ?? DEFAULT_WARNING_DAYS;
+
   // 1. Contract renewals — upcoming (≤30 days) + overdue
   const renewals = await db.contractRenewal.findMany({
     where: { companyId, status: "PENDING" },
@@ -55,7 +61,7 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
         entityType: "ContractRenewal",
         entityId: r.id,
       }).then((n) => n && created.push({ id: n.id, type: "RENEWAL_OVERDUE", title: n.title }));
-    } else if (days <= DEFAULT_WARNING_DAYS) {
+    } else if (days <= warningDays) {
       await tryCreate({
         companyId,
         userId,
@@ -78,13 +84,13 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
 
   for (const inv of invoices) {
     const outstanding = outstandingBalance(inv, inv.allocations);
-    const alert = getInvoicePaymentAlert(inv, outstanding, now);
+    const alert = getInvoicePaymentAlert(inv, outstanding, now, warningDays);
 
     if (!alert) {
       // If invoice is void, paid, or outside the alert window (>7d before or >7d overdue),
       // dismiss any lingering unread daily reminders so inbox stays accurate and clean.
       const due = inv.dueDate ? new Date(inv.dueDate) : null;
-      const isPastLimit = due ? Math.round((new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime() - startOfToday.getTime()) / 86400000) < -7 : false;
+      const isPastLimit = due ? Math.round((new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime() - startOfToday.getTime()) / 86400000) < -warningDays : false;
 
       if (inv.status === "VOID" || outstanding.lte(0) || isPastLimit) {
         await db.notification.deleteMany({
@@ -262,7 +268,8 @@ export function getInvoicePaymentAlert(
     currency?: string | null;
   },
   outstandingAmount: number | Decimal,
-  now: Date = new Date()
+  now: Date = new Date(),
+  warningDays = 7
 ): InvoiceAlertInfo {
   if (invoice.status === "VOID") return null;
   const bal = typeof outstandingAmount === "number" ? outstandingAmount : Number(outstandingAmount);
@@ -277,8 +284,8 @@ export function getInvoicePaymentAlert(
   const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const daysToDue = Math.round((dueMidnight.getTime() - nowMidnight.getTime()) / (1000 * 60 * 60 * 24));
 
-  // Alert window: [7 days before due date (+7) ... 7 days after due date (-7)]
-  if (daysToDue > 7 || daysToDue < -7) {
+  // Alert window: [warningDays before due date (+warningDays) ... warningDays after due date (-warningDays)]
+  if (daysToDue > warningDays || daysToDue < -warningDays) {
     return null;
   }
 

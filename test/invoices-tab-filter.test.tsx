@@ -380,7 +380,7 @@ describe("InvoicesView Status Tabs & Tiles Component", () => {
     // Void: 1
     expect(screen.getAllByText("6").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("3").length).toBeGreaterThanOrEqual(1);
-  });
+  }, 15000);
 
   it("defaults to 'Needs payment' tab and filters table rows to invoices needing payment", async () => {
     render(

@@ -35,6 +35,7 @@ type Company = {
   email: string | null;
   currency: string;
   useContract: boolean;
+  warningDays?: number | string;
   status: string;
 };
 
@@ -58,6 +59,14 @@ export function SettingsView() {
 
   const save = async () => {
     if (!form) return;
+    const warningDays =
+      form.warningDays === "" || form.warningDays === undefined || form.warningDays === null
+        ? 30
+        : Number(form.warningDays);
+    if (isNaN(warningDays) || warningDays < 1 || warningDays > 365) {
+      toast.error("Days before warning must be between 1 and 365");
+      return;
+    }
     setSavingState(true);
     saving.current = true;
     try {
@@ -72,6 +81,7 @@ export function SettingsView() {
           email: form.email,
           currency: form.currency,
           useContract: form.useContract,
+          warningDays,
         }),
       });
       setForm(updated);
@@ -79,16 +89,21 @@ export function SettingsView() {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["company"] }),
         qc.invalidateQueries({ queryKey: ["dashboard"] }),
+        qc.invalidateQueries({ queryKey: ["invoices"] }),
+        qc.invalidateQueries({ queryKey: ["renewals"] }),
+        qc.invalidateQueries({ queryKey: ["contracts"] }),
       ]);
       if (update) {
         await update({
           companyName: updated.name,
           companyCurrency: updated.currency,
           companyUseContract: updated.useContract,
+          companyWarningDays: updated.warningDays ?? 30,
         });
       }
       if (typeof window !== "undefined") {
         localStorage.setItem("netrent_use_contract", String(updated.useContract));
+        localStorage.setItem("netrent_warning_days", String(updated.warningDays ?? 30));
       }
     } catch (e) {
       toast.error((e as Error).message);
@@ -234,6 +249,40 @@ export function SettingsView() {
                       onCheckedChange={(v) => setForm({ ...form, useContract: v })}
                       aria-label="Require contract for invoices"
                     />
+                  </div>
+
+                  {/* Days Before Warning */}
+                  <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <Label
+                        htmlFor="days-before-warning-input"
+                        className="flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                      >
+                        <AlertTriangle className="size-3.5 text-amber-500" />
+                        Days Before Warning
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">
+                        Advance threshold in days for contract expiration notices, renewal alerts, and invoice due warnings.
+                      </p>
+                    </div>
+                    <div className="w-28 shrink-0">
+                      <Input
+                        id="days-before-warning-input"
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={form.warningDays ?? ""}
+                        disabled={!isAdmin}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            warningDays: e.target.value === "" ? "" : Number(e.target.value),
+                          })
+                        }
+                        className="text-right tabular-nums font-mono text-sm"
+                        aria-label="Days Before Warning"
+                      />
+                    </div>
                   </div>
 
                   {isAdmin && (

@@ -202,7 +202,8 @@ export function matchesInvoiceTab(invoice: Invoice, tab: InvoiceTabKey): boolean
 
 export function getDueWarningState(
   invoice: { dueDate?: string | null; status: string; outstanding: string },
-  now: Date = new Date()
+  now: Date = new Date(),
+  warningDays = 7
 ): { daysLeft: number | null; tone: "warning" | "overdue" | "normal" } {
   if (!invoice.dueDate) return { daysLeft: null, tone: "normal" };
   const isSettled =
@@ -221,7 +222,7 @@ export function getDueWarningState(
   if (daysLeft < 0) {
     return { daysLeft, tone: "overdue" };
   }
-  if (daysLeft <= 7) {
+  if (daysLeft <= warningDays) {
     return { daysLeft, tone: "warning" };
   }
   return { daysLeft, tone: "normal" };
@@ -268,11 +269,12 @@ export function InvoicesView() {
     queryKey: ["providers-min"],
     queryFn: () => api<ProviderMin[]>("/api/providers?min=true"),
   });
-  const { data: company } = useQuery<{ useContract: boolean }>({
+  const { data: company } = useQuery<{ useContract: boolean; warningDays?: number }>({
     queryKey: ["company"],
-    queryFn: () => api<{ useContract: boolean }>("/api/company"),
+    queryFn: () => api<{ useContract: boolean; warningDays?: number }>("/api/company"),
   });
   const useContract = company?.useContract ?? true;
+  const warningDays = company?.warningDays ?? (session?.user as any)?.companyWarningDays ?? 7;
 
   const counts = React.useMemo(() => {
     return {
@@ -425,7 +427,7 @@ export function InvoicesView() {
       minWidth: 120,
       maxWidth: 220,
       cell: (i) => {
-        const due = getDueWarningState(i);
+        const due = getDueWarningState(i, undefined, warningDays);
         return (
           <div className="text-sm">
             <div

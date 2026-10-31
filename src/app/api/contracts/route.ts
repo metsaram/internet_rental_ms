@@ -65,10 +65,15 @@ export async function GET(req: Request) {
     });
 
     const now = new Date();
+    const company = await db.company.findUnique({
+      where: { id: user.companyId },
+      select: { warningDays: true },
+    });
+    const warningDays = company?.warningDays ?? 30;
     return NextResponse.json(
       rows.map((r) => {
         const costs = computeContractCosts(r);
-        const derived = deriveContractStatus(r, now, 30);
+        const derived = deriveContractStatus(r, now, warningDays);
         return {
           id: r.id,
           contractNumber: r.contractNumber,

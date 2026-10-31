@@ -28,10 +28,22 @@ export async function PATCH(req: Request) {
       email?: string | null;
       currency?: string;
       useContract?: boolean;
+      warningDays?: number;
+      daysBeforeWarning?: number;
     }>(req);
 
     const before = await db.company.findUnique({ where: { id: user.companyId } });
     if (!before) throw new HttpError(404, "Company not found");
+
+    const warningDaysInput = body.warningDays ?? body.daysBeforeWarning;
+    let warningDays = before.warningDays ?? 30;
+    if (warningDaysInput !== undefined && warningDaysInput !== null) {
+      const parsed = Number(warningDaysInput);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) {
+        throw new HttpError(400, "Days before warning must be an integer between 1 and 365");
+      }
+      warningDays = parsed;
+    }
 
     const data = {
       name: body.name?.trim() || before.name,
@@ -42,6 +54,7 @@ export async function PATCH(req: Request) {
       email: body.email ?? before.email,
       currency: body.currency?.trim() || before.currency,
       useContract: body.useContract ?? before.useContract,
+      warningDays,
     };
 
     const after = await db.company.update({ where: { id: user.companyId }, data });
@@ -51,8 +64,8 @@ export async function PATCH(req: Request) {
       action: "UPDATE",
       entityType: "Company",
       entityId: after.id,
-      before: { name: before.name, currency: before.currency },
-      after: { name: after.name, currency: after.currency },
+      before: { name: before.name, currency: before.currency, warningDays: before.warningDays },
+      after: { name: after.name, currency: after.currency, warningDays: after.warningDays },
     });
 
     return NextResponse.json(after);

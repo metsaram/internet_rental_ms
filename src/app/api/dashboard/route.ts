@@ -13,7 +13,7 @@ export async function GET() {
 
   const [company, branches, shops, services, providers, plans, contractsRaw, servicesWithSpend, invoicesRaw, paymentsRaw, renewalsRaw, recentAudit] =
     await Promise.all([
-      db.company.findUnique({ where: { id: cid }, select: { useContract: true, currency: true } }),
+      db.company.findUnique({ where: { id: cid }, select: { useContract: true, currency: true, warningDays: true } }),
       db.branch.count({ where: { companyId: cid } }),
       db.shop.count({ where: { companyId: cid } }),
       db.internetService.count({ where: { companyId: cid } }),
@@ -94,9 +94,10 @@ export async function GET() {
     _daysLeft: number;
   };
 
+  const warningDays = company?.warningDays ?? 30;
   const rows: Row[] = contractsRaw.map((c) => ({
     ...c,
-    _derived: deriveContractStatus(c, now, 30),
+    _derived: deriveContractStatus(c, now, warningDays),
     _costs: computeContractCosts(c),
     _daysLeft: daysUntilEnd(c.endDate, now),
   }));
@@ -304,7 +305,7 @@ export async function GET() {
           (new Date(r.oldContract.endDate).getTime() - now.getTime()) / 86400000
         );
         if (d < 0) overdue += 1;
-        else upcoming += 1;
+        else if (d <= warningDays) upcoming += 1;
       }
       return { upcoming, overdue, completed, total: renewalsRaw.length };
     })(),

@@ -167,9 +167,14 @@ export async function GET(req: Request) {
         orderBy: { endDate: "asc" },
       });
       const now = new Date();
+      const company = await db.company.findUnique({
+        where: { id: user.companyId },
+        select: { warningDays: true },
+      });
+      const warningDays = company?.warningDays ?? 30;
       rows = data.map((c) => {
         const costs = computeContractCosts(c);
-        const derived = deriveContractStatus(c, now, 30);
+        const derived = deriveContractStatus(c, now, warningDays);
         return {
           "Contract #": c.contractNumber,
           "Service code": c.service.serviceCode,

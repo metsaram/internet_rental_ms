@@ -17,7 +17,12 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const tab = url.searchParams.get("tab") ?? "all";
 
-    const rows = await db.contractRenewal.findMany({
+    const [company, rows] = await Promise.all([
+      db.company.findUnique({
+        where: { id: user.companyId },
+        select: { warningDays: true },
+      }),
+      db.contractRenewal.findMany({
       where: { companyId: user.companyId },
       include: {
         oldContract: {
@@ -60,10 +65,12 @@ export async function GET(req: Request) {
       },
       orderBy: { createdAt: "desc" },
       take: 200,
-    });
+    }),
+  ]);
+
 
     const now = new Date();
-    const WARNING_DAYS = 30;
+    const WARNING_DAYS = company?.warningDays ?? 30;
     const mapped = rows.map((r) => {
       const daysLeft = daysUntil(r.oldContract.endDate, now);
       let bucket: "upcoming" | "overdue" | "completed";
@@ -120,6 +127,7 @@ export async function GET(req: Request) {
       };
     });
 
+
     const filtered = tab === "all" ? mapped : mapped.filter((m) => m.bucket === tab);
     const counts = {
       upcoming: mapped.filter((m) => m.bucket === "upcoming").length,
@@ -127,7 +135,7 @@ export async function GET(req: Request) {
       completed: mapped.filter((m) => m.bucket === "completed").length,
     };
 
-    return NextResponse.json({ rows: filtered, counts });
+    return NextResponse.json({ rows: filtered, counts, warningDays: WARNING_DAYS });
   } catch (err) {
     return errorResponse(err);
   }

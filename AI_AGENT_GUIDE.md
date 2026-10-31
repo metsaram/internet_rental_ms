@@ -731,6 +731,22 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 
 ---
 
+#### [2026-10-31T21:40:00+07:00] Settings: Configurable "Days Before Warning" Option & System-wide Threshold Validation
+- **Task description**: Add a configurable "Days Before Warning" option in `src/components/views/settings.tsx`. All expiration, alert, and warning validations across the application must retrieve the warning threshold from this company setting.
+- **Context used**: `src/components/views/settings.tsx`, `src/components/views/invoices.tsx`, `src/components/views/renewals.tsx`, `src/app/api/company/route.ts`, `src/app/api/dashboard/route.ts`, `src/app/api/renewals/route.ts`, `src/app/api/contracts/route.ts`, `src/app/api/contracts/[id]/route.ts`, `src/app/api/export/route.ts`, `src/lib/notifications.ts`, `src/lib/auth.ts`, `test/settings-warning-days.test.tsx`.
+- **Output generated / modified**:
+  - `Company` schema: added `warningDays Int @default(30)` in `prisma/schema.prisma` and created SQL migration `db/2026-10-31/companies/add_warning_days.sql`.
+  - `PATCH /api/company`: supports updating `warningDays` with integer range validation (1..365) and audit logging.
+  - NextAuth session: propagates `companyWarningDays` through JWT and session callbacks for client-side synchronous access.
+  - `SettingsView`: added "Days Before Warning" numeric input card with `<AlertTriangle />` icon, description, and admin enforcement. Invalidates `["company"]`, `["dashboard"]`, `["invoices"]`, `["renewals"]`, `["contracts"]`.
+  - `InvoicesView`: `getDueWarningState` retrieves `warningDays` dynamically from company setting / session to style approaching due dates with amber warning and hover count tooltips.
+  - Contract renewals & expiries: `renewals/route.ts`, `renewals.tsx`, `contracts/route.ts`, `contracts/[id]/route.ts`, and `export/route.ts` apply `company.warningDays` to classify contracts as `expiring` and bucket upcoming renewals.
+  - Notifications: `generateNotifications` and `getInvoicePaymentAlert` apply `company.warningDays` for advance invoice payment reminders and renewal notifications.
+  - Settings input usability: bound `warningDays` input with empty-string tolerance (`e.target.value === "" ? "" : Number(e.target.value)`), matching `Duration (months)` in `InvoiceForm`, allowing users to backspace digits to type values like `7` or `10` without snapping back to 30.
+  - Created test suite `test/settings-warning-days.test.tsx` (10 tests passing).
+- **Timestamp**: 2026-10-31T21:40:00+07:00
+- **Status**: Completed
+
 #### [2026-10-31T20:45:00+07:00] Invoices: Status Filter Tabs & Summary Tiles (Renewals Parity)
 - **Task description**: Add status filter tabs and interactive summary tiles to the Invoices list (`src/components/views/invoices.tsx`) matching the renewals pattern (`src/components/views/renewals.tsx`), allowing users to easily filter and find invoices requiring payment (`unpaid` / `needs_payment`).
 - **Context used**: `src/components/views/invoices.tsx`, `src/components/views/renewals.tsx`, `src/lib/billing.ts`, `test/invoices-tab-filter.test.tsx`.

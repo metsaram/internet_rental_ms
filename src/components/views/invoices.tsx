@@ -20,6 +20,9 @@ import {
   Calendar,
   DollarSign,
   Wrench,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useSession } from "next-auth/react";
@@ -45,6 +48,7 @@ import {
 } from "@/components/ui/sheet";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import {
@@ -146,12 +150,89 @@ const METHOD_OPTS = [
   { value: "OTHER", label: "Other" },
 ] as const;
 
+export type InvoiceTabKey = "all" | "unpaid" | "overdue" | "paid" | "draft" | "void";
+
+export const INVOICE_TAB_META: Record<
+  InvoiceTabKey,
+  {
+    label: string;
+    tabLabel: string;
+    icon: React.ComponentType<{ className?: string }>;
+    tone: string;
+    bg: string;
+  }
+> = {
+  all: { label: "All invoices", tabLabel: "All", icon: Receipt, tone: "text-foreground", bg: "bg-muted" },
+  unpaid: { label: "Needs payment", tabLabel: "Needs payment", icon: CreditCard, tone: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10" },
+  overdue: { label: "Overdue", tabLabel: "Overdue", icon: AlertTriangle, tone: "text-rose-600 dark:text-rose-400", bg: "bg-rose-500/10" },
+  paid: { label: "Paid", tabLabel: "Paid", icon: CheckCircle2, tone: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+  draft: { label: "Draft", tabLabel: "Draft", icon: Clock, tone: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
+  void: { label: "Void", tabLabel: "Void", icon: Ban, tone: "text-muted-foreground", bg: "bg-muted/60" },
+};
+
+export function matchesInvoiceTab(invoice: Invoice, tab: InvoiceTabKey): boolean {
+  const isVoid = invoice.status === "VOID" || invoice.derivedStatus === "void";
+  const isDraft = (invoice.status === "DRAFT" || invoice.derivedStatus === "draft") && !isVoid;
+  const isOverdue =
+    !isVoid &&
+    (invoice.derivedStatus === "overdue" || invoice.status === "OVERDUE") &&
+    Number(invoice.outstanding) > 0;
+  const isPaid =
+    !isVoid &&
+    (invoice.derivedStatus === "paid" ||
+      invoice.status === "PAID" ||
+      (Number(invoice.outstanding) <= 0 && !isDraft));
+  const isUnpaid = !isVoid && !isDraft && Number(invoice.outstanding) > 0;
+
+  switch (tab) {
+    case "all":
+      return true;
+    case "unpaid":
+      return isUnpaid;
+    case "overdue":
+      return isOverdue;
+    case "paid":
+      return isPaid;
+    case "draft":
+      return isDraft;
+    case "void":
+      return isVoid;
+  }
+}
+
+export function getDueWarningState(
+  invoice: { dueDate?: string | null; status: string; outstanding: string },
+  now: Date = new Date()
+): { daysLeft: number | null; tone: "warning" | "overdue" | "normal" } {
+  if (!invoice.dueDate) return { daysLeft: null, tone: "normal" };
+  const isSettled =
+    invoice.status === "VOID" ||
+    invoice.status === "PAID" ||
+    Number(invoice.outstanding) <= 0;
+  if (isSettled) return { daysLeft: null, tone: "normal" };
+
+  const due = new Date(invoice.dueDate);
+  if (isNaN(due.getTime())) return { daysLeft: null, tone: "normal" };
+
+  const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const daysLeft = Math.round((dueMidnight - nowMidnight) / (1000 * 60 * 60 * 24));
+
+  if (daysLeft < 0) {
+    return { daysLeft, tone: "overdue" };
+  }
+  if (daysLeft <= 7) {
+    return { daysLeft, tone: "warning" };
+  }
+  return { daysLeft, tone: "normal" };
+}
+
 export function InvoicesView() {
   const { data: session } = useSession();
   const currency = (session?.user as any)?.companyCurrency ?? "USD";
   const qc = useQueryClient();
+  const [tab, setTab] = React.useState<InvoiceTabKey>("unpaid");
   const [search, setSearch] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
   const [providerFilter, setProviderFilter] = React.useState<string>("ALL");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Invoice | null>(null);
@@ -167,11 +248,10 @@ export function InvoicesView() {
     error,
     refetch,
   } = useQuery<Invoice[]>({
-    queryKey: ["invoices", search, statusFilter, providerFilter],
+    queryKey: ["invoices", search, providerFilter],
     queryFn: () => {
       const qs = new URLSearchParams();
       if (search) qs.set("search", search);
-      if (statusFilter !== "ALL") qs.set("status", statusFilter);
       if (providerFilter !== "ALL") qs.set("providerId", providerFilter);
       return api<Invoice[]>(`/api/invoices?${qs.toString()}`);
     },
@@ -194,23 +274,75 @@ export function InvoicesView() {
   });
   const useContract = company?.useContract ?? true;
 
+  const counts = React.useMemo(() => {
+    return {
+      all: invoices.length,
+      unpaid: invoices.filter((i) => matchesInvoiceTab(i, "unpaid")).length,
+      overdue: invoices.filter((i) => matchesInvoiceTab(i, "overdue")).length,
+      paid: invoices.filter((i) => matchesInvoiceTab(i, "paid")).length,
+      draft: invoices.filter((i) => matchesInvoiceTab(i, "draft")).length,
+      void: invoices.filter((i) => matchesInvoiceTab(i, "void")).length,
+    };
+  }, [invoices]);
+
+  const outstandingTotal = React.useMemo(() => {
+    return invoices
+      .filter((i) => matchesInvoiceTab(i, "unpaid"))
+      .reduce((s, i) => s + Number(i.outstanding || 0), 0);
+  }, [invoices]);
+
+  const overdueTotal = React.useMemo(() => {
+    return invoices
+      .filter((i) => matchesInvoiceTab(i, "overdue"))
+      .reduce((s, i) => s + Number(i.outstanding || 0), 0);
+  }, [invoices]);
+
   const filtered = React.useMemo(() => {
-    if (!search) return invoices;
-    const s = search.toLowerCase();
-    return invoices.filter((i) =>
-      [
-        i.invoiceNumber,
-        i.contractNumber,
-        i.serviceCode,
-        i.branch?.name,
-        i.branch?.code,
-        i.shop?.name,
-        i.shop?.code,
-        i.provider?.name,
-        i.provider?.code,
-      ].some((v) => v?.toLowerCase().includes(s))
-    );
-  }, [invoices, search]);
+    let list = invoices;
+    if (search) {
+      const s = search.toLowerCase();
+      list = list.filter((i) =>
+        [
+          i.invoiceNumber,
+          i.contractNumber,
+          i.serviceCode,
+          i.branch?.name,
+          i.branch?.code,
+          i.shop?.name,
+          i.shop?.code,
+          i.provider?.name,
+          i.provider?.code,
+        ].some((v) => v?.toLowerCase().includes(s))
+      );
+    }
+    if (tab !== "all") {
+      list = list.filter((i) => matchesInvoiceTab(i, tab));
+    }
+    return list;
+  }, [invoices, search, tab]);
+
+  const emptyMessage = React.useMemo(() => {
+    if (invoices.length === 0) {
+      return "No invoices found in your company. Click 'New invoice' to create one.";
+    }
+    if (search) {
+      return "No invoices match your active search.";
+    }
+    switch (tab) {
+      case "unpaid":
+        return "No invoices currently need payment. All accounts are settled!";
+      case "overdue":
+        return "No overdue invoices. All payment deadlines are up to date!";
+      case "paid":
+        return "No paid invoices recorded yet.";
+      case "draft":
+        return "No draft invoices in preparation.";
+      case "void":
+        return "No voided invoices.";
+      default:
+        return "No invoices match your active filters.";
+    }
+  }, [invoices.length, search, tab]);
 
   const createMut = async (data: Record<string, unknown>) => {
     await api("/api/invoices", { method: "POST", body: JSON.stringify(data) });
@@ -288,16 +420,43 @@ export function InvoicesView() {
     },
     {
       key: "period",
-      header: "Date / Due",
+      header: "Due / Date",
       width: 160,
       minWidth: 120,
       maxWidth: 220,
-      cell: (i) => (
-        <div className="text-sm">
-          <div>{formatDate(i.invoiceDate)}</div>
-          <div className="text-[11px] text-muted-foreground">Due {formatDate(i.dueDate)}</div>
-        </div>
-      ),
+      cell: (i) => {
+        const due = getDueWarningState(i);
+        return (
+          <div className="text-sm">
+            <div
+              className={cn(
+                "font-medium",
+                due.tone === "warning"
+                  ? "text-amber-600 dark:text-amber-400 font-semibold"
+                  : due.tone === "overdue"
+                    ? "text-rose-600 dark:text-rose-400 font-semibold"
+                    : ""
+              )}
+              title={
+                due.daysLeft !== null
+                  ? due.daysLeft < 0
+                    ? `${Math.abs(due.daysLeft)} days overdue`
+                    : due.daysLeft === 0
+                      ? "Due today"
+                      : due.daysLeft === 1
+                        ? "Due tomorrow"
+                        : `Due in ${due.daysLeft} days`
+                  : undefined
+              }
+            >
+              Due {formatDate(i.dueDate)}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              Inv {formatDate(i.invoiceDate)}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: "total",
@@ -419,10 +578,6 @@ export function InvoicesView() {
     },
   ];
 
-  const outstandingTotal = filtered
-    .filter((i) => i.status !== "VOID")
-    .reduce((s, i) => s + Number(i.outstanding), 0);
-
   return (
     <div className="space-y-5">
       <PageHeader
@@ -461,29 +616,72 @@ export function InvoicesView() {
         </div>
       )}
 
-      {/* Outstanding balance summary strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryStat
-          label="Invoices"
-          value={String(filtered.length)}
-          tone="text-foreground"
-        />
-        <SummaryStat
-          label="Outstanding"
-          value={formatMoney(outstandingTotal, currency)}
-          tone={outstandingTotal > 0 ? "text-rose-600" : "text-emerald-600"}
-        />
-        <SummaryStat
-          label="Overdue"
-          value={String(filtered.filter((i) => i.derivedStatus === "overdue").length)}
-          tone="text-rose-600"
-        />
-        <SummaryStat
-          label="Paid"
-          value={String(filtered.filter((i) => i.derivedStatus === "paid").length)}
-          tone="text-emerald-600"
-        />
+      {/* Summary tiles matching renewals.tsx pattern */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {(Object.keys(INVOICE_TAB_META) as InvoiceTabKey[]).map((k) => {
+          const meta = INVOICE_TAB_META[k];
+          const Icon = meta.icon;
+          const active = tab === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTab(k)}
+              className={cn(
+                "flex items-center gap-3 rounded-xl border bg-card p-3 text-left transition hover:shadow-sm cursor-pointer",
+                active && "border-primary/50 ring-1 ring-primary/20"
+              )}
+            >
+              <div
+                className={cn(
+                  "flex size-9 shrink-0 items-center justify-center rounded-lg",
+                  meta.bg
+                )}
+              >
+                <Icon className={cn("size-5", meta.tone)} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-2xl font-semibold leading-tight tabular-nums">
+                  {isLoading ? "—" : counts[k]}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">{meta.label}</p>
+                {k === "unpaid" && !isLoading && outstandingTotal > 0 && (
+                  <p className="text-[10px] font-medium text-amber-600 dark:text-amber-400 tabular-nums truncate">
+                    {formatMoney(outstandingTotal, currency)}
+                  </p>
+                )}
+                {k === "overdue" && !isLoading && overdueTotal > 0 && (
+                  <p className="text-[10px] font-medium text-rose-600 dark:text-rose-400 tabular-nums truncate">
+                    {formatMoney(overdueTotal, currency)}
+                  </p>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
+
+      <Tabs value={tab} onValueChange={(v) => setTab(v as InvoiceTabKey)}>
+        <TabsList className="h-auto flex-wrap gap-1 p-1">
+          {(Object.keys(INVOICE_TAB_META) as InvoiceTabKey[]).map((k) => {
+            const Icon = INVOICE_TAB_META[k].icon;
+            return (
+              <TabsTrigger
+                key={k}
+                value={k}
+                onClick={() => setTab(k)}
+                className="gap-1.5 cursor-pointer"
+              >
+                <Icon className="size-3.5" />
+                {INVOICE_TAB_META[k].tabLabel}
+                <Badge variant="secondary" className="ml-1 text-[10px]">
+                  {counts[k]}
+                </Badge>
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+      </Tabs>
 
       <DataTable
         storageKey="invoices"
@@ -492,38 +690,23 @@ export function InvoicesView() {
         rowKey={(i) => i.id}
         loading={isLoading}
         onRowClick={(i) => setDetail(i)}
-        emptyMessage={
-          invoices.length === 0
-            ? "No invoices found in your company. Click 'New invoice' to create one."
-            : "No invoices match your active filters or search."
-        }
+        emptyMessage={emptyMessage}
         search={{ value: search, onChange: setSearch, placeholder: "Search invoices..." }}
         toolbar={
-          <>
-            <FilterSelect
-              value={statusFilter as any}
-              onChange={(v) => setStatusFilter(v as string)}
-              options={STATUS_OPTS.map((s) => ({ value: s.value, label: s.label }))}
-              placeholder="Select Status"
-              showPlaceholderOnAll
-              allLabel="All statuses"
-              disabled={isLoading}
-            />
-            <FilterSelect
-              value={providerFilter as any}
-              onChange={(v) => setProviderFilter(v as string)}
-              options={providers.map((p) => ({
-                value: p.id,
-                label: `${p.name} — ${p.code}`,
-              }))}
-              placeholder="Select Provider"
-              showPlaceholderOnAll
-              allLabel="All providers"
-              searchable={true}
-              className="w-[11rem] sm:w-[13rem]"
-              disabled={isLoading || isProvidersLoading}
-            />
-          </>
+          <FilterSelect
+            value={providerFilter as any}
+            onChange={(v) => setProviderFilter(v as string)}
+            options={providers.map((p) => ({
+              value: p.id,
+              label: `${p.name} — ${p.code}`,
+            }))}
+            placeholder="Select Provider"
+            showPlaceholderOnAll
+            allLabel="All providers"
+            searchable={true}
+            className="w-[11rem] sm:w-[13rem]"
+            disabled={isLoading || isProvidersLoading}
+          />
         }
       />
 
@@ -575,15 +758,6 @@ export function InvoicesView() {
         loading={false}
         onConfirm={() => { if (deleting) return deleteMut(deleting.id); }}
       />
-    </div>
-  );
-}
-
-function SummaryStat({ label, value, tone }: { label: string; value: string; tone: string }) {
-  return (
-    <div className="rounded-xl border bg-card p-3">
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={cn("mt-0.5 text-lg font-semibold tabular-nums", tone)}>{value}</p>
     </div>
   );
 }

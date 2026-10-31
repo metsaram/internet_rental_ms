@@ -471,7 +471,7 @@ All views are client components (`"use client"`), lazy-loaded in `page.tsx`.
 | `plans.tsx` | `#plans` | CRUD table with provider filter, bandwidth formatting. |
 | `services.tsx` | `#services` | CRUD table with IP/credential redaction (`hasCredentials` boolean only). |
 | `contracts.tsx` | `#contracts` | CRUD table with bulk-select checkboxes + bulk-status toolbar, cost math preview, detail Sheet with cost breakdown + contract history + attachments panel. |
-| `invoices.tsx` | `#invoices` | CRUD table with outstanding-balance summary strip, detail Sheet with allocations + record-payment dialog + void/delete + print button + attachments. |
+| `invoices.tsx` | `#invoices` | Status tabs (`All`, `Needs payment`, `Overdue`, `Paid`, `Draft`, `Void`) + interactive summary tiles with live outstanding balances (renewals parity), CRUD table, detail Sheet with allocations + record-payment dialog + void/delete + print button + attachments. |
 | `renewals.tsx` | `#renewals` | Tabbed (Upcoming/Overdue/Completed) renewal cards with old→new comparison + fee delta + Renew dialog + Decline. |
 | `import.tsx` | `#import` | 4-step wizard (Upload→Mapping→Review→Done) with auto-matched columns, row-error table, import history. |
 | `notifications.tsx` | `#notifications` | List with summary tiles, All/Unread tabs, mark-read/dismiss. |
@@ -731,7 +731,20 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 
 ---
 
-#### [2026-10-29T17:25:00+07:00] Invoices: Mandatory Reason Input for Voiding Invoices
+#### [2026-10-31T20:45:00+07:00] Invoices: Status Filter Tabs & Summary Tiles (Renewals Parity)
+- **Task description**: Add status filter tabs and interactive summary tiles to the Invoices list (`src/components/views/invoices.tsx`) matching the renewals pattern (`src/components/views/renewals.tsx`), allowing users to easily filter and find invoices requiring payment (`unpaid` / `needs_payment`).
+- **Context used**: `src/components/views/invoices.tsx`, `src/components/views/renewals.tsx`, `src/lib/billing.ts`, `test/invoices-tab-filter.test.tsx`.
+- **Output generated / modified**:
+  - Defined `InvoiceTabKey` (`all`, `unpaid`, `overdue`, `paid`, `draft`, `void`) and `INVOICE_TAB_META` with distinct icons, tones, backgrounds, and badges. Default tab set to `unpaid` ("Needs payment").
+  - Moved Due Date to the top line in `InvoicesView` (`Due {date}`) with Invoice Date below (`Inv {date}`) and header `"Due / Date"`.
+  - Added warning color `text-amber-600 dark:text-amber-400 font-semibold` when unpaid invoice `dueDate` is within 7 days (`daysLeft <= 7`), overdue styling (`text-rose-600`) when past due, and native hover tooltips with remaining days.
+  - Implemented `matchesInvoiceTab` classifying invoices so `unpaid` captures active non-void invoices with `outstanding > 0` (`ISSUED`, `PARTIAL`, `OVERDUE`).
+  - Added interactive summary tiles with count and formatted currency subtexts (`outstandingTotal` and `overdueTotal`).
+  - Added `<Tabs>` bar with `<TabsList>` and `<TabsTrigger>` containing category icons and count badges.
+  - Added tailored empty messages for each active tab filter.
+  - Created verifying test suite `test/invoices-tab-filter.test.tsx` (17 tests).
+- **Timestamp**: 2026-10-31T20:45:00+07:00
+- **Status**: Completed
 - **Task description**: Require an explicit void reason when voiding an invoice, validate reason input in modal UI and API, store reason in invoice notes and audit log, and display reason in invoice detail sheet.
 - **Context used**: `src/app/api/invoices/[id]/void/route.ts`, `src/app/api/invoices/[id]/route.ts`, `src/app/api/invoices/route.ts`, `src/components/shared/form-dialog.tsx`, `src/components/shared/void-invoice-dialog.tsx`, `src/components/views/invoices.tsx`, `test/void-invoice-dialog.test.tsx`.
 - **Output generated / modified**:

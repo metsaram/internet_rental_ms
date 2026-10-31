@@ -39,7 +39,7 @@ type Company = {
 };
 
 export function SettingsView() {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
   const qc = useQueryClient();
   const isAdmin = (session?.user as any)?.role === "ADMIN";
 
@@ -61,7 +61,7 @@ export function SettingsView() {
     setSavingState(true);
     saving.current = true;
     try {
-      await api("/api/company", {
+      const updated = await api<Company>("/api/company", {
         method: "PATCH",
         body: JSON.stringify({
           name: form.name,
@@ -74,10 +74,18 @@ export function SettingsView() {
           useContract: form.useContract,
         }),
       });
+      setForm(updated);
       toast.success("Company profile saved");
-      qc.invalidateQueries({ queryKey: ["company"] });
-      // The session token still holds the old currency/name; reload to refresh.
-      setTimeout(() => window.location.reload(), 600);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["company"] }),
+        qc.invalidateQueries({ queryKey: ["dashboard"] }),
+      ]);
+      if (update) {
+        await update({
+          companyName: updated.name,
+          companyCurrency: updated.currency,
+        });
+      }
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

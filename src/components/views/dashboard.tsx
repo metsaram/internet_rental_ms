@@ -42,6 +42,7 @@ import {
 } from "recharts";
 
 type Dash = {
+  useContract?: boolean;
   counts: {
     branches: number;
     shops: number;
@@ -54,7 +55,11 @@ type Dash = {
     expired: number;
     upcoming: number;
     invoices: number;
+    paidInvoices?: number;
+    pendingInvoices?: number;
+    partialInvoices?: number;
     overdueInvoices: number;
+    draftInvoices?: number;
   };
   billing: {
     invoicedTotal: string;
@@ -73,6 +78,17 @@ type Dash = {
     endDate: string;
     daysLeft: number;
     monthlyFee: string;
+    currency: string;
+    status: string;
+  }>;
+  recentInvoices?: Array<{
+    id: string;
+    invoiceNumber: string;
+    serviceCode: string;
+    branch: string;
+    invoiceDate: string;
+    dueDate: string | null;
+    total: string;
     currency: string;
     status: string;
   }>;
@@ -125,6 +141,7 @@ export function DashboardView() {
 
   const c = data?.counts;
   const billing = data?.billing;
+  const useContract = data?.useContract ?? true;
   const cost =
     data?.costByCurrency?.[0] ?? {
       currency,
@@ -154,41 +171,76 @@ export function DashboardView() {
       tone: "text-cyan-600 bg-cyan-500/10",
       hash: "services",
     },
-    {
-      label: "Contracts",
-      value: c?.contracts,
-      icon: FileText,
-      tone: "text-amber-600 bg-amber-500/10",
-      hash: "contracts",
-    },
+    useContract
+      ? {
+          label: "Contracts",
+          value: c?.contracts,
+          icon: FileText,
+          tone: "text-amber-600 bg-amber-500/10",
+          hash: "contracts",
+        }
+      : {
+          label: "Invoices",
+          value: c?.invoices,
+          icon: Receipt,
+          tone: "text-amber-600 bg-amber-500/10",
+          hash: "invoices",
+        },
   ];
 
-  const statusCards = [
-    {
-      label: "Active",
-      value: c?.activeContracts,
-      icon: CheckCircle2,
-      tone: "text-emerald-600 bg-emerald-500/10 ring-emerald-500/20",
-    },
-    {
-      label: "Expiring ≤30d",
-      value: c?.expiringSoon,
-      icon: Clock,
-      tone: "text-amber-600 bg-amber-500/10 ring-amber-500/20",
-    },
-    {
-      label: "Expired",
-      value: c?.expired,
-      icon: XCircle,
-      tone: "text-rose-600 bg-rose-500/10 ring-rose-500/20",
-    },
-    {
-      label: "Upcoming",
-      value: c?.upcoming,
-      icon: TrendingUp,
-      tone: "text-slate-600 bg-slate-500/10 ring-slate-500/20",
-    },
-  ];
+  const statusCards = useContract
+    ? [
+        {
+          label: "Active",
+          value: c?.activeContracts,
+          icon: CheckCircle2,
+          tone: "text-emerald-600 bg-emerald-500/10 ring-emerald-500/20",
+        },
+        {
+          label: "Expiring ≤30d",
+          value: c?.expiringSoon,
+          icon: Clock,
+          tone: "text-amber-600 bg-amber-500/10 ring-amber-500/20",
+        },
+        {
+          label: "Expired",
+          value: c?.expired,
+          icon: XCircle,
+          tone: "text-rose-600 bg-rose-500/10 ring-rose-500/20",
+        },
+        {
+          label: "Upcoming",
+          value: c?.upcoming,
+          icon: TrendingUp,
+          tone: "text-slate-600 bg-slate-500/10 ring-slate-500/20",
+        },
+      ]
+    : [
+        {
+          label: "Paid",
+          value: c?.paidInvoices ?? 0,
+          icon: CheckCircle2,
+          tone: "text-emerald-600 bg-emerald-500/10 ring-emerald-500/20",
+        },
+        {
+          label: "Pending",
+          value: (c?.pendingInvoices ?? 0) + (c?.partialInvoices ?? 0),
+          icon: Clock,
+          tone: "text-amber-600 bg-amber-500/10 ring-amber-500/20",
+        },
+        {
+          label: "Overdue",
+          value: billing?.overdueCount ?? c?.overdueInvoices ?? 0,
+          icon: XCircle,
+          tone: "text-rose-600 bg-rose-500/10 ring-rose-500/20",
+        },
+        {
+          label: "Total invoices",
+          value: c?.invoices ?? 0,
+          icon: Receipt,
+          tone: "text-blue-600 bg-blue-500/10 ring-blue-500/20",
+        },
+      ];
 
   const providerData = (data?.costByProvider ?? []).slice(0, 6).map((p, i) => ({
     name: p.provider || p.code,
@@ -223,12 +275,21 @@ export function DashboardView() {
 
       {/* Quick-status pills */}
       <div className="flex flex-wrap items-center gap-2">
-        <StatusPill
-          label="Renewals due"
-          value={data?.renewalSummary?.upcoming ?? 0}
-          tone={data?.renewalSummary?.upcoming ? "amber" : "green"}
-          loading={isLoading}
-        />
+        {useContract ? (
+          <StatusPill
+            label="Renewals due"
+            value={data?.renewalSummary?.upcoming ?? 0}
+            tone={data?.renewalSummary?.upcoming ? "amber" : "green"}
+            loading={isLoading}
+          />
+        ) : (
+          <StatusPill
+            label="Paid invoices"
+            value={c?.paidInvoices ?? 0}
+            tone="green"
+            loading={isLoading}
+          />
+        )}
         <StatusPill
           label="Overdue invoices"
           value={data?.billing?.overdueCount ?? 0}
@@ -257,33 +318,44 @@ export function DashboardView() {
             <div>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Wallet className="size-4 text-primary" />
-                Monthly contract cost
+                {useContract ? "Monthly contract cost" : "Monthly service spend"}
               </CardTitle>
               <CardDescription className="text-xs">
-                Aggregated from active contracts · {cost.currency}
+                {useContract
+                  ? "Aggregated from active contracts"
+                  : "Aggregated from active internet services"} · {cost.currency}
               </CardDescription>
             </div>
             <Badge variant="outline" className="text-[10px]">
-              Expected vs effective
+              {useContract ? "Expected vs effective" : "Agreed monthly"}
             </Badge>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-3">
             <CostStat
-              label="Expected monthly"
+              label={useContract ? "Expected monthly" : "Agreed monthly"}
               value={formatMoney(cost.expectedMonthly, cost.currency)}
-              hint="Σ monthly fees"
+              hint={useContract ? "Σ monthly fees" : "Σ active service fees"}
               loading={isLoading}
             />
             <CostStat
               label="Effective monthly"
               value={formatMoney(cost.effectiveMonthly, cost.currency)}
-              hint="incl. free months"
+              hint={useContract ? "incl. free months" : "net monthly spend"}
               loading={isLoading}
             />
             <div className="col-span-2 mt-1 rounded-lg border bg-muted/30 p-3 text-[11px] text-muted-foreground">
-              <span className="font-medium text-foreground">Effective</span>{" "}
-              normalises the contract total over its full duration (free
-              months spread across the term), giving a fairer cost-per-month.
+              {useContract ? (
+                <>
+                  <span className="font-medium text-foreground">Effective</span>{" "}
+                  normalises the contract total over its full duration (free
+                  months spread across the term), giving a fairer cost-per-month.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">Service spend</span>{" "}
+                  aggregates agreed monthly fees from installed internet services across your branches and shops.
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -291,11 +363,15 @@ export function DashboardView() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="size-4 text-amber-500" />
-              Contract status
+              {useContract ? (
+                <AlertTriangle className="size-4 text-amber-500" />
+              ) : (
+                <Receipt className="size-4 text-primary" />
+              )}
+              {useContract ? "Contract status" : "Invoice status"}
             </CardTitle>
             <CardDescription className="text-xs">
-              Derived from dates & stored status
+              {useContract ? "Derived from dates & stored status" : "Payment & settlement states"}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
@@ -376,7 +452,7 @@ export function DashboardView() {
               Monthly cost trend
             </CardTitle>
             <CardDescription className="text-xs">
-              Σ monthly fees of contracts active in each month · last 6 months · {cost.currency}
+              {useContract ? `Σ monthly fees of contracts active in each month · last 6 months · ${cost.currency}` : `Σ monthly fees of services active in each month · last 6 months · ${cost.currency}`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -421,14 +497,16 @@ export function DashboardView() {
           <CardHeader>
             <CardTitle className="text-base">Cost by provider</CardTitle>
             <CardDescription className="text-xs">
-              Expected monthly fee, active contracts only
+              {useContract
+                ? "Expected monthly fee, active contracts only"
+                : "Agreed monthly fee, active services only"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-[220px] w-full rounded-lg" />
             ) : providerData.length === 0 ? (
-              <EmptyState title="No active contracts" />
+              <EmptyState title={useContract ? "No active contracts" : "No active services"} />
             ) : (
               <Chart data={providerData} dataKey="value" nameKey="name" />
             )}
@@ -438,14 +516,16 @@ export function DashboardView() {
           <CardHeader>
             <CardTitle className="text-base">Cost by branch</CardTitle>
             <CardDescription className="text-xs">
-              Expected monthly fee, active contracts only
+              {useContract
+                ? "Expected monthly fee, active contracts only"
+                : "Agreed monthly fee, active services only"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <Skeleton className="h-[220px] w-full rounded-lg" />
             ) : branchData.length === 0 ? (
-              <EmptyState title="No active contracts" />
+              <EmptyState title={useContract ? "No active contracts" : "No active services"} />
             ) : (
               <Chart data={branchData} dataKey="value" nameKey="name" />
             )}
@@ -453,113 +533,220 @@ export function DashboardView() {
         </Card>
       </div>
 
-      {/* Renewals summary strip + table */}
-      <div className="grid grid-cols-3 gap-3">
-        <RenewalTile
-          label="Upcoming renewals"
-          value={data?.renewalSummary?.upcoming}
-          tone="amber"
-          icon={Clock}
-          loading={isLoading}
-          hash="renewals"
-        />
-        <RenewalTile
-          label="Overdue renewals"
-          value={data?.renewalSummary?.overdue}
-          tone="rose"
-          icon={AlertTriangle}
-          loading={isLoading}
-          hash="renewals"
-        />
-        <RenewalTile
-          label="Completed renewals"
-          value={data?.renewalSummary?.completed}
-          tone="emerald"
-          icon={CheckCircle2}
-          loading={isLoading}
-          hash="renewals"
-        />
-      </div>
+      {/* Renewals or Invoices summary strip + table */}
+      {useContract ? (
+        <div className="grid grid-cols-3 gap-3">
+          <RenewalTile
+            label="Upcoming renewals"
+            value={data?.renewalSummary?.upcoming}
+            tone="amber"
+            icon={Clock}
+            loading={isLoading}
+            hash="renewals"
+          />
+          <RenewalTile
+            label="Overdue renewals"
+            value={data?.renewalSummary?.overdue}
+            tone="rose"
+            icon={AlertTriangle}
+            loading={isLoading}
+            hash="renewals"
+          />
+          <RenewalTile
+            label="Completed renewals"
+            value={data?.renewalSummary?.completed}
+            tone="emerald"
+            icon={CheckCircle2}
+            loading={isLoading}
+            hash="renewals"
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3">
+          <RenewalTile
+            label="Paid invoices"
+            value={c?.paidInvoices ?? 0}
+            tone="emerald"
+            icon={CheckCircle2}
+            loading={isLoading}
+            hash="invoices"
+          />
+          <RenewalTile
+            label="Pending invoices"
+            value={(c?.pendingInvoices ?? 0) + (c?.partialInvoices ?? 0)}
+            tone="amber"
+            icon={Clock}
+            loading={isLoading}
+            hash="invoices"
+          />
+          <RenewalTile
+            label="Overdue invoices"
+            value={billing?.overdueCount ?? c?.overdueInvoices ?? 0}
+            tone="rose"
+            icon={AlertTriangle}
+            loading={isLoading}
+            hash="invoices"
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      {/* Renewals */}
-      <Card className="lg:col-span-2">
-        <CardHeader className="space-y-1.5">
-          <div className="flex items-center justify-between gap-4">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Clock className="size-4 text-amber-500" />
-              Upcoming renewals &amp; expiries
-            </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
+      {/* Renewals or Recent Invoices */}
+      {useContract ? (
+        <Card className="lg:col-span-2">
+          <CardHeader className="space-y-1.5">
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="size-4 text-amber-500" />
+                Upcoming renewals &amp; expiries
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.hash = "renewals";
+                }}
+              >
+                Manage renewals
+              </Button>
+            </div>
+            <CardDescription className="text-xs">
+              Contracts ending soonest, ordered by end date
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ReportTable
+              storageKey="dashboard_renewals"
+              loading={isLoading}
+              headers={["Contract", "Branch", "End date", "Days left", "Monthly", "Status"]}
+              columnConfigs={[
+                { width: 220, minWidth: 160, maxWidth: 360 },
+                { width: 160, minWidth: 120, maxWidth: 260 },
+                { width: 130, minWidth: 100, maxWidth: 180 },
+                { width: 100, minWidth: 80, maxWidth: 130 },
+                { width: 120, minWidth: 90, maxWidth: 160 },
+                { width: 110, minWidth: 85, maxWidth: 140 },
+              ]}
+              defaultMinWidth={80}
+              defaultMaxWidth={600}
+              defaultSort={{ columnIndex: 2, direction: "asc" }}
+              onRowClick={() => {
                 window.location.hash = "renewals";
               }}
-            >
-              Manage renewals
-            </Button>
-          </div>
-          <CardDescription className="text-xs">
-            Contracts ending soonest, ordered by end date
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <ReportTable
-            storageKey="dashboard_renewals"
-            loading={isLoading}
-            headers={["Contract", "Branch", "End date", "Days left", "Monthly", "Status"]}
-            columnConfigs={[
-              { width: 220, minWidth: 160, maxWidth: 360 },
-              { width: 160, minWidth: 120, maxWidth: 260 },
-              { width: 130, minWidth: 100, maxWidth: 180 },
-              { width: 100, minWidth: 80, maxWidth: 130 },
-              { width: 120, minWidth: 90, maxWidth: 160 },
-              { width: 110, minWidth: 85, maxWidth: 140 },
-            ]}
-            defaultMinWidth={80}
-            defaultMaxWidth={600}
-            defaultSort={{ columnIndex: 2, direction: "asc" }}
-            onRowClick={() => {
-              window.location.hash = "renewals";
-            }}
-            rows={(data?.renewals ?? []).map((r) => [
-              <div key={r.id}>
-                <div className="font-medium text-foreground">{r.contractNumber}</div>
-                <div className="text-[11px] text-muted-foreground">
-                  {r.serviceCode}
-                </div>
-              </div>,
-              r.branch,
-              <span key="end" data-sort-value={r.endDate}>
-                {formatDate(r.endDate)}
-              </span>,
-              <span
-                key="days"
-                data-sort-value={r.daysLeft}
-                className={
-                  r.daysLeft < 0
-                    ? "font-semibold text-rose-600"
-                    : r.daysLeft <= 14
-                      ? "font-semibold text-amber-600"
-                      : "text-foreground"
-                }
+              rows={(data?.renewals ?? []).map((r) => [
+                <div key={r.id}>
+                  <div className="font-medium text-foreground">{r.contractNumber}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {r.serviceCode}
+                  </div>
+                </div>,
+                r.branch,
+                <span key="end" data-sort-value={r.endDate}>
+                  {formatDate(r.endDate)}
+                </span>,
+                <span
+                  key="days"
+                  data-sort-value={r.daysLeft}
+                  className={
+                    r.daysLeft < 0
+                      ? "font-semibold text-rose-600"
+                      : r.daysLeft <= 14
+                        ? "font-semibold text-amber-600"
+                        : "text-foreground"
+                  }
+                >
+                  {r.daysLeft}d
+                </span>,
+                <span key="fee" data-sort-value={r.monthlyFee} className="font-medium">
+                  {formatMoney(r.monthlyFee, r.currency)}
+                </span>,
+                <StatusBadge
+                  key="st"
+                  status={r.status.toUpperCase()}
+                  tone={r.status === "expiring" ? "amber" : r.status === "active" ? "green" : "slate"}
+                />,
+              ])}
+              empty="No upcoming renewals"
+            />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="lg:col-span-2">
+          <CardHeader className="space-y-1.5">
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Receipt className="size-4 text-primary" />
+                Recent invoices
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  window.location.hash = "invoices";
+                }}
               >
-                {r.daysLeft}d
-              </span>,
-              <span key="fee" data-sort-value={r.monthlyFee} className="font-medium">
-                {formatMoney(r.monthlyFee, r.currency)}
-              </span>,
-              <StatusBadge
-                key="st"
-                status={r.status.toUpperCase()}
-                tone={r.status === "expiring" ? "amber" : r.status === "active" ? "green" : "slate"}
-              />,
-            ])}
-            empty="No upcoming renewals"
-          />
-        </CardContent>
-      </Card>
+                Go to invoices
+              </Button>
+            </div>
+            <CardDescription className="text-xs">
+              Latest recorded provider invoices across services and branches
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ReportTable
+              storageKey="dashboard_recent_invoices"
+              loading={isLoading}
+              headers={["Invoice", "Service / Branch", "Date", "Due date", "Total", "Status"]}
+              columnConfigs={[
+                { width: 170, minWidth: 130, maxWidth: 260 },
+                { width: 190, minWidth: 140, maxWidth: 300 },
+                { width: 120, minWidth: 90, maxWidth: 160 },
+                { width: 120, minWidth: 90, maxWidth: 160 },
+                { width: 120, minWidth: 90, maxWidth: 160 },
+                { width: 110, minWidth: 85, maxWidth: 140 },
+              ]}
+              defaultMinWidth={80}
+              defaultMaxWidth={600}
+              defaultSort={{ columnIndex: 2, direction: "desc" }}
+              onRowClick={() => {
+                window.location.hash = "invoices";
+              }}
+              rows={(data?.recentInvoices ?? []).map((inv) => [
+                <div key={inv.id}>
+                  <div className="font-medium text-foreground">{inv.invoiceNumber}</div>
+                </div>,
+                <div key="target">
+                  <div className="font-medium text-foreground">{inv.serviceCode}</div>
+                  <div className="text-[11px] text-muted-foreground">{inv.branch}</div>
+                </div>,
+                <span key="date" data-sort-value={inv.invoiceDate}>
+                  {formatDate(inv.invoiceDate)}
+                </span>,
+                <span key="due" data-sort-value={inv.dueDate ?? ""}>
+                  {inv.dueDate ? formatDate(inv.dueDate) : "—"}
+                </span>,
+                <span key="total" data-sort-value={inv.total} className="font-medium">
+                  {formatMoney(inv.total, inv.currency)}
+                </span>,
+                <StatusBadge
+                  key="st"
+                  status={inv.status.toUpperCase()}
+                  tone={
+                    inv.status === "paid"
+                      ? "green"
+                      : inv.status === "overdue"
+                        ? "red"
+                        : inv.status === "partial"
+                          ? "amber"
+                          : "slate"
+                  }
+                />,
+              ])}
+              empty="No invoices recorded yet"
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent activity feed (audit-based) */}
       <Card>

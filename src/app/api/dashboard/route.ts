@@ -47,7 +47,28 @@ export async function GET() {
       }),
       db.invoice.findMany({
         where: { companyId: cid },
-        include: { allocations: { include: { payment: { select: { status: true } } } } },
+        include: {
+          allocations: { include: { payment: { select: { status: true } } } },
+          service: {
+            select: {
+              serviceCode: true,
+              branch: { select: { name: true } },
+              shop: { select: { name: true } },
+            },
+          },
+          contract: {
+            select: {
+              contractNumber: true,
+              service: {
+                select: {
+                  branch: { select: { name: true } },
+                  shop: { select: { name: true } },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { invoiceDate: "desc" },
       }),
       db.payment.findMany({
         where: { companyId: cid, status: "COMPLETED" },
@@ -174,6 +195,10 @@ export async function GET() {
   let invoicedTotal = new Decimal(0);
   let collectedTotal = new Decimal(0);
   let overdueCount = 0;
+  let paidCount = 0;
+  let pendingCount = 0;
+  let partialCount = 0;
+  let draftCount = 0;
   for (const inv of invoicesRaw) {
     if (inv.status === "VOID") continue;
     invoicedTotal = invoicedTotal.plus(inv.total);
@@ -181,12 +206,40 @@ export async function GET() {
     outstandingTotal = outstandingTotal.plus(outstanding);
     const derived = deriveInvoiceStatus(inv, inv.allocations, now);
     if (derived === "overdue") overdueCount += 1;
+    else if (derived === "paid") paidCount += 1;
+    else if (derived === "partial") partialCount += 1;
+    else if (derived === "pending") pendingCount += 1;
+    else if (derived === "draft") draftCount += 1;
   }
   for (const p of paymentsRaw) {
     collectedTotal = collectedTotal.plus(p.amount);
   }
 
+  const recentInvoices = invoicesRaw.slice(0, 6).map((inv) => {
+    const branchName =
+      inv.service?.branch?.name ??
+      inv.contract?.service?.branch?.name ??
+      "—";
+    const serviceCode =
+      inv.service?.serviceCode ??
+      inv.contract?.contractNumber ??
+      "—";
+    const derived = deriveInvoiceStatus(inv, inv.allocations, now);
+    return {
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      serviceCode,
+      branch: branchName,
+      invoiceDate: inv.invoiceDate,
+      dueDate: inv.dueDate,
+      total: inv.total.toString(),
+      currency: inv.currency,
+      status: derived,
+    };
+  });
+
   return NextResponse.json({
+    useContract: useContractMode,
     counts: {
       branches,
       shops,
@@ -199,7 +252,11 @@ export async function GET() {
       expired: expired.length,
       upcoming: upcoming.length,
       invoices: invoicesRaw.length,
+      paidInvoices: paidCount,
+      pendingInvoices: pendingCount,
+      partialInvoices: partialCount,
       overdueInvoices: overdueCount,
+      draftInvoices: draftCount,
     },
     billing: {
       invoicedTotal: invoicedTotal.toString(),
@@ -229,6 +286,7 @@ export async function GET() {
       }))
       .sort((a, b) => Number(b.expectedMonthly) - Number(a.expectedMonthly)),
     renewals,
+    recentInvoices,
     renewalSummary: (() => {
       let upcoming = 0;
       let overdue = 0;

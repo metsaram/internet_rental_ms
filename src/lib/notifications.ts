@@ -68,39 +68,96 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
     }
   }
 
-  // 2. Invoices — overdue + due soon
+  // 2. Invoices — daily payment alerts (1 week before due until 1 week overdue, unless paid or void)
   const invoices = await db.invoice.findMany({
-    where: { companyId, status: { not: "VOID" } },
+    where: { companyId },
     include: { allocations: { include: { payment: { select: { status: true } } } } },
   });
 
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
   for (const inv of invoices) {
     const outstanding = outstandingBalance(inv, inv.allocations);
-    if (outstanding.lte(0)) continue; // paid
-    const due = inv.dueDate ? new Date(inv.dueDate) : null;
-    if (!due) continue;
-    const daysToDue = Math.floor((due.getTime() - now.getTime()) / 86400000);
+    const alert = getInvoicePaymentAlert(inv, outstanding, now);
 
-    if (daysToDue < 0) {
-      await tryCreate({
+    if (!alert) {
+      // If invoice is void, paid, or outside the alert window (>7d before or >7d overdue),
+      // dismiss any lingering unread daily reminders so inbox stays accurate and clean.
+      const due = inv.dueDate ? new Date(inv.dueDate) : null;
+      const isPastLimit = due ? Math.round((new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime() - startOfToday.getTime()) / 86400000) < -7 : false;
+
+      if (inv.status === "VOID" || outstanding.lte(0) || isPastLimit) {
+        await db.notification.deleteMany({
+          where: {
+            companyId,
+            userId,
+            entityType: "Invoice",
+            entityId: inv.id,
+            readAt: null,
+          },
+        });
+      }
+      continue;
+    }
+
+    // Check if an alert was ALREADY created or updated today for this invoice
+    const alertedToday = await db.notification.findFirst({
+      where: {
         companyId,
         userId,
-        type: "INVOICE_OVERDUE",
-        title: `Invoice overdue: ${inv.invoiceNumber}`,
-        message: `Invoice ${inv.invoiceNumber} is ${Math.abs(daysToDue)} days past due. Outstanding: $${outstanding.toFixed(2)}.`,
         entityType: "Invoice",
         entityId: inv.id,
-      }).then((n) => n && created.push({ id: n.id, type: "INVOICE_OVERDUE", title: n.title }));
-    } else if (daysToDue <= 7) {
-      await tryCreate({
+        createdAt: { gte: startOfToday },
+      },
+      select: { id: true },
+    });
+
+    if (alertedToday) {
+      // Already alerted today
+      continue;
+    }
+
+    // Check if there is an existing unread alert for this invoice from an earlier day
+    const existingUnread = await db.notification.findFirst({
+      where: {
         companyId,
         userId,
-        type: "INVOICE_DUE_SOON",
-        title: `Invoice due in ${daysToDue}d: ${inv.invoiceNumber}`,
-        message: `Invoice ${inv.invoiceNumber} is due on ${due.toISOString().slice(0, 10)}. Outstanding: $${outstanding.toFixed(2)}.`,
         entityType: "Invoice",
         entityId: inv.id,
-      }).then((n) => n && created.push({ id: n.id, type: "INVOICE_DUE_SOON", title: n.title }));
+        readAt: null,
+      },
+      select: { id: true },
+    });
+
+    if (existingUnread) {
+      // Refresh the existing unread alert to today's count & timestamp so inbox doesn't duplicate
+      const updated = await db.notification.update({
+        where: { id: existingUnread.id },
+        data: {
+          type: alert.type,
+          title: alert.title,
+          message: alert.message,
+          createdAt: now,
+        },
+        select: { id: true, title: true },
+      });
+      created.push({ id: updated.id, type: alert.type, title: updated.title });
+    } else {
+      // Create fresh notification for today
+      const fresh = await db.notification.create({
+        data: {
+          companyId,
+          userId,
+          type: alert.type,
+          title: alert.title,
+          message: alert.message,
+          entityType: "Invoice",
+          entityId: inv.id,
+          createdAt: now,
+        },
+        select: { id: true, title: true },
+      });
+      created.push({ id: fresh.id, type: alert.type, title: fresh.title });
     }
   }
 
@@ -179,4 +236,93 @@ export async function notifyImport({
       entityId: jobId,
     },
   });
+}
+
+export type InvoiceAlertInfo = {
+  type: "INVOICE_DUE_SOON" | "INVOICE_OVERDUE";
+  title: string;
+  message: string;
+  daysToDue: number;
+} | null;
+
+/**
+ * Calculates whether an invoice requires a daily payment alert.
+ * Rules:
+ * 1. If invoice is VOID or fully paid (outstanding <= 0) -> null (no alert).
+ * 2. If no dueDate -> null (no alert).
+ * 3. Starts alerting 1 week (7 days) before due date.
+ * 4. Keeps alerting every day while due soon (daysToDue: 7 down to 0) and while overdue up to 1 week (daysToDue: -1 down to -7).
+ * 5. Stops alerting once overdue more than 1 week (daysToDue < -7).
+ */
+export function getInvoicePaymentAlert(
+  invoice: {
+    invoiceNumber: string;
+    dueDate: Date | string | null;
+    status: string;
+    currency?: string | null;
+  },
+  outstandingAmount: number | Decimal,
+  now: Date = new Date()
+): InvoiceAlertInfo {
+  if (invoice.status === "VOID") return null;
+  const bal = typeof outstandingAmount === "number" ? outstandingAmount : Number(outstandingAmount);
+  if (bal <= 0) return null;
+
+  if (!invoice.dueDate) return null;
+  const due = typeof invoice.dueDate === "string" ? new Date(invoice.dueDate) : invoice.dueDate;
+  if (isNaN(due.getTime())) return null;
+
+  // Calendar-day calculation (midnight to midnight)
+  const dueMidnight = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const daysToDue = Math.round((dueMidnight.getTime() - nowMidnight.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Alert window: [7 days before due date (+7) ... 7 days after due date (-7)]
+  if (daysToDue > 7 || daysToDue < -7) {
+    return null;
+  }
+
+  const cur = invoice.currency ?? "USD";
+  const formattedBal = `${cur} ${bal.toFixed(2)}`;
+  const dueStr = due.toISOString().slice(0, 10);
+
+  if (daysToDue >= 0) {
+    let title: string;
+    let message: string;
+    if (daysToDue === 0) {
+      title = `Invoice due today: ${invoice.invoiceNumber}`;
+      message = `Payment reminder: Invoice ${invoice.invoiceNumber} is due today (${dueStr}). Outstanding: ${formattedBal}. Please make payment.`;
+    } else if (daysToDue === 1) {
+      title = `Invoice due tomorrow: ${invoice.invoiceNumber}`;
+      message = `Payment reminder: Invoice ${invoice.invoiceNumber} is due tomorrow (${dueStr}). Outstanding: ${formattedBal}. Please make payment.`;
+    } else {
+      title = `Invoice due in ${daysToDue}d: ${invoice.invoiceNumber}`;
+      message = `Payment reminder: Invoice ${invoice.invoiceNumber} is due in ${daysToDue} days (${dueStr}). Outstanding: ${formattedBal}. Please make payment.`;
+    }
+
+    return {
+      type: "INVOICE_DUE_SOON",
+      title,
+      message,
+      daysToDue,
+    };
+  } else {
+    const daysOverdue = Math.abs(daysToDue);
+    let title: string;
+    let message: string;
+    if (daysOverdue === 1) {
+      title = `Invoice 1d overdue: ${invoice.invoiceNumber}`;
+      message = `Urgent payment alert: Invoice ${invoice.invoiceNumber} was due yesterday (${dueStr}). Outstanding: ${formattedBal}. Please make payment immediately.`;
+    } else {
+      title = `Invoice ${daysOverdue}d overdue: ${invoice.invoiceNumber}`;
+      message = `Urgent payment alert: Invoice ${invoice.invoiceNumber} is ${daysOverdue} days past due (${dueStr}). Outstanding: ${formattedBal}. Please make payment immediately.`;
+    }
+
+    return {
+      type: "INVOICE_OVERDUE",
+      title,
+      message,
+      daysToDue,
+    };
+  }
 }

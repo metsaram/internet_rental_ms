@@ -907,6 +907,41 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 - **Timestamp**: 2026-10-20T21:57:30+07:00
 - **Status**: Completed
 
+#### [2026-10-31T18:45:00+07:00] Fix Invoice Edit & Save Prisma Client Relation Error
+- **Task description**: Resolve runtime error when editing and saving an invoice (`Unknown argument serviceId. Did you mean service?` on `db.invoice.update`).
+- **Context used**: `src/app/api/invoices/[id]/route.ts`, `test/invoice-update.test.ts`.
+- **Output generated**: Replaced raw scalar foreign key `serviceId` on `Prisma.InvoiceUpdateInput` with nested relation inputs `service: { connect: { id } }` and `service: { disconnect: true }`. Maintained contract-service relation consistency. Added unit test suite `test/invoice-update.test.ts` (3 tests). Full test suite (24 test files, 218 tests) passing.
+- **Timestamp**: 2026-10-31T18:45:00+07:00
+- **Status**: Completed
+
+#### [2026-10-31T18:35:00+07:00] Invoice Payment Alert Modal on User Login
+- **Task description**: Display pending invoice payment alerts in a popup dialog modeled after the "Session Expiring Soon" modal (`IdleTimeoutModal`) upon user login / session start.
+- **Context used**: `src/components/shared/invoice-alert-modal.tsx`, `src/components/app-shell.tsx`, `test/invoice-alert-modal.test.tsx`, `IdleTimeoutModal`.
+- **Output generated**: Created `InvoiceAlertModal` with adaptive severity styling (rose for overdue, amber for due soon), summary badges, scrollable pending invoice cards, and accessible actions ("Remind me later" & "Review Invoices"). Integrated into `AppShell` with session-scoped daily persistence via `sessionStorage` and automatic sign-out cleanup. Added component tests in `test/invoice-alert-modal.test.tsx` (5/5 tests passing). Full test suite (23 test files, 215 tests) passing.
+- **Timestamp**: 2026-10-31T18:35:00+07:00
+- **Status**: Completed
+
+#### [2026-10-31T18:20:00+07:00] Daily Invoice Payment Alert Notifications (1-Week Due Soon & Overdue Lifecycle)
+- **Task description**: Implement daily invoice payment alerts starting 1 week before due date and continuing daily until 1 week overdue or status is VOID/PAID.
+- **Context used**: `src/lib/notifications.ts`, `src/app/api/notifications/route.ts`, `test/invoice-notifications.test.ts`.
+- **Output generated**: Implemented `getInvoicePaymentAlert()` in `notifications.ts`. Handled pre-due daily reminders (`INVOICE_DUE_SOON`), post-due daily reminders (`INVOICE_OVERDUE`), daily idempotency, unread notification in-place updates, and cleanup on VOID/PAID or > 7 days overdue. Added test suite `test/invoice-notifications.test.ts`. All 210 tests passing.
+- **Timestamp**: 2026-10-31T18:20:00+07:00
+- **Status**: Completed
+
+#### [2026-10-31T18:05:00+07:00] Dynamic Dashboard Contract-Free Mode (Replace Contract Cards with Invoices)
+- **Task description**: On dashboard, when company does not require contracts (`useContract: false`), dynamically replace contract cards, metrics, and renewal tables with invoice-centric equivalents.
+- **Context used**: `src/app/api/dashboard/route.ts`, `src/components/views/dashboard.tsx`, `test/dashboard-renewals.test.tsx`.
+- **Output generated**: Returned `useContract`, detailed invoice status counts, and `recentInvoices` from dashboard API. Updated `DashboardView` to swap KPI card ("Invoices"), Status card ("Invoice status"), Monthly cost ("Monthly service spend"), and Renewals table with "Recent invoices" ReportTable. Added test in `test/dashboard-renewals.test.tsx`. All 199 tests passing.
+- **Timestamp**: 2026-10-31T18:05:00+07:00
+- **Status**: Completed
+
+#### [2026-10-31T17:58:00+07:00] In-Place Data Refresh on Company Save (Eliminate Full Page Reload)
+- **Task description**: Eliminate `window.location.reload()` when saving company settings in `src/components/views/settings.tsx`, refreshing only data and session state in-place.
+- **Context used**: `src/components/views/settings.tsx`, `src/lib/auth.ts`, NextAuth `useSession()`.
+- **Output generated**: Removed `window.location.reload()`. Captured updated company response from `PATCH /api/company`, updated local form state, invalidated queries (`["company"]`, `["dashboard"]`), and dispatched NextAuth `update()` with updated name and currency. Handled `trigger === "update"` in `auth.ts` JWT callback. All 198 tests passing.
+- **Timestamp**: 2026-10-31T17:58:00+07:00
+- **Status**: Completed
+
 #### [2026-10-31T17:35:00+07:00] Fix Dashboard Load & Production Company Update Error (Unknown field useContract on Company)
 - **Task description**: Resolve dashboard loading error and company update error `Unknown field useContract for update/select statement on model Company` thrown by Prisma in `src/app/api/dashboard/route.ts` and `src/app/api/company/route.ts`.
 - **Context used**: `prisma/schema.prisma`, `package.json`, `.zscripts/build.sh`, `.next/standalone`, `@prisma/client`.

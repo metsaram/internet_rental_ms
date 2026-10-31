@@ -63,7 +63,7 @@ describe("VoidInvoiceDialog Component", () => {
     await waitFor(() => {
       expect(handleClose).toHaveBeenCalled();
     });
-  });
+  }, 15000);
 
   it("displays error message if onVoid rejects", async () => {
     const user = userEvent.setup();

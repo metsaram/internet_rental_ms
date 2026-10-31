@@ -176,7 +176,7 @@ export async function PATCH(req: Request, { params }: Params) {
           throw new HttpError(404, "Contract not found");
         }
         data.contract = { connect: { id: body.contractId } };
-        (data as any).serviceId = contract.serviceId;
+        data.service = contract.serviceId ? { connect: { id: contract.serviceId } } : { disconnect: true };
       } else {
         data.contract = { disconnect: true };
         if (body.serviceId) {
@@ -187,9 +187,9 @@ export async function PATCH(req: Request, { params }: Params) {
           if (!svc || svc.companyId !== user.companyId) {
             throw new HttpError(404, "Service not found");
           }
-          (data as any).serviceId = body.serviceId;
+          data.service = { connect: { id: body.serviceId } };
         } else {
-          (data as any).serviceId = null;
+          data.service = { disconnect: true };
         }
       }
     } else if (body.serviceId !== undefined) {
@@ -201,9 +201,9 @@ export async function PATCH(req: Request, { params }: Params) {
         if (!svc || svc.companyId !== user.companyId) {
           throw new HttpError(404, "Service not found");
         }
-        (data as any).serviceId = body.serviceId;
+        data.service = { connect: { id: body.serviceId } };
       } else {
-        (data as any).serviceId = null;
+        data.service = { disconnect: true };
       }
     }
 

@@ -148,4 +148,63 @@ describe("DashboardView Upcoming renewals & expiries refactor", () => {
     const columnsBtn = screen.getByRole("button", { name: /customize visible columns/i });
     expect(columnsBtn).toBeInTheDocument();
   });
+
+  it("renders Invoices card, Invoice status, and Recent invoices table when useContract is false", async () => {
+    const mockContractFreeData = {
+      ...mockDashboardData,
+      useContract: false,
+      counts: {
+        ...mockDashboardData.counts,
+        paidInvoices: 15,
+        pendingInvoices: 3,
+        partialInvoices: 0,
+        overdueInvoices: 2,
+      },
+      recentInvoices: [
+        {
+          id: "inv-1",
+          invoiceNumber: "INV-2026-9001",
+          serviceCode: "SVC-FIBER-01",
+          branch: "Downtown HQ",
+          invoiceDate: "2026-10-15T00:00:00.000Z",
+          dueDate: "2026-11-15T00:00:00.000Z",
+          total: "350.00",
+          currency: "USD",
+          status: "paid",
+        },
+      ],
+    };
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    client.setQueryData(["dashboard"], mockContractFreeData);
+
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <DashboardView />
+      </QueryClientProvider>
+    );
+
+    // Verify KPI card replaced with Invoices
+    expect(screen.getByText("Invoices")).toBeInTheDocument();
+    expect(screen.queryByText("Contracts")).not.toBeInTheDocument();
+
+    // Verify Monthly cost card title
+    expect(screen.getByText("Monthly service spend")).toBeInTheDocument();
+
+    // Verify Status card replaced with Invoice status
+    expect(screen.getByText("Invoice status")).toBeInTheDocument();
+    expect(screen.queryByText("Contract status")).not.toBeInTheDocument();
+
+    // Verify Recent invoices table rendered instead of Upcoming renewals
+    expect(screen.getByText("Recent invoices")).toBeInTheDocument();
+    expect(screen.queryByText("Upcoming renewals & expiries")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /go to invoices/i }).length).toBe(2);
+
+    // Verify Recent invoice record
+    expect(screen.getByText("INV-2026-9001")).toBeInTheDocument();
+    expect(screen.getByText("SVC-FIBER-01")).toBeInTheDocument();
+    expect(screen.getByText("$350.00")).toBeInTheDocument();
+  });
 });

@@ -51,6 +51,7 @@ import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
 import { useIdleTimeout } from "@/hooks/use-idle-timeout";
 import { IdleTimeoutModal } from "@/components/shared/idle-timeout-modal";
 import { clearIdleTimeoutStorage } from "@/lib/idle-timeout-config";
+import { InvoiceAlertModal, type InvoiceAlertNotification } from "@/components/shared/invoice-alert-modal";
 
 export type ViewKey =
   | "dashboard"
@@ -148,12 +149,20 @@ export function AppShell({
   });
 
   // Poll notifications unread count for the header bell badge.
-  const { data: notifData } = useQuery<{ unreadCount: number }>({
+  const { data: notifData } = useQuery<{
+    unreadCount: number;
+    notifications?: InvoiceAlertNotification[];
+  }>({
     queryKey: ["notifications-unread-count"],
-    queryFn: () => api<{ unreadCount: number }>("/api/notifications?unreadOnly=true"),
+    queryFn: () =>
+      api<{
+        unreadCount: number;
+        notifications?: InvoiceAlertNotification[];
+      }>("/api/notifications?unreadOnly=true"),
     refetchInterval: 30_000,
   });
   const unreadCount = notifData?.unreadCount ?? 0;
+  const [invoiceAlertOpen, setInvoiceAlertOpen] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
   // Global Cmd/Ctrl+K shortcut for the command palette.
@@ -177,6 +186,63 @@ export function AppShell({
       companyCode?: string;
     }
     | undefined;
+
+  // Filter unread invoice payment notifications (due soon or overdue)
+  const invoiceAlerts = React.useMemo(() => {
+    return (notifData?.notifications ?? []).filter(
+      (n) => (n.type === "INVOICE_DUE_SOON" || n.type === "INVOICE_OVERDUE") && !n.readAt
+    );
+  }, [notifData?.notifications]);
+
+  // Show login alert dialog once per user session
+  React.useEffect(() => {
+    if (status !== "authenticated" || !user?.email || invoiceAlerts.length === 0) {
+      return;
+    }
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const storageKey = `netrent_invoice_login_alert_${user.email}_${today}`;
+      const alreadyShown = sessionStorage.getItem(storageKey);
+
+      if (!alreadyShown) {
+        setInvoiceAlertOpen(true);
+      }
+    } catch {
+      // Ignore sessionStorage exceptions in restricted sandbox environments
+    }
+  }, [status, user?.email, invoiceAlerts.length]);
+
+  const handleDismissInvoiceAlert = React.useCallback(() => {
+    try {
+      if (user?.email) {
+        const today = new Date().toISOString().slice(0, 10);
+        sessionStorage.setItem(
+          `netrent_invoice_login_alert_${user.email}_${today}`,
+          "true"
+        );
+      }
+    } catch {
+      // Ignore
+    }
+    setInvoiceAlertOpen(false);
+  }, [user?.email]);
+
+  const handleReviewInvoiceAlert = React.useCallback(() => {
+    try {
+      if (user?.email) {
+        const today = new Date().toISOString().slice(0, 10);
+        sessionStorage.setItem(
+          `netrent_invoice_login_alert_${user.email}_${today}`,
+          "true"
+        );
+      }
+    } catch {
+      // Ignore
+    }
+    setInvoiceAlertOpen(false);
+    navigate("invoices");
+  }, [user?.email, navigate]);
 
   const grouped = React.useMemo(() => {
     const map = new Map<string, typeof NAV>();
@@ -414,6 +480,14 @@ export function AppShell({
                 <DropdownMenuItem
                   onSelect={async () => {
                     clearIdleTimeoutStorage();
+                    try {
+                      if (user?.email) {
+                        const today = new Date().toISOString().slice(0, 10);
+                        sessionStorage.removeItem(
+                          `netrent_invoice_login_alert_${user.email}_${today}`
+                        );
+                      }
+                    } catch { }
                     await signOut({ redirect: false });
                     //toast.success("Signed out");
                   }}
@@ -462,6 +536,12 @@ export function AppShell({
         warningTimeMs={warningTimeMs}
         onStaySignedIn={resetIdleTimer}
         onLogoutNow={logoutNow}
+      />
+      <InvoiceAlertModal
+        open={invoiceAlertOpen}
+        notifications={invoiceAlerts}
+        onReviewInvoices={handleReviewInvoiceAlert}
+        onDismiss={handleDismissInvoiceAlert}
       />
     </div>
   );

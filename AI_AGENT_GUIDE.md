@@ -181,7 +181,7 @@ In both `InvoiceForm` (`invoices.tsx`) and `ContractForm` (`contracts.tsx`):
 │   └── seed.ts                     # Repeatable demo seed (company, users, branches, …)
 ├── docs-implementation-plan/       # Original 20-phase prompt pack (reference)
 ├── download/                       # Generated files (templates, attachment storage)
-├── public/                         # Static assets (logo.svg, robots.txt)
+├── public/                         # Static assets (logo.png, logo-dark.png, logo-icon.png, logo-icon-dark.png, apple-icon.png, icon.png, robots.txt)
 ├── .env / .env.example             # Environment variables
 ├── next.config.ts                  # Security headers (CSP, HSTS, X-Frame-Options, …)
 ├── package.json                    # Scripts: dev, lint, db:push, db:seed, db:generate

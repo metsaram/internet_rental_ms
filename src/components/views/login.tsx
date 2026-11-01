@@ -173,13 +173,21 @@ export function LoginScreen() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="relative flex size-12 items-center justify-center rounded-2xl bg-white/15 dark:bg-gradient-to-br dark:from-emerald-400 dark:to-teal-600 p-2 shadow-lg shadow-emerald-950/20 ring-1 ring-white/30 backdrop-blur-sm">
+                  <div className="relative flex size-12 items-center justify-center rounded-2xl bg-white/15 dark:bg-emerald-950/40 p-2 shadow-lg shadow-emerald-950/20 ring-1 ring-white/30 dark:ring-emerald-500/20 backdrop-blur-sm">
                     <Image
                       src="/logo-icon.png"
                       alt="NetRent Logo"
                       width={36}
                       height={36}
-                      className="size-8 object-contain drop-shadow"
+                      className="size-8 object-contain drop-shadow dark:hidden"
+                      priority
+                    />
+                    <Image
+                      src="/logo-icon-dark.png"
+                      alt="NetRent Logo"
+                      width={36}
+                      height={36}
+                      className="size-8 object-contain drop-shadow hidden dark:block"
                       priority
                     />
                   </div>
@@ -425,13 +433,20 @@ export function LoginScreen() {
               <div className="mb-6 flex items-center justify-between">
                 {/* Mobile Brand Header */}
                 <div className="flex items-center gap-2.5 md:hidden">
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 p-1.5 shadow-md">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 p-1.5 shadow-md dark:from-emerald-950/60 dark:to-teal-950/60 dark:ring-1 dark:ring-emerald-500/30">
                     <Image
                       src="/logo-icon.png"
                       alt="NetRent"
                       width={24}
                       height={24}
-                      className="size-6 object-contain"
+                      className="size-6 object-contain dark:hidden"
+                    />
+                    <Image
+                      src="/logo-icon-dark.png"
+                      alt="NetRent"
+                      width={24}
+                      height={24}
+                      className="size-6 object-contain hidden dark:block"
                     />
                   </div>
                   <div>

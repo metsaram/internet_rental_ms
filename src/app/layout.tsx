@@ -38,8 +38,16 @@ export const metadata: Metadata = {
     "Prisma",
   ],
   icons: {
-    icon: "/icon.png",
-    apple: "/apple-icon.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+      { url: "/favicon-dark.ico", sizes: "any", media: "(prefers-color-scheme: dark)" },
+      { url: "/icon-dark.png", type: "image/png", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: [
+      { url: "/apple-icon.png" },
+      { url: "/apple-icon-dark.png", media: "(prefers-color-scheme: dark)" },
+    ],
   },
 };
 

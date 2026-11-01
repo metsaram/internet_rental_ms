@@ -556,7 +556,15 @@ function SidebarBrand({ onClose }: { onClose?: () => void }) {
           alt="NetRent"
           width={28}
           height={28}
-          className="size-7 object-contain"
+          className="size-7 object-contain dark:hidden"
+          priority
+        />
+        <Image
+          src="/logo-icon-dark.png"
+          alt="NetRent"
+          width={28}
+          height={28}
+          className="size-7 object-contain hidden dark:block"
           priority
         />
       </div>

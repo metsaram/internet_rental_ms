@@ -151,6 +151,13 @@ In both `InvoiceForm` (`invoices.tsx`) and `ContractForm` (`contracts.tsx`):
    - Total Payable = `subtotal + tax - discount`.
 6. **Contract-Free Mode**: When `Company.useContract = false`, invoices link directly to `InternetService` via `serviceId`, prefilling schedule & financial terms.
 
+### Rule 12: Database Connection Singleton & Pool Capping
+
+**Do NOT create a new database connection inside every API route or Server Action.**
+Under heavy traffic, Next.js will quickly hit PostgreSQL's connection limit and crash.
+Always import the global singleton `db` from `@/lib/db`. Ensure the maximum connections
+are capped (`connection_limit` & `pool_timeout`) via `getCappedDatabaseUrl()`.
+
 ---
 
 ## 3. Directory Structure
@@ -196,9 +203,11 @@ In both `InvoiceForm` (`invoices.tsx`) and `ContractForm` (`contracts.tsx`):
 ## 4. Library Modules (`src/lib/`)
 
 ### `db.ts` — Prisma Client singleton
-- Exports `db` (a global-cached `PrismaClient`).
-- Log level: `['query']` in dev.
-- Import in API routes only.
+- Exports `db` (a global-cached `PrismaClient` extended instance).
+- Enforces global singleton caching on `globalThis` across dev and production.
+- Auto-caps connection limit (`connection_limit=10` or `DB_MAX_CONNECTIONS`) and `pool_timeout=30` via `getCappedDatabaseUrl()`.
+- Log level: `['query', 'error', 'warn']` in dev, `['error']` in production.
+- Import in API routes and server libraries only. Never instantiate ad-hoc `PrismaClient` or connection pools inside route handlers or server actions.
 
 ### `auth.ts` — NextAuth configuration
 - Exports `authOptions: NextAuthOptions`.

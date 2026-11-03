@@ -71,13 +71,38 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
         entityType: "ContractRenewal",
         entityId: r.id,
       }).then((n) => n && created.push({ id: n.id, type: "RENEWAL_UPCOMING", title: n.title }));
+    } else {
+      // Contract expiration is farther than warningDays away (e.g. if company warningDays was reduced):
+      // dismiss any lingering unread upcoming renewal alerts.
+      await db.notification.deleteMany({
+        where: {
+          companyId,
+          userId,
+          type: "RENEWAL_UPCOMING",
+          entityType: "ContractRenewal",
+          entityId: r.id,
+          readAt: null,
+        },
+      });
     }
   }
 
-  // 2. Invoices — daily payment alerts (1 week before due until 1 week overdue, unless paid or void)
+  // 2. Invoices — daily payment alerts (within warningDays before due until warningDays overdue, unless paid or void)
   const invoices = await db.invoice.findMany({
     where: { companyId },
     include: { allocations: { include: { payment: { select: { status: true } } } } },
+  });
+
+  const invoiceIds = invoices.map((i) => i.id);
+  // Dismiss lingering unread notifications for any deleted invoices
+  await db.notification.deleteMany({
+    where: {
+      companyId,
+      userId,
+      entityType: "Invoice",
+      entityId: { notIn: invoiceIds },
+      readAt: null,
+    },
   });
 
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -87,22 +112,17 @@ export async function generateNotifications({ companyId, userId }: NotifyOpts) {
     const alert = getInvoicePaymentAlert(inv, outstanding, now, warningDays);
 
     if (!alert) {
-      // If invoice is void, paid, or outside the alert window (>7d before or >7d overdue),
-      // dismiss any lingering unread daily reminders so inbox stays accurate and clean.
-      const due = inv.dueDate ? new Date(inv.dueDate) : null;
-      const isPastLimit = due ? Math.round((new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime() - startOfToday.getTime()) / 86400000) < -warningDays : false;
-
-      if (inv.status === "VOID" || outstanding.lte(0) || isPastLimit) {
-        await db.notification.deleteMany({
-          where: {
-            companyId,
-            userId,
-            entityType: "Invoice",
-            entityId: inv.id,
-            readAt: null,
-          },
-        });
-      }
+      // If invoice is void, paid, or outside the alert window (>warningDays before or >warningDays overdue),
+      // dismiss any lingering unread daily reminders so inbox and alert modal stay accurate and clean.
+      await db.notification.deleteMany({
+        where: {
+          companyId,
+          userId,
+          entityType: "Invoice",
+          entityId: inv.id,
+          readAt: null,
+        },
+      });
       continue;
     }
 

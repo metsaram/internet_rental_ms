@@ -51,7 +51,11 @@ import { MobileBottomNav } from "@/components/shared/mobile-bottom-nav";
 import { useIdleTimeout } from "@/hooks/use-idle-timeout";
 import { IdleTimeoutModal } from "@/components/shared/idle-timeout-modal";
 import { clearIdleTimeoutStorage } from "@/lib/idle-timeout-config";
-import { InvoiceAlertModal, type InvoiceAlertNotification } from "@/components/shared/invoice-alert-modal";
+import {
+  InvoiceAlertModal,
+  parseInvoiceAlertDays,
+  type InvoiceAlertNotification,
+} from "@/components/shared/invoice-alert-modal";
 
 export type ViewKey =
   | "dashboard"
@@ -187,12 +191,22 @@ export function AppShell({
     }
     | undefined;
 
-  // Filter unread invoice payment notifications (due soon or overdue)
+  const companyWarningDays =
+    (session?.user as any)?.companyWarningDays ?? 7;
+
+  // Filter unread invoice payment notifications (due soon or overdue) respecting company warningDays
   const invoiceAlerts = React.useMemo(() => {
-    return (notifData?.notifications ?? []).filter(
-      (n) => (n.type === "INVOICE_DUE_SOON" || n.type === "INVOICE_OVERDUE") && !n.readAt
-    );
-  }, [notifData?.notifications]);
+    return (notifData?.notifications ?? []).filter((n) => {
+      if ((n.type !== "INVOICE_DUE_SOON" && n.type !== "INVOICE_OVERDUE") || n.readAt) {
+        return false;
+      }
+      const days = parseInvoiceAlertDays(n.title, n.message);
+      if (days !== null && days > companyWarningDays) {
+        return false;
+      }
+      return true;
+    });
+  }, [notifData?.notifications, companyWarningDays]);
 
   // Show login alert dialog once per user session
   React.useEffect(() => {
@@ -540,6 +554,7 @@ export function AppShell({
       <InvoiceAlertModal
         open={invoiceAlertOpen}
         notifications={invoiceAlerts}
+        warningDays={companyWarningDays}
         onReviewInvoices={handleReviewInvoiceAlert}
         onDismiss={handleDismissInvoiceAlert}
       />

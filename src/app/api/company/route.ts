@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUser, requireAdmin, parseJsonBody, HttpError, errorResponse } from "@/lib/session";
 import { writeAudit } from "@/lib/audit";
+import { generateNotifications } from "@/lib/notifications";
+import { clearNotificationThrottle } from "@/app/api/notifications/route";
 
 export async function GET() {
   try {
@@ -58,6 +60,15 @@ export async function PATCH(req: Request) {
     };
 
     const after = await db.company.update({ where: { id: user.companyId }, data });
+
+    if (before.warningDays !== after.warningDays) {
+      clearNotificationThrottle(user.companyId);
+      try {
+        await generateNotifications({ companyId: user.companyId, userId: user.id });
+      } catch (genErr) {
+        console.warn("[company] Notification regeneration failed on warningDays update:", genErr);
+      }
+    }
     await writeAudit({
       companyId: user.companyId,
       actorId: user.id,

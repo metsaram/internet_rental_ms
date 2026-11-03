@@ -14,6 +14,14 @@ import { generateNotifications } from "@/lib/notifications";
  */
 const lastGeneratedMap = new Map<string, number>();
 
+export function clearNotificationThrottle(companyId?: string) {
+  if (companyId) {
+    lastGeneratedMap.delete(companyId);
+  } else {
+    lastGeneratedMap.clear();
+  }
+}
+
 export async function GET(req: Request) {
   try {
     const user = await requireUser();

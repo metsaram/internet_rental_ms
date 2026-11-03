@@ -739,6 +739,19 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 
 ---
 
+#### [2026-11-03T21:05:00+07:00] Invoices: Invoice Alert Dialog & Warning Days Synchronization
+- **Task description**: Fix the invoice payment alert dialog (`src/components/shared/invoice-alert-modal.tsx`) and notification generation system when company "Days Before Warning" is set to 7 days, eliminating stale alerts for invoices due in 27–30 days.
+- **Context used**: `src/components/shared/invoice-alert-modal.tsx`, `src/components/app-shell.tsx`, `src/lib/notifications.ts`, `src/app/api/notifications/route.ts`, `src/app/api/company/route.ts`, `src/components/views/settings.tsx`, `test/invoice-alert-modal.test.tsx`.
+- **Output generated / modified**:
+  - `src/lib/notifications.ts`: Fixed `generateNotifications` cleanup condition when `!alert`. Previously, it only checked if overdue past limit (`daysToDue < -warningDays`), failing to delete unread notifications for invoices due in the future beyond `warningDays`. Now cleans up unread notifications for all invoices outside the alert window (`daysToDue > warningDays` or `< -warningDays`), orphaned invoice notifications, and renewals exceeding `warningDays`.
+  - `src/app/api/notifications/route.ts`: Exported `clearNotificationThrottle` to allow immediate notification regeneration when company warning threshold is modified.
+  - `src/app/api/company/route.ts`: On `warningDays` update, automatically clears notification generation throttle and runs `generateNotifications`.
+  - `src/components/views/settings.tsx`: Added `qc.invalidateQueries({ queryKey: ["notifications"] })` and `["notifications-unread-count"]` upon saving settings.
+  - `src/components/shared/invoice-alert-modal.tsx` & `src/components/app-shell.tsx`: Added `parseInvoiceAlertDays` utility to extract days from notification title/message, added `warningDays` prop to `InvoiceAlertModalProps`, and enforced client-side threshold filtering in both `AppShell` and `InvoiceAlertModal`.
+  - Test suite: Enhanced `test/invoice-alert-modal.test.tsx` with 4 new tests verifying `parseInvoiceAlertDays` and `warningDays` filtering. All 272 tests across 29 test files passing.
+- **Timestamp**: 2026-11-03T21:05:00+07:00
+- **Status**: Completed
+
 #### [2026-10-31T21:40:00+07:00] Settings: Configurable "Days Before Warning" Option & System-wide Threshold Validation
 - **Task description**: Add a configurable "Days Before Warning" option in `src/components/views/settings.tsx`. All expiration, alert, and warning validations across the application must retrieve the warning threshold from this company setting.
 - **Context used**: `src/components/views/settings.tsx`, `src/components/views/invoices.tsx`, `src/components/views/renewals.tsx`, `src/app/api/company/route.ts`, `src/app/api/dashboard/route.ts`, `src/app/api/renewals/route.ts`, `src/app/api/contracts/route.ts`, `src/app/api/contracts/[id]/route.ts`, `src/app/api/export/route.ts`, `src/lib/notifications.ts`, `src/lib/auth.ts`, `test/settings-warning-days.test.tsx`.

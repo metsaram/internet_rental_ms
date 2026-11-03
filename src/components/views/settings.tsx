@@ -92,6 +92,8 @@ export function SettingsView() {
         qc.invalidateQueries({ queryKey: ["invoices"] }),
         qc.invalidateQueries({ queryKey: ["renewals"] }),
         qc.invalidateQueries({ queryKey: ["contracts"] }),
+        qc.invalidateQueries({ queryKey: ["notifications"] }),
+        qc.invalidateQueries({ queryKey: ["notifications-unread-count"] }),
       ]);
       if (update) {
         await update({

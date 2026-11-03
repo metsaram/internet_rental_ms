@@ -31,25 +31,75 @@ export interface InvoiceAlertModalProps {
   notifications: InvoiceAlertNotification[];
   onReviewInvoices: () => void;
   onDismiss: () => void;
+  warningDays?: number;
+}
+
+/**
+ * Extracts days until due or days overdue from an invoice notification's title/message.
+ * Returns non-negative integer for days remaining or days overdue,
+ * 0 for due today, or null if cannot be determined.
+ */
+export function parseInvoiceAlertDays(
+  title?: string | null,
+  message?: string | null
+): number | null {
+  const t = title ?? "";
+  const m = message ?? "";
+
+  // Title: "Invoice due today: ..."
+  if (/due today/i.test(t)) return 0;
+  // Title: "Invoice due tomorrow: ..."
+  if (/due tomorrow/i.test(t)) return 1;
+
+  // Title: "Invoice due in 5d: ..."
+  const dueInTitle = t.match(/due in (\d+)d/i);
+  if (dueInTitle) return parseInt(dueInTitle[1], 10);
+
+  // Message: "... is due in 5 days ..."
+  const dueInMsg = m.match(/due in (\d+) days/i);
+  if (dueInMsg) return parseInt(dueInMsg[1], 10);
+
+  // Title: "Invoice 1d overdue: ..." or "Invoice 5d overdue: ..." or "Payment overdue 3d: ..."
+  const overdueTitle = t.match(/(\d+)d overdue/i) || t.match(/overdue\s+(\d+)d/i);
+  if (overdueTitle) return parseInt(overdueTitle[1], 10);
+
+  // Message: "... is 5 days past due ..." or "... is 5 days overdue ..."
+  const overdueMsg = m.match(/is (\d+) days past due/i) || m.match(/is (\d+) days overdue/i);
+  if (overdueMsg) return parseInt(overdueMsg[1], 10);
+
+  return null;
 }
 
 /**
  * Invoice Payment Alert Modal shown upon user login.
- * Alerts user of invoices due within 1 week or overdue up to 1 week,
- * prompting immediate payment attention.
+ * Alerts user of invoices due within the configured warning threshold (e.g. 7 days)
+ * or overdue up to the warning threshold, prompting immediate payment attention.
  */
 export function InvoiceAlertModal({
   open,
   notifications,
   onReviewInvoices,
   onDismiss,
+  warningDays,
 }: InvoiceAlertModalProps) {
-  if (!notifications || notifications.length === 0) {
+  const validNotifications = React.useMemo(() => {
+    if (!notifications || notifications.length === 0) return [];
+    if (warningDays === undefined || warningDays === null) return notifications;
+    return notifications.filter((n) => {
+      const days = parseInvoiceAlertDays(n.title, n.message);
+      if (days !== null && days > warningDays) {
+        return false;
+      }
+      return true;
+    });
+  }, [notifications, warningDays]);
+
+  if (!validNotifications || validNotifications.length === 0) {
     return null;
   }
 
-  const overdueCount = notifications.filter((n) => n.type === "INVOICE_OVERDUE").length;
-  const dueSoonCount = notifications.filter((n) => n.type === "INVOICE_DUE_SOON").length;
+  const overdueCount = validNotifications.filter((n) => n.type === "INVOICE_OVERDUE").length;
+  const dueSoonCount = validNotifications.filter((n) => n.type === "INVOICE_DUE_SOON").length;
   const hasOverdue = overdueCount > 0;
 
   return (
@@ -78,8 +128,8 @@ export function InvoiceAlertModal({
                   : "Upcoming Invoice Payments Due Soon"}
               </AlertDialogTitle>
               <AlertDialogDescription className="text-xs text-muted-foreground">
-                {notifications.length} invoice payment
-                {notifications.length > 1 ? "s require" : " requires"} your
+                {validNotifications.length} invoice payment
+                {validNotifications.length > 1 ? "s require" : " requires"} your
                 attention.
               </AlertDialogDescription>
             </div>
@@ -109,7 +159,7 @@ export function InvoiceAlertModal({
           aria-label="Pending invoice payment alerts"
           className="max-h-60 overflow-y-auto space-y-2.5 pr-1 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
         >
-          {notifications.map((n) => {
+          {validNotifications.map((n) => {
             const isOverdue = n.type === "INVOICE_OVERDUE";
             return (
               <div

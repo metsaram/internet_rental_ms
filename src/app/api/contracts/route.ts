@@ -45,30 +45,34 @@ export async function GET(req: Request) {
         : {}),
     };
 
-    const rows = await db.internetContract.findMany({
-      where,
-      include: {
-        service: {
-          select: {
-            id: true,
-            serviceCode: true,
-            branch: { select: { id: true, name: true, code: true } },
-            shop: { select: { id: true, name: true, code: true } },
-            provider: { select: { id: true, name: true, code: true } },
-            plan: { select: { id: true, name: true } },
+    // Run the two independent queries in parallel to avoid sequential round-trips.
+    const [rows, company] = await Promise.all([
+      db.internetContract.findMany({
+        relationLoadStrategy: "join",
+        where,
+        include: {
+          service: {
+            select: {
+              id: true,
+              serviceCode: true,
+              branch: { select: { id: true, name: true, code: true } },
+              shop: { select: { id: true, name: true, code: true } },
+              provider: { select: { id: true, name: true, code: true } },
+              plan: { select: { id: true, name: true } },
+            },
           },
+          createdBy: { select: { id: true, name: true, email: true } },
         },
-        createdBy: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { endDate: "asc" },
-      take: 500,
-    });
+        orderBy: { endDate: "asc" },
+        take: 500,
+      }),
+      db.company.findUnique({
+        where: { id: user.companyId },
+        select: { warningDays: true },
+      }),
+    ]);
 
     const now = new Date();
-    const company = await db.company.findUnique({
-      where: { id: user.companyId },
-      select: { warningDays: true },
-    });
     const warningDays = company?.warningDays ?? 30;
     return NextResponse.json(
       rows.map((r) => {
@@ -166,3 +170,5 @@ export async function POST(req: Request) {
     return errorResponse(err);
   }
 }
+
+

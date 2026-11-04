@@ -78,6 +78,7 @@ export async function GET(req: Request) {
         : { createdAt: "desc" };
 
     const rows = await db.internetService.findMany({
+      relationLoadStrategy: "join",
       where,
       include: {
         branch: { select: { id: true, name: true, code: true } },
@@ -205,3 +206,4 @@ export async function POST(req: Request) {
     return errorResponse(err);
   }
 }
+

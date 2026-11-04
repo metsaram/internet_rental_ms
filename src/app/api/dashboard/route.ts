@@ -20,6 +20,7 @@ export async function GET() {
       db.internetProvider.count({ where: { companyId: cid } }),
       db.internetPlan.count({ where: { companyId: cid } }),
       db.internetContract.findMany({
+        relationLoadStrategy: "join",
         where: { companyId: cid },
         include: {
           service: {
@@ -46,6 +47,7 @@ export async function GET() {
         },
       }),
       db.invoice.findMany({
+        relationLoadStrategy: "join",
         where: { companyId: cid },
         include: {
           allocations: { include: { payment: { select: { status: true } } } },
@@ -74,6 +76,7 @@ export async function GET() {
         where: { companyId: cid, status: "COMPLETED" },
       }),
       db.contractRenewal.findMany({
+        relationLoadStrategy: "join",
         where: { companyId: cid },
         include: {
           oldContract: { select: { contractNumber: true, endDate: true, service: { select: { serviceCode: true, branch: { select: { name: true } } } } } },
@@ -348,3 +351,4 @@ export async function GET() {
     return errorResponse(err);
   }
 }
+

@@ -2,7 +2,8 @@
 // Supabase-hosted PostgreSQL is the primary database.
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -666,3 +667,4 @@ model ImportRow {
   @@index([jobId])
   @@map("import_rows")
 }
+

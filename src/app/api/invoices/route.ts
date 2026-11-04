@@ -94,6 +94,7 @@ export async function GET(req: Request) {
     };
 
     const rows = await db.invoice.findMany({
+      relationLoadStrategy: "join",
       where,
       include: {
         contract: {
@@ -277,3 +278,4 @@ export async function POST(req: Request) {
     return errorResponse(err);
   }
 }
+

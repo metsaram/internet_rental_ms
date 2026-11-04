@@ -158,6 +158,18 @@ Under heavy traffic, Next.js will quickly hit PostgreSQL's connection limit and 
 Always import the global singleton `db` from `@/lib/db`. Ensure the maximum connections
 are capped (`connection_limit` & `pool_timeout`) via `getCappedDatabaseUrl()`.
 
+### Rule 13: Query Parallelization & Database Lateral Join Strategy
+
+1. **Prisma Lateral Joins (elationLoadStrategy: "join")**:
+   - For queries with multi-level nested relations (e.g. `InternetContract -> InternetService -> Branch, Shop, Provider, Plan`), default Prisma executes sequential N+1 `SELECT` queries across network hops.
+   - Specify `relationLoadStrategy: "join"` in `findMany` / `findUnique` calls (enabled via `previewFeatures = ["relationJoins"]` in `schema.prisma`).
+   - This compiles down to a single PostgreSQL statement using `LEFT JOIN LATERAL` and `JSONB_BUILD_OBJECT`, eliminating 5+ sequential round-trips and cutting latency by up to 78%.
+2. **Parallel Independent Reads (`Promise.all`)**:
+   - When an API endpoint requires multiple independent queries (e.g. fetching records and company settings or unread counts), execute them concurrently using `Promise.all([db.tableA.findMany(...), db.tableB.findUnique(...)])`.
+   - Group 2–4 independent operations to maintain connection pool safety under burst traffic.
+3. **Frontend Cache Tuning**:
+   - Standard QueryClient configuration in `src/components/providers.tsx`: `staleTime: 60_000`, `gcTime: 5 * 60_000`, `refetchOnWindowFocus: false`, `refetchOnReconnect: true`, `retry: 1`.
+
 ---
 
 ## 3. Directory Structure
@@ -1062,4 +1074,6 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 
 *This document is the single source of truth for AI agents working on NetRent.
 Keep it updated when adding new modules, API routes, or patterns.*
+
+
 

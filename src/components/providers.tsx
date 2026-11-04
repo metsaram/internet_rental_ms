@@ -11,8 +11,15 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
+            // Keep data fresh for 60 s before auto-refetching; prevents redundant
+            // round-trips when navigating between pages (e.g. Dashboard → Contracts).
+            staleTime: 60_000,
+            // Retain cached data in memory for 5 min after the last subscriber
+            // unmounts so back-navigation renders instantly from cache.
+            gcTime: 5 * 60_000,
             refetchOnWindowFocus: false,
+            // Re-fetch after a network reconnection so users always see fresh data.
+            refetchOnReconnect: true,
             retry: 1,
           },
         },
@@ -32,3 +39,4 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     </SessionProvider>
   );
 }
+

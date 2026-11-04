@@ -816,9 +816,10 @@ function DetailGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
             {label}
           </p>
-          <p className={cn("text-sm")}>{value}</p>
+          <div className={cn("text-sm")}>{value}</div>
         </div>
       ))}
     </div>
   );
 }
+

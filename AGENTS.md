@@ -21,4 +21,6 @@ Refer to [AI_AGENT_GUIDE.md](file:///d:/Projects/internet_rental_ms/AI_AGENT_GUI
 6. **Audit All Mutations**: Call `writeAudit()` on every create/update/delete operation with sensitive field redaction.
 7. **Mandatory Component Test Verification**: Every new component added to the codebase must be accompanied by a verifying test suite (`*.test.tsx`) asserting proper rendering, user interactions, and DOM state using Vitest, React Testing Library, and jest-dom.
 8. **Global Singleton Database Pool & Connection Capping**: Do not create a new database connection inside every API route or Server Action. Always import the global singleton `db` from `@/lib/db`. Ensure database connections are capped via connection limits and pool timeouts.
-9. **Documentation Updates**: Always update `AI_AGENT_GUIDE.md`, `docs/changelog/yyyy-mm.md`, and `docs/task_logs/yyyy-mm-dd.md` after completing any coding task.
+9. **Query Parallelization & Database Lateral Join Strategy**: Parallelize independent API database reads with `Promise.all([db.a.findMany(), db.b.findUnique()])`. For queries fetching multi-level nested relations (e.g. `service -> branch, shop, provider`), use `relationLoadStrategy: "join"` to eliminate sequential N+1 network round-trips.
+10. **Documentation Updates**: Always update `AI_AGENT_GUIDE.md`, `docs/changelog/yyyy-mm.md`, and `docs/task_logs/yyyy-mm-dd.md` after completing any coding task.
+

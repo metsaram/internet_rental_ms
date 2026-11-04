@@ -1564,14 +1564,14 @@ function InvoiceDetailSheet({
                     [
                       "Branch",
                       branch?.name ? (
-                        <div key="br">
+                        <span key="br" className="block">
                           <span className="font-medium">{branch.name}</span>
                           {branch.code && (
                             <span className="ml-1.5 text-[11px] text-muted-foreground font-mono">
                               ({branch.code})
                             </span>
                           )}
-                        </div>
+                        </span>
                       ) : (
                         "—"
                       ),
@@ -1579,14 +1579,14 @@ function InvoiceDetailSheet({
                     [
                       "Shop",
                       shop?.name ? (
-                        <div key="sh">
+                        <span key="sh" className="block">
                           <span className="font-medium">{shop.name}</span>
                           {shop.code && (
                             <span className="ml-1.5 text-[11px] text-muted-foreground font-mono">
                               ({shop.code})
                             </span>
                           )}
-                        </div>
+                        </span>
                       ) : (
                         "—"
                       ),
@@ -1594,14 +1594,14 @@ function InvoiceDetailSheet({
                     [
                       "Provider",
                       provider?.name ? (
-                        <div key="pr">
+                        <span key="pr" className="block">
                           <span className="font-medium">{provider.name}</span>
                           {provider.code && (
                             <span className="ml-1.5 text-[11px] text-muted-foreground font-mono">
                               ({provider.code})
                             </span>
                           )}
-                        </div>
+                        </span>
                       ) : (
                         "—"
                       ),
@@ -1725,7 +1725,7 @@ function DetailGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
       {rows.map(([label, value]) => (
         <div key={label}>
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-          <p className="text-sm">{value}</p>
+          <div className="text-sm">{value}</div>
         </div>
       ))}
     </div>
@@ -1945,3 +1945,6 @@ function RecordPaymentDialog({
     </FormDialog>
   );
 }
+
+
+

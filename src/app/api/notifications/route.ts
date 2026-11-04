@@ -45,15 +45,17 @@ export async function GET(req: Request) {
     };
     if (unreadOnly) where.readAt = null;
 
-    const rows = await db.notification.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    });
-
-    const unreadCount = await db.notification.count({
-      where: { companyId: user.companyId, userId: user.id, readAt: null },
-    });
+    // Run list + count in parallel — both are independent reads.
+    const [rows, unreadCount] = await Promise.all([
+      db.notification.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }),
+      db.notification.count({
+        where: { companyId: user.companyId, userId: user.id, readAt: null },
+      }),
+    ]);
 
     return NextResponse.json({
       notifications: rows.map((n) => ({
@@ -86,3 +88,4 @@ export async function POST() {
     return errorResponse(err);
   }
 }
+

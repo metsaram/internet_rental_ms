@@ -150,6 +150,8 @@ In both `InvoiceForm` (`invoices.tsx`) and `ContractForm` (`contracts.tsx`):
    - Allow user rate adjustment and dollar override with a "Reset (10%)" button.
    - Total Payable = `subtotal + tax - discount`.
 6. **Contract-Free Mode**: When `Company.useContract = false`, invoices link directly to `InternetService` via `serviceId`, prefilling schedule & financial terms.
+7. **Invoice List Schedule & Duration End Date Warnings & Alert Highlighting**:
+   In `InvoicesView` (`invoices.tsx`), display the `Schedule & Duration` column (`key: "schedule"`) showing `End {formatDate(i.periodEnd)}` and `Start {formatDate(i.periodStart)}`. Highlight approaching end dates (`<= warningDays` remaining) in amber (`text-amber-600 dark:text-amber-400 font-semibold`) with `Ends in Xd` badges, and expired periods in rose/destructive (`text-rose-600 dark:text-rose-400 font-semibold`) with `Xd ended` badges, following the exact same alert & highlight color conventions as invoice payment due status. Provide a toolbar filter (`Schedule status`) and an alert notification banner.
 
 ### Rule 12: Database Connection Singleton & Pool Capping
 

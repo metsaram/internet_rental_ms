@@ -229,6 +229,37 @@ export function getDueWarningState(
   return { daysLeft, tone: "normal" };
 }
 
+/**
+ * Calculates whether an invoice's Schedule & Duration period is ending soon or has ended.
+ * Follows the exact same alert & highlight color conventions as invoice payment due status:
+ * - tone: "warning" (amber) when remaining days <= warningDays (e.g. 7 days or company warningDays)
+ * - tone: "overdue" (rose/destructive) when periodEnd date has already passed (< 0 days)
+ * - tone: "normal" (default text) when periodEnd is comfortably in the future
+ */
+export function getScheduleWarningState(
+  invoice: { periodEnd?: string | null; status?: string },
+  now: Date = new Date(),
+  warningDays = 7
+): { daysLeft: number | null; tone: "warning" | "overdue" | "normal" } {
+  if (!invoice.periodEnd) return { daysLeft: null, tone: "normal" };
+  if (invoice.status === "VOID") return { daysLeft: null, tone: "normal" };
+
+  const end = new Date(invoice.periodEnd);
+  if (isNaN(end.getTime())) return { daysLeft: null, tone: "normal" };
+
+  const endMidnight = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+  const nowMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const daysLeft = Math.round((endMidnight - nowMidnight) / (1000 * 60 * 60 * 24));
+
+  if (daysLeft < 0) {
+    return { daysLeft, tone: "overdue" };
+  }
+  if (daysLeft <= warningDays) {
+    return { daysLeft, tone: "warning" };
+  }
+  return { daysLeft, tone: "normal" };
+}
+
 export function InvoicesView() {
   const { data: session } = useSession();
   const currency = (session?.user as any)?.companyCurrency ?? "USD";
@@ -236,6 +267,7 @@ export function InvoicesView() {
   const [tab, setTab] = React.useState<InvoiceTabKey>("unpaid");
   const [search, setSearch] = React.useState("");
   const [providerFilter, setProviderFilter] = React.useState<string>("ALL");
+  const [scheduleFilter, setScheduleFilter] = React.useState<"ALL" | "ENDING_SOON" | "ENDED">("ALL");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Invoice | null>(null);
   const [detail, setDetail] = React.useState<Invoice | null>(null);
@@ -276,6 +308,18 @@ export function InvoicesView() {
   });
   const useContract = company?.useContract ?? true;
   const warningDays = company?.warningDays ?? (session?.user as any)?.companyWarningDays ?? 7;
+
+  const scheduleEndingSoonCount = React.useMemo(() => {
+    return invoices.filter(
+      (i) => getScheduleWarningState(i, undefined, warningDays).tone === "warning"
+    ).length;
+  }, [invoices, warningDays]);
+
+  const scheduleEndedCount = React.useMemo(() => {
+    return invoices.filter(
+      (i) => getScheduleWarningState(i, undefined, warningDays).tone === "overdue"
+    ).length;
+  }, [invoices, warningDays]);
 
   const counts = React.useMemo(() => {
     return {
@@ -321,8 +365,17 @@ export function InvoicesView() {
     if (tab !== "all") {
       list = list.filter((i) => matchesInvoiceTab(i, tab));
     }
+    if (scheduleFilter === "ENDING_SOON") {
+      list = list.filter(
+        (i) => getScheduleWarningState(i, undefined, warningDays).tone === "warning"
+      );
+    } else if (scheduleFilter === "ENDED") {
+      list = list.filter(
+        (i) => getScheduleWarningState(i, undefined, warningDays).tone === "overdue"
+      );
+    }
     return list;
-  }, [invoices, search, tab]);
+  }, [invoices, search, tab, scheduleFilter, warningDays]);
 
   const emptyMessage = React.useMemo(() => {
     if (invoices.length === 0) {
@@ -330,6 +383,12 @@ export function InvoicesView() {
     }
     if (search) {
       return "No invoices match your active search.";
+    }
+    if (scheduleFilter === "ENDING_SOON") {
+      return `No invoices currently have Schedule & Duration ending within ${warningDays} days.`;
+    }
+    if (scheduleFilter === "ENDED") {
+      return "No invoices have ended or expired Schedule & Duration.";
     }
     switch (tab) {
       case "unpaid":
@@ -345,7 +404,7 @@ export function InvoicesView() {
       default:
         return "No invoices match your active filters.";
     }
-  }, [invoices.length, search, tab]);
+  }, [invoices.length, search, tab, scheduleFilter, warningDays]);
 
   const createMut = async (data: Record<string, unknown>) => {
     await api("/api/invoices", { method: "POST", body: JSON.stringify(data) });
@@ -420,6 +479,73 @@ export function InvoicesView() {
           <div className="text-[11px] text-muted-foreground">{i.provider?.name ?? "—"}</div>
         </div>
       ),
+    },
+    {
+      key: "schedule",
+      header: "Schedule & Duration",
+      width: 195,
+      minWidth: 150,
+      maxWidth: 280,
+      cell: (i) => {
+        const sched = getScheduleWarningState(i, undefined, warningDays);
+        if (!i.periodEnd && !i.periodStart) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        return (
+          <div className="text-sm">
+            <div
+              className={cn(
+                "font-medium flex items-center gap-1.5 flex-wrap",
+                sched.tone === "warning"
+                  ? "text-amber-600 dark:text-amber-400 font-semibold"
+                  : sched.tone === "overdue"
+                    ? "text-rose-600 dark:text-rose-400 font-semibold"
+                    : ""
+              )}
+              title={
+                sched.daysLeft !== null
+                  ? sched.daysLeft < 0
+                    ? `Schedule ended ${Math.abs(sched.daysLeft)} days ago`
+                    : sched.daysLeft === 0
+                      ? "Schedule ends today"
+                      : sched.daysLeft === 1
+                        ? "Schedule ends tomorrow"
+                        : `Schedule ends in ${sched.daysLeft} days`
+                  : undefined
+              }
+            >
+              <span data-sort-value={i.periodEnd ?? ""}>
+                End {formatDate(i.periodEnd)}
+              </span>
+              {sched.tone === "warning" && (
+                <Badge
+                  variant="outline"
+                  className="text-[9px] px-1.5 py-0 h-4 border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400 font-semibold tracking-tight"
+                >
+                  {sched.daysLeft === 0
+                    ? "Ends today"
+                    : sched.daysLeft === 1
+                      ? "1d left"
+                      : `${sched.daysLeft}d left`}
+                </Badge>
+              )}
+              {sched.tone === "overdue" && (
+                <Badge
+                  variant="destructive"
+                  className="text-[9px] px-1.5 py-0 h-4 font-semibold tracking-tight"
+                >
+                  {sched.daysLeft === -1
+                    ? "1d ended"
+                    : `${Math.abs(sched.daysLeft!)}d ended`}
+                </Badge>
+              )}
+            </div>
+            <div className="text-[11px] text-muted-foreground font-mono">
+              Start {formatDate(i.periodStart)}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: "period",
@@ -686,6 +812,45 @@ export function InvoicesView() {
         </TabsList>
       </Tabs>
 
+      {scheduleEndingSoonCount > 0 && scheduleFilter === "ALL" && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300/80 bg-amber-50/70 p-3 text-xs sm:text-sm text-amber-900 dark:border-amber-800/80 dark:bg-amber-950/30 dark:text-amber-300">
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="truncate">
+              <strong>{scheduleEndingSoonCount}</strong> invoice
+              {scheduleEndingSoonCount > 1 ? "s have" : " has"} Schedule &amp; Duration ending within {warningDays} days.
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0 h-7 text-xs border-amber-300 bg-amber-100 hover:bg-amber-200 text-amber-900 dark:border-amber-800 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-200 cursor-pointer"
+            onClick={() => setScheduleFilter("ENDING_SOON")}
+          >
+            View ending schedules
+          </Button>
+        </div>
+      )}
+
+      {scheduleFilter !== "ALL" && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-xs">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-[11px] font-medium">
+              Filtered by: {scheduleFilter === "ENDING_SOON" ? "Schedule ending soon" : "Schedule ended"}
+            </Badge>
+            <span className="text-muted-foreground">Showing {filtered.length} invoice{filtered.length !== 1 ? "s" : ""}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            onClick={() => setScheduleFilter("ALL")}
+          >
+            Clear schedule filter
+          </Button>
+        </div>
+      )}
+
       <DataTable
         storageKey="invoices"
         showRowNumbers
@@ -697,20 +862,41 @@ export function InvoicesView() {
         emptyMessage={emptyMessage}
         search={{ value: search, onChange: setSearch, placeholder: "Search invoices..." }}
         toolbar={
-          <FilterSelect
-            value={providerFilter as any}
-            onChange={(v) => setProviderFilter(v as string)}
-            options={providers.map((p) => ({
-              value: p.id,
-              label: `${p.name} — ${p.code}`,
-            }))}
-            placeholder="Select Provider"
-            showPlaceholderOnAll
-            allLabel="All providers"
-            searchable={true}
-            className="w-[11rem] sm:w-[13rem]"
-            disabled={isLoading || isProvidersLoading}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <FilterSelect
+              value={providerFilter as any}
+              onChange={(v) => setProviderFilter(v as string)}
+              options={providers.map((p) => ({
+                value: p.id,
+                label: `${p.name} — ${p.code}`,
+              }))}
+              placeholder="Select Provider"
+              showPlaceholderOnAll
+              allLabel="All providers"
+              searchable={true}
+              className="w-[11rem] sm:w-[13rem]"
+              disabled={isLoading || isProvidersLoading}
+            />
+            <FilterSelect
+              value={scheduleFilter}
+              onChange={(v) => setScheduleFilter(v as "ALL" | "ENDING_SOON" | "ENDED")}
+              options={[
+                {
+                  value: "ENDING_SOON",
+                  label: `Schedule: Ending soon${scheduleEndingSoonCount > 0 ? ` (${scheduleEndingSoonCount})` : ""}`,
+                },
+                {
+                  value: "ENDED",
+                  label: `Schedule: Ended / Expired${scheduleEndedCount > 0 ? ` (${scheduleEndedCount})` : ""}`,
+                },
+              ]}
+              placeholder="Schedule status"
+              showPlaceholderOnAll
+              allLabel="All schedules"
+              className="w-[12rem] sm:w-[14rem]"
+              disabled={isLoading}
+            />
+          </div>
         }
       />
 
@@ -730,6 +916,7 @@ export function InvoicesView() {
 
       <InvoiceDetailSheet
         invoice={detail}
+        warningDays={warningDays}
         onClose={() => setDetail(null)}
         onEdit={(i) => { setDetail(null); setEditing(i); setDialogOpen(true); }}
         onPay={(i) => { setDetail(null); setPayFor(i); }}
@@ -1476,9 +1663,10 @@ function InvoiceForm({
 // ---------------------------------------------------------------------------
 
 function InvoiceDetailSheet({
-  invoice, onClose, onEdit, onPay, onVoid, onDelete,
+  invoice, warningDays = 7, onClose, onEdit, onPay, onVoid, onDelete,
 }: {
   invoice: Invoice | null;
+  warningDays?: number;
   onClose: () => void;
   onEdit: (i: Invoice) => void;
   onPay: (i: Invoice) => void;
@@ -1608,8 +1796,70 @@ function InvoiceDetailSheet({
                       ),
                     ],
                     ["Invoice date", formatDate(detail.invoiceDate)],
-                    ["Due date", formatDate(detail.dueDate)],
-                    ["Period", detail.periodStart ? `${formatDate(detail.periodStart)} → ${formatDate(detail.periodEnd)}` : "—"],
+                    [
+                      "Due date",
+                      detail.dueDate ? (
+                        <div key="due-detail" className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              "font-medium",
+                              getDueWarningState(detail, undefined, warningDays).tone === "warning"
+                                ? "text-amber-600 dark:text-amber-400 font-semibold"
+                                : getDueWarningState(detail, undefined, warningDays).tone === "overdue"
+                                  ? "text-rose-600 dark:text-rose-400 font-semibold"
+                                  : ""
+                            )}
+                          >
+                            {formatDate(detail.dueDate)}
+                          </span>
+                        </div>
+                      ) : (
+                        "—"
+                      ),
+                    ],
+                    [
+                      "Schedule & Duration",
+                      detail.periodStart || detail.periodEnd ? (
+                        <div key="sched-detail" className="flex items-center gap-2 flex-wrap">
+                          <span>
+                            {detail.periodStart ? formatDate(detail.periodStart) : "—"} →{" "}
+                            {detail.periodEnd ? formatDate(detail.periodEnd) : "—"}
+                          </span>
+                          {(() => {
+                            const sched = getScheduleWarningState(detail, undefined, warningDays);
+                            if (sched.tone === "warning") {
+                              return (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400 font-semibold"
+                                >
+                                  {sched.daysLeft === 0
+                                    ? "Ends today"
+                                    : sched.daysLeft === 1
+                                      ? "Ends tomorrow"
+                                      : `Ends in ${sched.daysLeft}d`}
+                                </Badge>
+                              );
+                            }
+                            if (sched.tone === "overdue") {
+                              return (
+                                <Badge
+                                  variant="destructive"
+                                  className="text-[10px] px-1.5 py-0 font-semibold"
+                                >
+                                  {sched.daysLeft === -1
+                                    ? "Ended yesterday"
+                                    : `Ended ${Math.abs(sched.daysLeft!)}d ago`}
+                                </Badge>
+                              );
+                            }
+                            return null;
+                          })()}
+                        </div>
+                      ) : (
+                        "—"
+                      ),
+                    ],
                     ["Created by", detail.createdBy?.name ?? detail.createdBy?.email ?? "—"],
                   ]}
                 />

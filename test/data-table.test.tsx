@@ -1072,5 +1072,81 @@ describe("FilterSelect searchable option behavior", () => {
   });
 });
 
+describe("DataTable show row index as row number", () => {
+  const sampleRows: TestRow[] = [
+    { id: "r1", name: "Alpha", description: "First item" },
+    { id: "r2", name: "Beta", description: "Second item" },
+    { id: "r3", name: "Gamma", description: "Third item" },
+    { id: "r4", name: "Delta", description: "Fourth item" },
+  ];
+
+  const columns: DataTableColumn<TestRow>[] = [
+    { key: "name", header: "Name", cell: (r) => r.name },
+    { key: "description", header: "Description", cell: (r) => r.description },
+  ];
+
+  it("renders row number column with '#' header and 1-based indices when showRowNumbers is true", () => {
+    const { container } = render(
+      <DataTable columns={columns} rows={sampleRows} rowKey={(r) => r.id} showRowNumbers />
+    );
+
+    // Header is rendered
+    expect(screen.getByRole("columnheader", { name: "#" })).toBeInTheDocument();
+
+    // Row numbers are displayed in the first cell of each row
+    const tableRows = container.querySelectorAll("tbody tr");
+    expect(tableRows[0].querySelector("td:first-child")).toHaveTextContent("1");
+    expect(tableRows[1].querySelector("td:first-child")).toHaveTextContent("2");
+    expect(tableRows[2].querySelector("td:first-child")).toHaveTextContent("3");
+    expect(tableRows[3].querySelector("td:first-child")).toHaveTextContent("4");
+  });
+
+  it("renders row numbers with showRowIndex alias and custom rowNumberHeader", () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={sampleRows}
+        rowKey={(r) => r.id}
+        showRowIndex
+        rowNumberHeader="No."
+      />
+    );
+
+    expect(screen.getByRole("columnheader", { name: "No." })).toBeInTheDocument();
+    const tableRows = container.querySelectorAll("tbody tr");
+    expect(tableRows[0].querySelector("td:first-child")).toHaveTextContent("1");
+    expect(tableRows[1].querySelector("td:first-child")).toHaveTextContent("2");
+  });
+
+  it("calculates sequential row numbers with pagination offset", () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={sampleRows}
+        rowKey={(r) => r.id}
+        showRowNumbers
+        pageSize={2}
+      />
+    );
+
+    // Page 1 displays 1 and 2
+    let tableRows = container.querySelectorAll("tbody tr");
+    expect(tableRows.length).toBe(2);
+    expect(tableRows[0].querySelector("td:first-child")).toHaveTextContent("1");
+    expect(tableRows[1].querySelector("td:first-child")).toHaveTextContent("2");
+
+    // Click Next page button
+    const nextBtn = screen.getByRole("button", { name: /next page/i });
+    fireEvent.click(nextBtn);
+
+    // Page 2 displays 3 and 4
+    tableRows = container.querySelectorAll("tbody tr");
+    expect(tableRows.length).toBe(2);
+    expect(tableRows[0].querySelector("td:first-child")).toHaveTextContent("3");
+    expect(tableRows[1].querySelector("td:first-child")).toHaveTextContent("4");
+  });
+});
+
+
 
 

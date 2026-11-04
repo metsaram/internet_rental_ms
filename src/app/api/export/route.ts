@@ -39,6 +39,7 @@ export async function GET(req: Request) {
                 OR: [
                   { code: { contains: search, mode: "insensitive" } },
                   { name: { contains: search, mode: "insensitive" } },
+                  { address: { contains: search, mode: "insensitive" } },
                   { city: { contains: search, mode: "insensitive" } },
                   { manager: { contains: search, mode: "insensitive" } },
                 ],
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
       rows = data.map((b) => ({
         Code: b.code,
         Name: b.name,
+        Address: b.address ?? "",
         City: b.city ?? "",
         Manager: b.manager ?? "",
         Phone: b.phone ?? "",

@@ -64,7 +64,7 @@ export interface SortState {
 export interface DataTableColumn<T> {
   key: string;
   header: React.ReactNode;
-  cell: (row: T) => React.ReactNode;
+  cell: (row: T, index: number) => React.ReactNode;
   className?: string;
   headerClassName?: string;
   /** Explicitly enable or disable sorting for this column */
@@ -116,6 +116,13 @@ export interface DataTableProps<T> {
   onSortChange?: (sort: SortState | null) => void;
   /** Whether columns are sortable by default (defaults to true) */
   sortable?: boolean;
+
+  /** Whether to show a row number / row index column (#) at the start of the table */
+  showRowNumbers?: boolean;
+  /** Alias for showRowNumbers */
+  showRowIndex?: boolean;
+  /** Custom header for the row number column (defaults to "#") */
+  rowNumberHeader?: React.ReactNode;
 
   /** Enable column resizing by dragging column borders (defaults to true) */
   resizable?: boolean;
@@ -287,6 +294,12 @@ export function getColumnConstraints<T>(
       maxWidth: col.maxWidth ?? 60,
     };
   }
+  if (col.key === "rowNumber" || col.key === "rowIndex" || col.key === "#") {
+    return {
+      minWidth: col.minWidth ?? 44,
+      maxWidth: col.maxWidth ?? 80,
+    };
+  }
   if (col.key === "actions") {
     return {
       minWidth: col.minWidth ?? 70,
@@ -313,6 +326,9 @@ export function DataTable<T>({
   sort: controlledSort,
   onSortChange,
   sortable = true,
+  showRowNumbers = false,
+  showRowIndex = false,
+  rowNumberHeader,
   resizable = true,
   defaultMinWidth = 60,
   defaultMaxWidth = 1000,
@@ -340,25 +356,70 @@ export function DataTable<T>({
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const searchRef = React.useRef<HTMLInputElement>(null);
 
+  const safePageRef = React.useRef(page);
+  const pageSizeRef = React.useRef(pageSize);
+  pageSizeRef.current = pageSize;
+
+  const effectiveColumns = React.useMemo(() => {
+    if (!showRowNumbers && !showRowIndex) {
+      return columns;
+    }
+    const hasRowNumberCol = columns.some(
+      (c) => c.key === "rowNumber" || c.key === "rowIndex" || c.key === "#"
+    );
+    if (hasRowNumberCol) {
+      return columns;
+    }
+
+    const rowNumberCol: DataTableColumn<T> = {
+      key: "rowNumber",
+      header: rowNumberHeader ?? "#",
+      title: "Row Number",
+      width: 56,
+      minWidth: 44,
+      maxWidth: 80,
+      resizable: false,
+      sortable: false,
+      hideable: true,
+      truncate: false,
+      className: "text-center",
+      headerClassName: "text-center",
+      cell: (_row, idx) => (
+        <span className="text-xs font-mono text-muted-foreground tabular-nums select-none">
+          {(safePageRef.current - 1) * pageSizeRef.current + idx + 1}
+        </span>
+      ),
+    };
+
+    const selectIdx = columns.findIndex((c) => c.key === "select");
+    if (selectIdx >= 0) {
+      const next = [...columns];
+      next.splice(selectIdx + 1, 0, rowNumberCol);
+      return next;
+    }
+
+    return [rowNumberCol, ...columns];
+  }, [columns, showRowNumbers, showRowIndex, rowNumberHeader]);
+
   const colStorageKey = React.useMemo(
-    () => getColumnStorageKey(storageKey, columns),
-    [storageKey, columns]
+    () => getColumnStorageKey(storageKey, effectiveColumns),
+    [storageKey, effectiveColumns]
   );
   const widthStorageKey = React.useMemo(
-    () => getWidthsStorageKey(storageKey, columns),
-    [storageKey, columns]
+    () => getWidthsStorageKey(storageKey, effectiveColumns),
+    [storageKey, effectiveColumns]
   );
 
   const defaultHiddenKeys = React.useMemo(() => {
-    return columns.filter((c) => c.defaultHidden).map((c) => c.key);
-  }, [columns]);
+    return effectiveColumns.filter((c) => c.defaultHidden).map((c) => c.key);
+  }, [effectiveColumns]);
 
   const [hiddenKeys, setHiddenKeys] = React.useState<string[]>(defaultHiddenKeys);
 
   // Column resizing state
   const [columnWidths, setColumnWidths] = React.useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
-    for (const col of columns) {
+    for (const col of effectiveColumns) {
       if (typeof col.width === "number") {
         initial[col.key] = col.width;
       }
@@ -376,7 +437,7 @@ export function DataTable<T>({
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const valid = parsed.filter(
-            (k) => typeof k === "string" && columns.some((c) => c.key === k)
+            (k) => typeof k === "string" && effectiveColumns.some((c) => c.key === k)
           );
           setHiddenKeys(valid);
         }
@@ -384,7 +445,7 @@ export function DataTable<T>({
     } catch {
       // Gracefully ignore sandbox/private mode localStorage errors
     }
-  }, [colStorageKey, persistColumnVisibility, columns]);
+  }, [colStorageKey, persistColumnVisibility, effectiveColumns]);
 
   // Safely hydrate column widths from localStorage cache
   React.useEffect(() => {
@@ -404,20 +465,20 @@ export function DataTable<T>({
   }, [widthStorageKey, persistColumnWidths]);
 
   const toggleableColumns = React.useMemo(() => {
-    return columns.filter(
+    return effectiveColumns.filter(
       (c) => c.hideable !== false && c.key !== "select" && c.key !== "actions"
     );
-  }, [columns]);
+  }, [effectiveColumns]);
 
   const visibleColumns = React.useMemo(() => {
     const hiddenSet = new Set(hiddenKeys);
-    return columns.filter((c) => {
+    return effectiveColumns.filter((c) => {
       if (c.hideable === false || c.key === "select" || c.key === "actions") {
         return true;
       }
       return !hiddenSet.has(c.key);
     });
-  }, [columns, hiddenKeys]);
+  }, [effectiveColumns, hiddenKeys]);
 
   React.useEffect(() => {
     onVisibleColumnsChange?.(visibleColumns.map((c) => c.key));
@@ -473,14 +534,14 @@ export function DataTable<T>({
       }
     }
     const initialWidths: Record<string, number> = {};
-    for (const col of columns) {
+    for (const col of effectiveColumns) {
       if (typeof col.width === "number") {
         initialWidths[col.key] = col.width;
       }
     }
     setColumnWidths(initialWidths);
     setUserResizedKeys(new Set());
-  }, [defaultHiddenKeys, colStorageKey, widthStorageKey, columns]);
+  }, [defaultHiddenKeys, colStorageKey, widthStorageKey, effectiveColumns]);
 
   const [resizingKey, setResizingKey] = React.useState<string | null>(null);
   const resizeStateRef = React.useRef<{
@@ -666,7 +727,7 @@ export function DataTable<T>({
 
   const sortedRows = React.useMemo(() => {
     if (!activeSort) return rows;
-    const col = columns.find((c) => c.key === activeSort.key);
+    const col = effectiveColumns.find((c) => c.key === activeSort.key);
     if (!col) return rows;
 
     return [...rows].sort((rowA, rowB) => {
@@ -684,10 +745,11 @@ export function DataTable<T>({
       const cmp = compareSortValues(valA, valB);
       return activeSort.direction === "asc" ? cmp : -cmp;
     });
-  }, [rows, activeSort, columns]);
+  }, [rows, activeSort, effectiveColumns]);
 
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
   const safePage = Math.min(page, pageCount);
+  safePageRef.current = safePage;
   const pageRows = sortedRows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   React.useEffect(() => {
@@ -909,6 +971,7 @@ export function DataTable<T>({
                           defaultSort?.key === c.key ||
                           (c.key !== "select" &&
                             c.key !== "actions" &&
+                            c.key !== "rowNumber" &&
                             (rows.length === 0 ||
                               (rows[0] as Record<string, unknown>)?.[c.key] !== undefined ||
                               (rows[0] as Record<string, unknown>)?.[`${c.key}Number`] !== undefined ||
@@ -921,7 +984,8 @@ export function DataTable<T>({
                     resizable !== false &&
                     c.resizable !== false &&
                     c.key !== "select" &&
-                    c.key !== "actions";
+                    c.key !== "actions" &&
+                    c.key !== "rowNumber";
 
                   const isSorted = activeSort?.key === c.key;
                   const isAsc = activeSort?.direction === "asc";
@@ -1116,14 +1180,15 @@ export function DataTable<T>({
                     )}
                   >
                     {visibleColumns.map((c) => {
-                      const cellContent = c.cell(row);
+                      const cellContent = c.cell(row, idx);
                       const { minWidth: colMin, maxWidth: colMax } = getColumnConstraints(c, defaultMinWidth, defaultMaxWidth);
                       const colW = getColWidth(c, colMin);
                       const shouldTruncate =
                         truncate !== false &&
                         c.truncate !== false &&
                         c.key !== "select" &&
-                        c.key !== "actions";
+                        c.key !== "actions" &&
+                        c.key !== "rowNumber";
                       const cellTooltip = shouldTruncate ? extractNodeText(cellContent) : undefined;
 
                       return (

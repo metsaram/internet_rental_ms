@@ -269,6 +269,7 @@ export function ProvidersView() {
 
       <DataTable
         storageKey="providers"
+        showRowNumbers
         columns={columns}
         rows={providers}
         rowKey={(p) => p.id}

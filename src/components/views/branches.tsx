@@ -135,6 +135,14 @@ export function BranchesView() {
       ),
     },
     {
+      key: "address",
+      header: "Address",
+      width: 200,
+      minWidth: 140,
+      maxWidth: 320,
+      cell: (b) => <span className="text-sm">{b.address ?? "—"}</span>,
+    },
+    {
       key: "city",
       header: "City",
       width: 140,
@@ -255,6 +263,7 @@ export function BranchesView() {
 
       <DataTable
         storageKey="branches"
+        showRowNumbers
         columns={columns}
         rows={branches}
         rowKey={(b) => b.id}

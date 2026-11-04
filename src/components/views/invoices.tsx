@@ -688,6 +688,7 @@ export function InvoicesView() {
 
       <DataTable
         storageKey="invoices"
+        showRowNumbers
         columns={columns}
         rows={filtered}
         rowKey={(i) => i.id}

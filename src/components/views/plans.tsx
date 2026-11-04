@@ -339,6 +339,7 @@ export function PlansView() {
 
       <DataTable
         storageKey="plans"
+        showRowNumbers
         columns={columns}
         rows={plans}
         rowKey={(p) => p.id}

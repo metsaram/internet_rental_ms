@@ -1027,6 +1027,38 @@ All AI agents working on NetRent must follow the strict 5-step Retrieval-Augment
 - **Timestamp**: 2026-10-31T18:05:00+07:00
 - **Status**: Completed
 
+#### [2026-11-04T21:18:00+07:00] Apply Row Number Across Service, Provider, Plan, Invoice, and Shop Views
+- **Task description**: Apply row number to Service, provider, plan, invoice and shop data tables.
+- **Context used**: `src/components/views/services.tsx`, `src/components/views/providers.tsx`, `src/components/views/plans.tsx`, `src/components/views/invoices.tsx`, `src/components/views/shops.tsx`, `test/row-numbers-views.test.tsx`.
+- **Output generated**:
+  - Added `showRowNumbers` to `<DataTable>` across `ServicesView`, `ProvidersView`, `PlansView`, `InvoicesView`, and `ShopsView`.
+  - Added verifying test suite `test/row-numbers-views.test.tsx` (5 tests). All 34 test files, 306 tests passing.
+- **Timestamp**: 2026-11-04T21:18:00+07:00
+- **Status**: Completed
+
+#### [2026-11-04T21:10:00+07:00] Add Show Row Index as Row Number in DataTable & Branch List
+- **Task description**: Add show row index as row number capability to `DataTable` and display row numbers on the branch list table (`src/components/views/branches.tsx`).
+- **Context used**: `src/components/shared/data-table.tsx`, `src/components/views/branches.tsx`, `test/branches-view.test.tsx`, `test/data-table.test.tsx`.
+- **Output generated**:
+  - Added `showRowNumbers?: boolean`, `showRowIndex?: boolean`, and `rowNumberHeader?: React.ReactNode` to `DataTableProps`.
+  - Added `cell: (row: T, index: number) => React.ReactNode` to `DataTableColumn`.
+  - Computed sequential 1-based row numbers with pagination offset (`(safePage - 1) * pageSize + idx + 1`).
+  - Added `showRowNumbers` to `BranchesView` for the branch listing table.
+  - Added 4 verifying tests in `test/branches-view.test.tsx` and `test/data-table.test.tsx`. All 33 test files, 301 tests passing.
+- **Timestamp**: 2026-11-04T21:10:00+07:00
+- **Status**: Completed
+
+#### [2026-11-04T20:55:00+07:00] Add Address Column to Branch List Table
+- **Task description**: Add column address to the branches list view (`src/components/views/branches.tsx`), enable address searching in `GET /api/branches`, and export address in branch excel export (`GET /api/export?entity=branches`).
+- **Context used**: `src/components/views/branches.tsx`, `src/app/api/branches/route.ts`, `src/app/api/export/route.ts`, `src/components/shared/data-table.tsx`.
+- **Output generated**:
+  - Added "Address" DataTableColumn (`key: "address"`, width: 200, min: 140, max: 320) displaying `b.address ?? "—"`.
+  - Added `address` to the case-insensitive search OR filter in `src/app/api/branches/route.ts` and `src/app/api/export/route.ts`.
+  - Added `Address: b.address ?? ""` to branches excel export sheet in `src/app/api/export/route.ts`.
+  - Added unit test suite in `test/branches-view.test.tsx` (3 tests: header presence, address rendering & fallback, Column Chooser integration). All 33 test files, 297 tests passing.
+- **Timestamp**: 2026-11-04T20:55:00+07:00
+- **Status**: Completed
+
 #### [2026-10-31T17:58:00+07:00] In-Place Data Refresh on Company Save (Eliminate Full Page Reload)
 - **Task description**: Eliminate `window.location.reload()` when saving company settings in `src/components/views/settings.tsx`, refreshing only data and session state in-place.
 - **Context used**: `src/components/views/settings.tsx`, `src/lib/auth.ts`, NextAuth `useSession()`.

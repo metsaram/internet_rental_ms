@@ -284,6 +284,7 @@ export function ServicesView() {
       )}
       <DataTable
         storageKey="services"
+        showRowNumbers
         columns={columns}
         rows={filtered}
         rowKey={(s) => s.id}

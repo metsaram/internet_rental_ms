@@ -350,6 +350,7 @@ export function ShopsView() {
 
       <DataTable
         storageKey="shops"
+        showRowNumbers
         columns={columns}
         rows={shops}
         rowKey={(s) => s.id}

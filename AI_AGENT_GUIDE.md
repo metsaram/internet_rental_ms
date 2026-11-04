@@ -153,6 +153,9 @@ In both `InvoiceForm` (`invoices.tsx`) and `ContractForm` (`contracts.tsx`):
 7. **Invoice List Schedule & Duration End Date Warnings & Alert Highlighting**:
    In `InvoicesView` (`invoices.tsx`), display the `Schedule & Duration` column (`key: "schedule"`) showing `End {formatDate(i.periodEnd)}` and `Start {formatDate(i.periodStart)}`. Highlight approaching end dates (`<= warningDays` remaining) in amber (`text-amber-600 dark:text-amber-400 font-semibold`) with `Ends in Xd` badges, and expired periods in rose/destructive (`text-rose-600 dark:text-rose-400 font-semibold`) with `Xd ended` badges, following the exact same alert & highlight color conventions as invoice payment due status. Provide a toolbar filter (`Schedule status`) and an alert notification banner.
 
+8. **Copy Invoice Option for Approaching End Date**:
+   In `InvoicesView` (`invoices.tsx`), provide a "Copy invoice" action in `ActionMenu` and `InvoiceDetailSheet` (promoted as primary when an invoice is approaching its end date or expired). When clicked, prefill `InvoiceForm` with existing invoice details (`contractId`, `serviceId`, continuous `startDate = previous.periodEnd`, duration, fee, currency, tax rate), allow full user edits, and save the form as a new invoice via `POST /api/invoices`.
+
 ### Rule 12: Database Connection Singleton & Pool Capping
 
 **Do NOT create a new database connection inside every API route or Server Action.**
@@ -162,7 +165,8 @@ are capped (`connection_limit` & `pool_timeout`) via `getCappedDatabaseUrl()`.
 
 ### Rule 13: Query Parallelization & Database Lateral Join Strategy
 
-1. **Prisma Lateral Joins (elationLoadStrategy: "join")**:
+1. **Prisma Lateral Joins (
+elationLoadStrategy: "join")**:
    - For queries with multi-level nested relations (e.g. `InternetContract -> InternetService -> Branch, Shop, Provider, Plan`), default Prisma executes sequential N+1 `SELECT` queries across network hops.
    - Specify `relationLoadStrategy: "join"` in `findMany` / `findUnique` calls (enabled via `previewFeatures = ["relationJoins"]` in `schema.prisma`).
    - This compiles down to a single PostgreSQL statement using `LEFT JOIN LATERAL` and `JSONB_BUILD_OBJECT`, eliminating 5+ sequential round-trips and cutting latency by up to 78%.

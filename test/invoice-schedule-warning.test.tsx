@@ -317,5 +317,119 @@ describe("InvoicesView Schedule & Duration Highlights & Alerts", () => {
 
     // Detail sheet shows "Ends in 3d" badge
     expect(screen.getAllByText(/Ends in 3d/i).length).toBeGreaterThanOrEqual(1);
+
+    // Detail sheet includes "Copy invoice" button
+    expect(screen.getByRole("button", { name: /copy invoice/i })).toBeInTheDocument();
+  });
+
+  it("prefills a new invoice with existing invoice data when 'Copy invoice' is clicked from row action, allowing edits and creating a new invoice", async () => {
+    let submittedBody: any = null;
+    mockApi.mockImplementation((url: string, opts?: any) => {
+      if (url === "/api/invoices" && opts?.method === "POST") {
+        submittedBody = JSON.parse(opts.body);
+        return Promise.resolve({ id: "inv-new-copy", ...submittedBody });
+      }
+      if (url.includes("/api/invoices")) {
+        return Promise.resolve(testInvoices);
+      }
+      if (url.includes("/api/contracts")) return Promise.resolve([]);
+      if (url.includes("/api/services")) return Promise.resolve([]);
+      if (url.includes("/api/providers")) {
+        return Promise.resolve([
+          { id: "p1", code: "FP", name: "Fiber Provider" },
+          { id: "p2", code: "TP", name: "Telecom Plus" },
+        ]);
+      }
+      if (url.includes("/api/company")) {
+        return Promise.resolve({ useContract: false, warningDays: 7 });
+      }
+      return Promise.resolve([]);
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InvoicesView />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-SCHED-001")).toBeInTheDocument();
+    });
+
+    // Find the Copy invoice button for the invoice approaching its end date
+    // (promoted as primary action for approaching end date invoice)
+    const copyBtns = screen.getAllByRole("button", { name: /copy invoice/i });
+    expect(copyBtns.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(copyBtns[0]);
+
+    // Modal opens with copy-specific title
+    await waitFor(() => {
+      expect(screen.getByText(/copy of INV-SCHED-001/i)).toBeInTheDocument();
+    });
+
+    // Verify submit button says "Create invoice" (not "Save changes")
+    const submitBtn = screen.getByRole("button", { name: /create invoice/i });
+    expect(submitBtn).toBeInTheDocument();
+
+    // Verify prefilled values
+    const invInput = screen.getByLabelText(/invoice number/i) as HTMLInputElement;
+    expect(invInput.value).toBe("INV-SCHED-001-COPY");
+
+    // The user modifies the invoice number and notes
+    fireEvent.change(invInput, { target: { value: "INV-2026-RENEWAL-001" } });
+    expect(invInput.value).toBe("INV-2026-RENEWAL-001");
+
+    // Click "Create invoice"
+    fireEvent.click(submitBtn);
+
+    // Verify it submitted via POST to create a new invoice
+    await waitFor(() => {
+      expect(submittedBody).not.toBeNull();
+      expect(submittedBody.invoiceNumber).toBe("INV-2026-RENEWAL-001");
+      expect(submittedBody.periodStart).toBe(in3d); // starts from previous invoice's periodEnd
+    });
+  });
+
+  it("prefills a new invoice when 'Copy invoice' is clicked from InvoiceDetailSheet", async () => {
+    mockApi.mockImplementation((url: string) => {
+      if (url.includes("/api/invoices/inv-sched-warning")) {
+        return Promise.resolve(testInvoices[0]);
+      }
+      if (url.includes("/api/invoices")) {
+        return Promise.resolve(testInvoices);
+      }
+      if (url.includes("/api/company")) {
+        return Promise.resolve({ useContract: false, warningDays: 7 });
+      }
+      return Promise.resolve([]);
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InvoicesView />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("INV-SCHED-001")).toBeInTheDocument();
+    });
+
+    // Click row to open detail sheet
+    fireEvent.click(screen.getByText("INV-SCHED-001"));
+
+    // Wait for detail sheet to render
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /copy invoice/i })).toBeInTheDocument();
+    });
+
+    // Click "Copy invoice" inside detail sheet
+    fireEvent.click(screen.getByRole("button", { name: /copy invoice/i }));
+
+    // Form dialog opens prefilled
+    await waitFor(() => {
+      expect(screen.getByText(/copy of INV-SCHED-001/i)).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: /create invoice/i })).toBeInTheDocument();
   });
 });

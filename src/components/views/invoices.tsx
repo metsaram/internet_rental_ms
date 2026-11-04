@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Plus,
   Pencil,
+  Copy,
   Receipt,
   CreditCard,
   Ban,
@@ -270,10 +271,17 @@ export function InvoicesView() {
   const [scheduleFilter, setScheduleFilter] = React.useState<"ALL" | "ENDING_SOON" | "ENDED">("ALL");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Invoice | null>(null);
+  const [copying, setCopying] = React.useState<Invoice | null>(null);
   const [detail, setDetail] = React.useState<Invoice | null>(null);
   const [payFor, setPayFor] = React.useState<Invoice | null>(null);
   const [voiding, setVoiding] = React.useState<Invoice | null>(null);
   const [deleting, setDeleting] = React.useState<Invoice | null>(null);
+
+  const handleCopyInvoice = React.useCallback((invoice: Invoice) => {
+    setEditing(null);
+    setCopying(invoice);
+    setDialogOpen(true);
+  }, []);
 
   const {
     data: invoices = [],
@@ -649,61 +657,76 @@ export function InvoicesView() {
       minWidth: 80,
       maxWidth: 130,
       resizable: false,
-      cell: (i) => (
-        <ActionMenu
-          actions={[
-            ...(Number(i.outstanding) > 0 && i.status !== "VOID"
-              ? [
-                {
-                  id: "pay",
-                  label: "Record payment",
-                  icon: <CreditCard className="size-4" />,
-                  isPrimary: true,
-                  priority: 1,
-                  onClick: () => setPayFor(i),
-                },
-              ]
-              : []),
-            {
-              id: "edit",
-              label: "Edit invoice",
-              icon: <Pencil className="size-4" />,
-              priority: 2,
-              disabled: i.status === "VOID",
-              disabledReason: i.status === "VOID" ? "Voided invoices cannot be edited" : undefined,
-              onClick: () => {
-                setEditing(i);
-                setDialogOpen(true);
+      cell: (i) => {
+        const sched = getScheduleWarningState(i, undefined, warningDays);
+        const isApproachingEnd = sched.tone === "warning" || sched.tone === "overdue";
+        return (
+          <ActionMenu
+            actions={[
+              ...(Number(i.outstanding) > 0 && i.status !== "VOID"
+                ? [
+                  {
+                    id: "pay",
+                    label: "Record payment",
+                    icon: <CreditCard className="size-4" />,
+                    isPrimary: true,
+                    priority: 1,
+                    onClick: () => setPayFor(i),
+                  },
+                ]
+                : []),
+              {
+                id: "copy",
+                label: isApproachingEnd ? "Copy invoice (next cycle)" : "Copy invoice",
+                icon: <Copy className="size-4" />,
+                isPrimary: isApproachingEnd && Number(i.outstanding) <= 0,
+                priority: isApproachingEnd ? 1.5 : 2.5,
+                disabled: i.status === "VOID",
+                disabledReason: i.status === "VOID" ? "Voided invoices cannot be copied" : undefined,
+                onClick: () => handleCopyInvoice(i),
               },
-            },
-            {
-              id: "void",
-              label: "Void invoice",
-              icon: <Ban className="size-4" />,
-              priority: 3,
-              disabled: i.status === "VOID",
-              disabledReason: i.status === "VOID" ? "Invoice is already voided" : undefined,
-              variant: "destructive" as const,
-              onClick: () => setVoiding(i),
-            },
-            {
-              id: "delete",
-              label: "Delete invoice",
-              icon: <Trash2 className="size-4" />,
-              priority: 4,
-              variant: "destructive" as const,
-              disabled: i.status === "VOID" || Number(i.allocated) > 0,
-              disabledReason:
-                i.status === "VOID"
-                  ? "Voided invoices cannot be deleted"
-                  : Number(i.allocated) > 0
-                    ? "Invoice has payments; void instead of delete"
-                    : undefined,
-              onClick: () => setDeleting(i),
-            },
-          ]}
-        />
-      ),
+              {
+                id: "edit",
+                label: "Edit invoice",
+                icon: <Pencil className="size-4" />,
+                priority: 3,
+                disabled: i.status === "VOID",
+                disabledReason: i.status === "VOID" ? "Voided invoices cannot be edited" : undefined,
+                onClick: () => {
+                  setCopying(null);
+                  setEditing(i);
+                  setDialogOpen(true);
+                },
+              },
+              {
+                id: "void",
+                label: "Void invoice",
+                icon: <Ban className="size-4" />,
+                priority: 4,
+                disabled: i.status === "VOID",
+                disabledReason: i.status === "VOID" ? "Invoice is already voided" : undefined,
+                variant: "destructive" as const,
+                onClick: () => setVoiding(i),
+              },
+              {
+                id: "delete",
+                label: "Delete invoice",
+                icon: <Trash2 className="size-4" />,
+                priority: 5,
+                variant: "destructive" as const,
+                disabled: i.status === "VOID" || Number(i.allocated) > 0,
+                disabledReason:
+                  i.status === "VOID"
+                    ? "Voided invoices cannot be deleted"
+                    : Number(i.allocated) > 0
+                      ? "Invoice has payments; void instead of delete"
+                      : undefined,
+                onClick: () => setDeleting(i),
+              },
+            ]}
+          />
+        );
+      },
     },
   ];
 
@@ -727,7 +750,7 @@ export function InvoicesView() {
               <RefreshCw className={cn("size-4", isLoading && "animate-spin")} />
             </Button>
             <Button
-              onClick={() => { setEditing(null); setDialogOpen(true); }}
+              onClick={() => { setEditing(null); setCopying(null); setDialogOpen(true); }}
               disabled={useContract ? contracts.length === 0 : services.length === 0}
             >
               <Plus className="size-4" /> New invoice
@@ -902,8 +925,15 @@ export function InvoicesView() {
 
       <InvoiceForm
         open={dialogOpen}
-        onOpenChange={(v) => { setDialogOpen(v); if (!v) setEditing(null); }}
+        onOpenChange={(v) => {
+          setDialogOpen(v);
+          if (!v) {
+            setEditing(null);
+            setCopying(null);
+          }
+        }}
         editing={editing}
+        copying={copying}
         contracts={contracts}
         services={services}
         currency={currency}
@@ -918,7 +948,8 @@ export function InvoicesView() {
         invoice={detail}
         warningDays={warningDays}
         onClose={() => setDetail(null)}
-        onEdit={(i) => { setDetail(null); setEditing(i); setDialogOpen(true); }}
+        onEdit={(i) => { setDetail(null); setCopying(null); setEditing(i); setDialogOpen(true); }}
+        onCopy={(i) => { setDetail(null); handleCopyInvoice(i); }}
         onPay={(i) => { setDetail(null); setPayFor(i); }}
         onVoid={(i) => { setDetail(null); setVoiding(i); }}
         onDelete={(i) => { setDetail(null); setDeleting(i); }}
@@ -958,11 +989,12 @@ export function InvoicesView() {
 // ---------------------------------------------------------------------------
 
 function InvoiceForm({
-  open, onOpenChange, editing, contracts, services, currency, useContract, onSubmit,
+  open, onOpenChange, editing, copying, contracts, services, currency, useContract, onSubmit,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   editing: Invoice | null;
+  copying?: Invoice | null;
   contracts: ContractMin[];
   services: ServiceMin[];
   currency: string;
@@ -970,6 +1002,7 @@ function InvoiceForm({
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
 }) {
   const isEdit = !!editing;
+  const isCopy = !editing && !!copying;
   const [contractId, setContractId] = React.useState("");
   const [serviceId, setServiceId] = React.useState("");
   const [invoiceNumber, setInvoiceNumber] = React.useState("");
@@ -1103,6 +1136,115 @@ function InvoiceForm({
         setHasInstallationFee(false);
         setInstallationFee(0);
       }
+    } else if (copying) {
+      const resolvedContractId = copying.contractId ?? "";
+      const linkedContract = contracts.find((c) => c.id === resolvedContractId);
+      const resolvedServiceId = (copying as any).serviceId || linkedContract?.serviceId || "";
+      setContractId(resolvedContractId);
+      setServiceId(resolvedServiceId);
+      setInvoiceNumber(`${copying.invoiceNumber}-COPY`);
+      setInvoiceDate(new Date().toISOString().slice(0, 10));
+
+      // Continuous Schedule & Duration:
+      // If the invoice approaching its end date has periodEnd, start from that periodEnd date!
+      if (copying.periodEnd) {
+        setStartDate(copying.periodEnd.slice(0, 10));
+      } else if (copying.periodStart) {
+        setStartDate(copying.periodStart.slice(0, 10));
+      } else {
+        setStartDate(new Date().toISOString().slice(0, 10));
+      }
+
+      const existingTax = Number(copying.tax);
+      const existingSubtotal = Number(copying.subtotal);
+      if (existingSubtotal > 0 && existingTax >= 0) {
+        const calculatedRate = (existingTax / existingSubtotal) * 100;
+        setTaxRate(Number(calculatedRate.toFixed(1)));
+      } else {
+        setTaxRate(10);
+      }
+      setTaxManual(null);
+      setDiscount(Number(copying.discount || 0));
+      setCur(copying.currency || currency);
+      setStatus("ISSUED");
+
+      const linkedService = services.find((s) => s.id === resolvedServiceId);
+
+      let initDuration: number | string = 12;
+      let initFreeMonths: number | string = 0;
+      let initMonthlyFee: number | string = Number(copying.subtotal);
+
+      if (linkedContract) {
+        initFreeMonths = linkedContract.freeMonths || 0;
+        initDuration = Math.max(1, (linkedContract.durationMonths || 12) - Number(initFreeMonths));
+        initMonthlyFee = Number(linkedContract.monthlyFee);
+      } else if (linkedService) {
+        initFreeMonths = linkedService.freeMonths || 0;
+        initDuration = Math.max(1, (linkedService.durationMonths || 12) - Number(initFreeMonths));
+        if (linkedService.monthlyFee && Number(linkedService.monthlyFee) > 0) {
+          initMonthlyFee = Number(linkedService.monthlyFee);
+        }
+      } else if (copying.periodStart && copying.periodEnd) {
+        const s = new Date(copying.periodStart);
+        const e = new Date(copying.periodEnd);
+        const mDiff = Math.max(1, (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()));
+        initDuration = mDiff;
+        initMonthlyFee = initDuration > 0 ? Number(copying.subtotal) / initDuration : Number(copying.subtotal);
+      }
+
+      if (copying.periodStart && copying.periodEnd) {
+        const s = new Date(copying.periodStart);
+        const e = new Date(copying.periodEnd);
+        const totalPeriodMonths = Math.max(1, (e.getFullYear() - s.getFullYear()) * 12 + (e.getMonth() - s.getMonth()));
+        if (totalPeriodMonths > Number(initDuration)) {
+          initFreeMonths = totalPeriodMonths - Number(initDuration);
+        }
+      }
+
+      const installMatch = copying.notes?.match(/\[Installation fee\]:\s*([0-9.]+)/);
+      const existingInstallFee = installMatch
+        ? Number(installMatch[1])
+        : (copying as any).installationFee
+          ? Number((copying as any).installationFee)
+          : 0;
+
+      const scheduledPortion = Math.max(0, Number(copying.subtotal) - existingInstallFee);
+      if (Number(initDuration) > 0) {
+        const calculatedMonthly = Number((scheduledPortion / Number(initDuration)).toFixed(2));
+        if (Number(initMonthlyFee) * Number(initDuration) !== scheduledPortion && calculatedMonthly > 0) {
+          initMonthlyFee = calculatedMonthly;
+        }
+      }
+
+      setDuration(initDuration);
+      setFreeMonths(initFreeMonths);
+      setFeeBasis("MONTHLY");
+      setFeeInput(initMonthlyFee);
+
+      // Clean notes (remove old void reasons or installation fee metadata)
+      let cleanNotes = (copying.notes ?? "")
+        .replace(/\n?\[Void reason\]:\s*.+$/m, "")
+        .replace(/\n?\[Installation fee\]:\s*[0-9.]+/g, "")
+        .trim();
+      setNotes(cleanNotes);
+
+      // Installation fee is one-time, defaults to 0 for copied cycle
+      setHasInstallationFee(false);
+      setInstallationFee(0);
+
+      // Relative due date offset from invoice date
+      if (copying.dueDate && copying.invoiceDate) {
+        const diffMs = new Date(copying.dueDate).getTime() - new Date(copying.invoiceDate).getTime();
+        const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+        if (!isNaN(diffDays) && diffDays > 0) {
+          const newDue = new Date(Date.now() + diffDays * 24 * 60 * 60 * 1000);
+          setDueDate(newDue.toISOString().slice(0, 10));
+        } else {
+          setDueDate("");
+        }
+      } else {
+        setDueDate("");
+      }
     } else {
       setContractId("");
       setServiceId("");
@@ -1124,7 +1266,7 @@ function InvoiceForm({
       setNotes("");
     }
     setError(null);
-  }, [open, editing, currency, contracts, services]);
+  }, [open, editing, copying, currency, contracts, services]);
 
   // Total contract timeline = paid duration + free months
   const totalMonths = Math.max(0, Number(duration || 0) + Number(freeMonths || 0));
@@ -1270,8 +1412,20 @@ function InvoiceForm({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={isEdit ? `Edit invoice ${editing?.invoiceNumber}` : "New invoice"}
-      description={useContract ? "Bill a contract for a period. Total = subtotal + tax − discount." : "Record provider invoice for an installed service. Track spend by branch and shop."}
+      title={
+        isEdit
+          ? `Edit invoice ${editing?.invoiceNumber}`
+          : isCopy
+            ? `New invoice (copy of ${copying?.invoiceNumber})`
+            : "New invoice"
+      }
+      description={
+        isCopy
+          ? "Prefilled with terms from existing invoice. Review and adjust dates or amounts, then save as a new invoice."
+          : useContract
+            ? "Bill a contract for a period. Total = subtotal + tax − discount."
+            : "Record provider invoice for an installed service. Track spend by branch and shop."
+      }
       submitText={isEdit ? "Save changes" : "Create invoice"}
       submitDisabled={!isFormValid}
       onSubmit={submit}
@@ -1663,12 +1817,13 @@ function InvoiceForm({
 // ---------------------------------------------------------------------------
 
 function InvoiceDetailSheet({
-  invoice, warningDays = 7, onClose, onEdit, onPay, onVoid, onDelete,
+  invoice, warningDays = 7, onClose, onEdit, onCopy, onPay, onVoid, onDelete,
 }: {
   invoice: Invoice | null;
   warningDays?: number;
   onClose: () => void;
   onEdit: (i: Invoice) => void;
+  onCopy?: (i: Invoice) => void;
   onPay: (i: Invoice) => void;
   onVoid: (i: Invoice) => void;
   onDelete: (i: Invoice) => void;
@@ -1946,9 +2101,18 @@ function InvoiceDetailSheet({
                 <Printer className="size-4" /> Print
               </Button>
               {detail.status !== "VOID" && (
-                <Button variant="outline" onClick={() => invoice && onEdit(invoice)}>
-                  <Pencil className="size-4" /> Edit
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => invoice && onCopy?.(invoice)}
+                    title="Copy this invoice to create a new one"
+                  >
+                    <Copy className="size-4" /> Copy invoice
+                  </Button>
+                  <Button variant="outline" onClick={() => invoice && onEdit(invoice)}>
+                    <Pencil className="size-4" /> Edit
+                  </Button>
+                </>
               )}
               {detail.status !== "VOID" && (
                 <Button variant="outline" onClick={() => invoice && onVoid(invoice)} className="text-amber-600">
